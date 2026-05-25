@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderOutlineBtn, AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
@@ -175,10 +176,17 @@ export default function AdminTukTukBookingsPage() {
   const selUser = sel ? resolveUser(sel) : null;
   const selName = sel ? customerDisplayName(sel) : '';
 
+  useSetAdminHeaderActions(
+    <>
+      <AdminHeaderOutlineBtn type="button">Export</AdminHeaderOutlineBtn>
+      <AdminHeaderRefresh onClick={() => load()} disabled={loading} />
+    </>,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
       <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Tuk-Tuk bookings</h2>
         <div className="admFilters">
           <input
             className="admInput admDateInput"
@@ -186,12 +194,6 @@ export default function AdminTukTukBookingsPage() {
             defaultValue="Live data · tuk_tuk_bookings"
             title="Live data from tuk_tuk_bookings"
           />
-          <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-            Refresh
-          </button>
-          <button className="admOutlineBtn" type="button">
-            Export
-          </button>
         </div>
       </div>
 
@@ -205,10 +207,10 @@ export default function AdminTukTukBookingsPage() {
       ) : null}
 
       <section className="admGrid4" style={{ marginBottom: '0.85rem' }}>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2DB84B' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Total Tuk-Tuk bookings</h4>
           <p className="v">{loading ? '…' : stats.total}</p>
-          <p className="s" style={{ color: '#2DB84B' }}>
+          <p className="s" style={{ color: '#0A58A6' }}>
             All statuses
           </p>
         </article>
@@ -221,12 +223,12 @@ export default function AdminTukTukBookingsPage() {
             Awaiting assignment
           </p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2e7bff' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Confirmed / completed</h4>
-          <p className="v" style={{ color: '#2e7bff' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : stats.confirmed + stats.completed}
           </p>
-          <p className="s" style={{ color: '#2e7bff' }}>
+          <p className="s" style={{ color: '#0A58A6' }}>
             In progress or done
           </p>
         </article>
@@ -384,7 +386,7 @@ export default function AdminTukTukBookingsPage() {
                 <h4 style={{ marginTop: 0 }}>Fare</h4>
                 <p style={{ margin: '0.2rem 0' }}>Quoted at booking: {formatGBP(sel.quoted_price)}</p>
                 <p className="admDim">
-                  Currency: {sel.currency ?? 'GBP'} · Distance label: {sel.estimated_distance_label ?? '—'} · Duration:{' '}
+                  Currency: {sel.currency ?? 'USD'} · Distance label: {sel.estimated_distance_label ?? '—'} · Duration:{' '}
                   {sel.estimated_duration_label ?? '—'}
                 </p>
               </section>

@@ -150,7 +150,7 @@ export async function fetchCustomerUnifiedOrders(session) {
       from: row.pickup_location || '—',
       to: row.dropoff_location || '—',
       date: formatListDate(row.created_at),
-      price: new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(Number(row.total_amount) || 0),
+      price: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(row.total_amount) || 0),
       sortAt: row.created_at,
       subtitle: 'Parcel delivery',
       driver: drvRow ? mapDriverRegistrationRow(drvRow) : null,
@@ -170,7 +170,7 @@ export async function fetchCustomerUnifiedOrders(session) {
       from: row.pickup_location || '—',
       to: row.destination_location || '—',
       date: formatListDate(row.created_at),
-      price: price != null && !Number.isNaN(price) ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(price) : '—',
+      price: price != null && !Number.isNaN(price) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price) : '—',
       sortAt: row.created_at,
       subtitle: taxiOrderSubtitle(row),
       driver: drvRow ? mapDriverRegistrationRow(drvRow) : null,
@@ -190,7 +190,7 @@ export async function fetchCustomerUnifiedOrders(session) {
       from: row.pickup_location || '—',
       to: row.destination_location || '—',
       date: formatListDate(row.created_at),
-      price: price != null && !Number.isNaN(price) ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(price) : '—',
+      price: price != null && !Number.isNaN(price) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price) : '—',
       sortAt: row.created_at,
       subtitle: 'Tuk-tuk',
       driver: drvRow ? mapDriverRegistrationRow(drvRow) : null,
@@ -214,7 +214,7 @@ export async function fetchCustomerUnifiedOrders(session) {
       from: 'Shop order',
       to: row.customer_address || '—',
       date: formatListDate(row.placed_at),
-      price: new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(shopOrderGrandTotal(row)),
+      price: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(shopOrderGrandTotal(row)),
       sortAt: row.placed_at,
       subtitle: 'Shop',
     });
@@ -307,7 +307,16 @@ export async function fetchCustomerOrderDetail(navKey, session) {
     const okPhone = phone && phonesMatch(phone, data.customer_phone);
     if (!okEmail && !okPhone) return { data: null, error: 'Order not found.' };
     const { data: lines } = await supabase.from('shop_customer_order_lines').select('*').eq('order_id', p.id);
-    return { data: { kind: 'shop', row: data, lines: lines || [] }, error: null };
+    let driverRow = null;
+    if (data.assigned_driver_id) {
+      const { data: dRow, error: dErr } = await supabase
+        .from('driver_registrations')
+        .select('id, full_name, phone, phone_country_code, vehicle_type, vehicle_make, vehicle_model, vehicle_plate, vehicle_color')
+        .eq('id', data.assigned_driver_id)
+        .maybeSingle();
+      if (!dErr && dRow) driverRow = dRow;
+    }
+    return { data: { kind: 'shop', row: data, lines: lines || [], driver: driverRow }, error: null };
   }
 
   return { data: null, error: 'Unknown order type.' };

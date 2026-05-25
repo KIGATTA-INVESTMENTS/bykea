@@ -1,0 +1,224 @@
+/* InGo — Admin sidebar (premium) */
+.admShell {
+  --adm-sidebar-blue: #07408f;
+  --adm-sidebar-orange: #ec6c23;
+  grid-template-columns: 280px 1fr;
+}
+
+.admSidebar {
+  background: var(--adm-sidebar-blue);
+  border-right: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.admSidebar__head {
+  flex-shrink: 0;
+  padding: 1rem 1.1rem 0;
+}
+
+.admSidebar__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(236, 108, 35, 0.85) rgba(255, 255, 255, 0.12);
+  padding: 0 0.45rem 1rem 0.65rem;
+}
+
+.admSidebar__scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admSidebar__scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin: 4px 0;
+}
+
+.admSidebar__scroll::-webkit-scrollbar-thumb {
+  background: rgba(236, 108, 35, 0.9);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.admSidebar__scroll::-webkit-scrollbar-thumb:hover {
+  background: #ec6c23;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* —— Top brand block —— */
+.admBrand {
+  align-items: center;
+  margin-bottom: 0;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.admBrand .ingo-logo--adminSidebar {
+  width: auto;
+  max-width: 9.5rem;
+  max-height: 2.75rem;
+  object-fit: contain;
+}
+
+.admAdminBadge {
+  background: transparent;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50rem;
+  padding: 0.2rem 0.55rem;
+  line-height: 1.2;
+}
+
+/* —— Profile block —— */
+.admProfile {
+  gap: 0.75rem;
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0.85rem 0.15rem 0.9rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.admSidebar .admProfile .admSidebarAvatar {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admProfile__text {
+  min-width: 0;
+  flex: 1;
+}
+
+.admProfile__name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.25;
+}
+
+.admRole {
+  margin-top: 0.35rem;
+  display: inline-flex;
+  background: var(--adm-sidebar-orange);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  border-radius: 50rem;
+  padding: 0.18rem 0.5rem;
+  line-height: 1.2;
+}
+
+/* —— Section labels & dividers —— */
+.admNavDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+  margin: 0.5rem 0.55rem 0.35rem;
+  border: none;
+}
+
+.admNavLabel {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 8px 0.55rem 0.35rem;
+  padding: 0;
+  line-height: 1.2;
+}
+
+.admNavSection:first-child .admNavLabel {
+  margin-top: 0.15rem;
+}
+
+/* —— Nav items —— */
+.admNavItem {
+  gap: 0.65rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 14px 20px;
+  margin: 0 0.35rem 2px;
+  border-radius: 8px;
+  width: calc(100% - 0.7rem);
+  box-sizing: border-box;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admNavItem svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  opacity: 0.8;
+}
+
+.admNavItem svg path {
+  stroke: currentColor;
+}
+
+.admNavItem:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.admNavItem:hover svg {
+  opacity: 1;
+}
+
+.admNavItem.active {
+  background: var(--adm-sidebar-orange);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: -4px 0 14px rgba(236, 108, 35, 0.45);
+}
+
+.admNavItem.active svg {
+  opacity: 1;
+}
+
+.admNavItem.admDanger {
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 0.5rem;
+}
+
+.admNavItem.admDanger:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.admNavItem.admDanger svg path {
+  stroke: currentColor;
+}
+
+@media (max-width: 980px) {
+  .admSidebar {
+    box-shadow: 8px 0 28px rgba(0, 0, 0, 0.28);
+  }
+}

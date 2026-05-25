@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
@@ -118,8 +119,8 @@ function withdrawalStatusLabel(raw) {
 }
 
 const DONUT_PALETTE = [
-  '#2DB84B',
-  '#2a6bdc',
+  '#0A58A6',
+  '#0A58A6',
   '#8d8fa3',
   '#8b52d6',
   '#ec9120',
@@ -649,18 +650,19 @@ export default function AdminPaymentsPage() {
     return d.toLocaleString(undefined, { month: 'long', year: 'numeric' });
   }, []);
 
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
       <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Payments &amp; Transactions</h2>
         <div className="admFilters">
-          <span className="admDim admInput" style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e2e8e9' }}>
+          <span className="admDim admInput" style={{ display: 'inline-flex', alignItems: 'center' }}>
             {monthLabel}
             {' · '}month-to-date
           </span>
-          <button className="admBtn admBtnAuto" type="button" disabled={loading} onClick={() => load()}>
-            Refresh
-          </button>
         </div>
       </div>
 
@@ -699,7 +701,7 @@ export default function AdminPaymentsPage() {
           <p className="admDim" style={{ marginTop: 0 }}>
             Estimated platform earnings
           </p>
-          <h3 style={{ margin: '0.1rem 0', color: '#2DB84B' }}>{formatGBP(platformEarnMtd)}</h3>
+          <h3 style={{ margin: '0.1rem 0', color: '#0A58A6' }}>{formatGBP(platformEarnMtd)}</h3>
           <p className="admDim">From commission rates (rides delivered + deliveries + shop GMV)</p>
         </article>
         <article className="admCard">

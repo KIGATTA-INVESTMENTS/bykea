@@ -17,7 +17,9 @@ import { getDriverSession } from '../lib/driverSession';
 import { getGoogleMapsApiKey, publicViewMapUrl } from '../lib/googleMapsConfig';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import CarIcon from '../components/icons/CarIcon';
+import { LOGIN_HERO_ART } from '../lib/ingoLogo';
 import './driverPortal.css';
+import './driverHomePremium.css';
 
 /** Same lat/lng fallback as customer `/home` map when GPS is unavailable. */
 const DRIVER_MAP_FALLBACK = { lat: 51.5246, lng: -0.0772 };
@@ -127,6 +129,66 @@ function OfferPinDrop() {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="11" r="2.2" fill="#e53935" />
+    </svg>
+  );
+}
+
+function IconPower() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3v8M8.5 8.5a6 6 0 1 0 7 0"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconOnline() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 12.5l3 2.5 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconWarn() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 4.5 3.5 19h17L12 4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M12 10v4M12 17v.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconWarnSmall() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 4.5 3.5 19h17L12 4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M12 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconRecentEmpty() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden style={{ margin: '0 auto 0.65rem', display: 'block', color: '#9ca3af' }}>
+      <rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 10h8M8 14h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -352,9 +414,12 @@ export default function DriverHomePage() {
   );
 
   return (
-    <div className="dh" role="main" aria-label="Driver home">
+    <div className="dh dh--premium" role="main" aria-label="Driver home">
       <header className="dh__top">
-        <h1 className="dh__brand">InGo Driver</h1>
+        <h1 className="dh__brand">
+          <img src={LOGIN_HERO_ART} alt="" className="dh__brandRider" decoding="async" />
+          <span className="dh__brandText">Driver</span>
+        </h1>
         <div className="dh__togR">
           <button type="button" className="dh__chatBtn" onClick={() => navigate('/driver/chat')}>
             Chat
@@ -394,25 +459,18 @@ export default function DriverHomePage() {
       </div>
 
       <div className="dh__sc">
-        <div className={online ? 'dh__card dh__card--onl' : 'dh__card'}>
-          {online ? (
-            <>
-              <h2 className="dh__cardH">
-                <span className="pulseD" aria-hidden />
-                You are Online
-              </h2>
-              <p className="dh__sub" style={{ color: 'rgba(255,255,255,0.95)' }}>
-                Each request shows for <strong>60 seconds</strong> — accept, reject, or it will disappear from your list.
-              </p>
-            </>
-          ) : (
-            <>
-              <h2 className="dh__cardH" style={{ color: '#1a1a1a' }}>
-                You are Offline
-              </h2>
-              <p className="dh__sub">Toggle online to receive delivery, taxi, and Tuk-Tuk requests</p>
-            </>
-          )}
+        <div className={`dh__status dh__card ${online ? 'dh__status--on' : 'dh__status--off'}`}>
+          <span className="dh__statusIconWrap" aria-hidden>
+            {online ? <IconOnline /> : <IconPower />}
+          </span>
+          <div className="dh__statusText">
+            <h2 className="dh__statusTitle">{online ? 'You are Online' : 'You are Offline'}</h2>
+            <p className="dh__statusSub">
+              {online
+                ? 'Each request shows for 60 seconds — accept, reject, or it disappears from your list.'
+                : 'Toggle online to receive delivery, taxi, and Tuk-Tuk requests'}
+            </p>
+          </div>
         </div>
 
         <div className="dh__st" aria-label="Session stats">
@@ -422,19 +480,17 @@ export default function DriverHomePage() {
             aria-label={`${online ? visibleOffers.length : 0} open offers`}
           >
             <p className="dh__stN">{online ? visibleOffers.length : 0}</p>
-            <p className="dh__stT">Open offers</p>
-            <p className="dh__stSub">Live</p>
+            <p className="dh__stT">Open Offers</p>
+            <span className="dh__stLive">LIVE</span>
           </div>
           <div className="dh__stB dh__stB--earn" aria-label={`Recent earnings ${formatGBP(recentTotal)}`}>
             <p className="dh__stG">{formatGBP(recentTotal)}</p>
-            <p className="dh__stT">Recent jobs</p>
-            <p className="dh__stSub">
-              {recent.length} total
-            </p>
+            <p className="dh__stT">Recent Jobs</p>
+            <p className="dh__stSub">{recent.length} TOTAL</p>
           </div>
           <div className="dh__stB dh__stB--sync" role="status" aria-label="Offers refresh about every 4 seconds">
             <span className="dh__stIcoWrap" aria-hidden>
-              <svg className="dh__stIco" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+              <svg className="dh__stIco" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
                 <path
                   d="M4.5 9.5a7.5 7.5 0 0 1 14.5-2.2M19.5 14.5a7.5 7.5 0 0 1-14.5 2.2"
                   stroke="currentColor"
@@ -456,47 +512,48 @@ export default function DriverHomePage() {
         </div>
 
         {depositMissing ? (
-          <p className="dh__pEm" style={{ fontSize: '0.78rem', color: '#b42318', fontWeight: 600 }} role="alert">
-            Run <code style={{ fontSize: '0.72em' }}>driver_registrations_driver_deposit_balance.sql</code> so the app can
-            enforce the £10 security deposit.
+          <p className="dh__alert dh__alert--info" role="alert">
+            Run <code>driver_registrations_driver_deposit_balance.sql</code> so the app can enforce the �$10 security
+            deposit.
           </p>
         ) : null}
         {!depositMissing && depositBalance !== null && depositBalance < DRIVER_SECURITY_DEPOSIT_MIN_GBP ? (
-          <div
-            className="dh__card"
-            style={{
-              marginBottom: '0.5rem',
-              background: '#fff7ed',
-              border: '1px solid #fdba74',
-              color: '#7c2d12',
-            }}
-          >
-            <p className="dh__sub" style={{ color: '#7c2d12', margin: 0 }}>
-              Security deposit is {formatGBP(depositBalance)}. You need at least {formatGBP(DRIVER_SECURITY_DEPOSIT_MIN_GBP)} to go
-              online and accept jobs.
-            </p>
-            <button
-              type="button"
-              className="dh__chatBtn"
-              style={{ marginTop: '0.45rem' }}
-              onClick={() => navigate('/driver/wallet')}
-            >
-              Open Wallet
-            </button>
-          </div>
+          <>
+            <div className="dh__depositWarn" role="note">
+              <div className="dh__depositWarnRow">
+                <span className="dh__depositWarnIcon" aria-hidden>
+                  <IconWarn />
+                </span>
+                <div>
+                  <p className="dh__depositWarnTitle">Security deposit is {formatGBP(depositBalance)}</p>
+                  <p className="dh__depositWarnSub">
+                    You need at least {formatGBP(DRIVER_SECURITY_DEPOSIT_MIN_GBP)} to go online and accept jobs.
+                  </p>
+                </div>
+              </div>
+              <button type="button" className="dh__walletBtn" onClick={() => navigate('/driver/wallet')}>
+                Open Wallet
+              </button>
+            </div>
+            <div className="dh__depositAlert" role="alert">
+              <span className="dh__depositAlertIcon" aria-hidden>
+                <IconWarnSmall />
+              </span>
+              <p className="dh__depositAlertText">
+                Your deposit is below the minimum of {formatGBP(DRIVER_SECURITY_DEPOSIT_MIN_GBP)}. Top up in Wallet before
+                going online.
+              </p>
+            </div>
+          </>
         ) : null}
 
         {loadErr ? (
-          <p
-            className="dh__pEm"
-            style={{ fontSize: '0.78rem', color: '#b42318', fontWeight: 600 }}
-            role="alert"
-          >
+          <p className="dh__alert dh__alert--error" role="alert">
             {loadErr}
           </p>
         ) : null}
         {actionMsg ? (
-          <p className="dh__pEm" style={{ fontSize: '0.78rem', color: '#b42318', fontWeight: 600 }} role="status">
+          <p className="dh__alert dh__alert--error" role="status">
             {actionMsg}
           </p>
         ) : null}
@@ -600,9 +657,10 @@ export default function DriverHomePage() {
           })}
 
         <section className="dh__recentSec" aria-label="Recent work">
-          <h2 className="dh__secH">Your recent jobs</h2>
+          <h2 className="dh__secH">Your Recent Jobs</h2>
           {recent.length === 0 ? (
             <div className="dh__recentEmpty">
+              <IconRecentEmpty />
               <p className="dh__recentEmptyTx">
                 No accepted jobs yet. When you accept a booking, it appears here.
               </p>

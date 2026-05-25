@@ -3,12 +3,25 @@ import { formatGBP } from '../lib/currency';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
+import './shopOwnerDashboardPremium.css';
+import './shopOwnerAnalyticsPremium.css';
 
 const PERIODS = [
   { id: '7', label: '7 days' },
   { id: '30', label: '30 days' },
   { id: '90', label: '90 days' },
 ];
+
+const COLORS = {
+  orange: '#EC6C23',
+  blue: '#07408F',
+  green: '#16a34a',
+  red: '#dc2626',
+  grey: '#d1d5db',
+  grid: '#f0f2f5',
+  axis: '#9ca3af',
+};
+
 function statusLabel(raw) {
   const s = String(raw || 'placed').toLowerCase().replace(/_/g, ' ');
   if (s === 'placed') return 'pending';
@@ -23,24 +36,25 @@ function statusLabel(raw) {
 
 function MiniLine({ d, w = 48, h = 20 }) {
   return (
-    <svg className="sopSpkH" viewBox={`0 0 ${w} ${h}`} style={{ display: 'block' }} preserveAspectRatio="none" aria-hidden>
-      <path d={`M${d}`} fill="none" stroke="#F18631" strokeWidth="1.2" />
+    <svg className="soan-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
+      <path d={`M${d}`} fill="none" stroke={COLORS.orange} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
+
 function MiniDonut({ pct }) {
   const safe = Math.max(0, Math.min(100, Number(pct) || 0));
   const c = 2 * Math.PI * 10;
   const dash = (safe / 100) * c;
   return (
-    <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden>
-      <circle cx="16" cy="16" r="10" fill="none" stroke="#e8e8e8" strokeWidth="4" />
+    <svg viewBox="0 0 32 32" width="36" height="36" aria-hidden>
+      <circle cx="16" cy="16" r="10" fill="none" stroke="#e5e7eb" strokeWidth="4" />
       <circle
         cx="16"
         cy="16"
         r="10"
         fill="none"
-        stroke="#F18631"
+        stroke={COLORS.orange}
         strokeWidth="4"
         strokeLinecap="round"
         strokeDasharray={`${dash} ${c - dash}`}
@@ -49,13 +63,20 @@ function MiniDonut({ pct }) {
     </svg>
   );
 }
-function MiniBars({ bars }) {
-  const h = Array.isArray(bars) && bars.length ? bars : [8, 8, 8, 8, 8, 8, 8];
+
+function MiniBars({ bars, placeholder }) {
+  const h = Array.isArray(bars) && bars.length ? bars : [0, 0, 0, 0, 0, 0, 0];
+  const max = Math.max(...h, 1);
+  const isEmpty = !h.some((v) => v > 0);
   return (
-    <svg viewBox="0 0 40 20" width="50" height="20" preserveAspectRatio="none" aria-hidden>
-      {h.map((v, i) => (
-        <rect key={i} x={i * 5.2 + 0.5} y={20 - v * 0.8} width="4" height={v * 0.8} fill="#F18631" rx="0.3" />
-      ))}
+    <svg className="soan-spark" viewBox="0 0 40 20" width="80" height="24" preserveAspectRatio="none" aria-hidden>
+      {h.map((v, i) => {
+        const barH = isEmpty || placeholder ? 4 : (v / max) * 14 + 2;
+        const fill = isEmpty || placeholder ? COLORS.grey : COLORS.blue;
+        return (
+          <rect key={i} x={i * 5.2 + 0.5} y={20 - barH} width="4" height={barH} fill={fill} rx="1" />
+        );
+      })}
     </svg>
   );
 }
@@ -64,62 +85,94 @@ function RevLine({ data, w = 400, h = 120, setTip }) {
   const pad = 28;
   const maxR = Math.max(...data.map((d) => d.rev), 1);
   const coords = data.map((d, i) => {
-    const x = pad + (i * (w - 2 * pad)) / (data.length - 1);
+    const x = pad + (i * (w - 2 * pad)) / Math.max(data.length - 1, 1);
     const y = pad + (1 - d.rev / maxR) * (h - 2 * pad);
     return { x, y, d };
   });
-  const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x},${c.y}`).join(' ');
+  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x},${c.y}`).join(' ');
+  const areaPath =
+    coords.length > 0
+      ? `${linePath} L${coords[coords.length - 1].x},${h - pad} L${coords[0].x},${h - pad} Z`
+      : '';
+
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      style={{ width: '100%', maxWidth: 520, height: 'auto', display: 'block' }}
-      onMouseLeave={() => setTip(null)}
-      onMouseMove={(e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        const t = (e.clientX - r.left) / r.width;
-        const i = Math.round(t * (data.length - 1));
-        const idx = Math.max(0, Math.min(data.length - 1, i));
-        const c = data[idx];
-        setTip({ x: e.clientX, y: e.clientY, v: c.rev, l: c.d });
-      }}
-      role="img"
-      aria-label="Revenue trend"
-    >
-      {[0, 1, 2, 3].map((g) => {
-        const yy = pad + (g * (h - 2 * pad)) / 3;
-        return <line key={g} x1={pad} y1={yy} x2={w - pad} y2={yy} stroke="#f0f0f0" strokeWidth="0.5" />;
-      })}
-      <path d={path} fill="none" stroke="#F18631" strokeWidth="1.5" />
-      {coords.map((c) => (
-        <circle key={c.d.d} cx={c.x} cy={c.y} r="2" fill="#F18631" />
-      ))}
-    </svg>
+    <div className="soan-chart-wrap">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        onMouseLeave={() => setTip(null)}
+        onMouseMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const t = (e.clientX - r.left) / r.width;
+          const i = Math.round(t * (data.length - 1));
+          const idx = Math.max(0, Math.min(data.length - 1, i));
+          const c = data[idx];
+          setTip({ x: e.clientX, y: e.clientY, v: c.rev, l: c.d });
+        }}
+        role="img"
+        aria-label="Revenue trend"
+      >
+        <defs>
+          <linearGradient id="soanRevGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(236,108,35,0.18)" />
+            <stop offset="100%" stopColor="rgba(236,108,35,0.02)" />
+          </linearGradient>
+        </defs>
+        {[0, 1, 2, 3].map((g) => {
+          const yy = pad + (g * (h - 2 * pad)) / 3;
+          return <line key={g} x1={pad} y1={yy} x2={w - pad} y2={yy} stroke={COLORS.grid} strokeWidth="0.5" />;
+        })}
+        {areaPath ? <path d={areaPath} fill="url(#soanRevGrad)" /> : null}
+        <path d={linePath} fill="none" stroke={COLORS.orange} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {coords.map((c) => (
+          <circle key={c.d.d} cx={c.x} cy={c.y} r="2.5" fill={COLORS.orange} />
+        ))}
+        {coords.map((c, i) =>
+          i % Math.max(1, Math.floor(data.length / 7)) === 0 || i === data.length - 1 ? (
+            <text key={`lbl-${c.d.d}`} x={c.x} y={h - 8} textAnchor="middle" fontSize="6" fill={COLORS.axis}>
+              {c.d.d.split(' ')[0]}
+            </text>
+          ) : null,
+        )}
+      </svg>
+    </div>
   );
 }
 
 function StackedBars({ data, w = 400, h = 120 }) {
   const pad = 24;
-  const barW = (w - 2 * pad) / data.length - 4;
+  const barW = Math.max(4, (w - 2 * pad) / data.length - 4);
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', maxWidth: 520, display: 'block' }} role="img" aria-label="Orders by status">
-      {data.map((d, i) => {
-        const x = pad + (i * (w - 2 * pad)) / data.length + 2;
-        const t = d.del + d.tr + d.can;
-        const h1 = t ? (d.del / t) * (h - 2 * pad) : 0;
-        const h2 = t ? (d.tr / t) * (h - 2 * pad) : 0;
-        const h3 = t ? (d.can / t) * (h - 2 * pad) : 0;
-        const y0 = h - pad;
-        return (
-          <g key={d.d}>
-            <rect x={x} y={y0 - h1 - h2 - h3} width={barW} height={h3} fill="#c62828" rx="0.5" />
-            <rect x={x} y={y0 - h1 - h2} width={barW} height={h2} fill="#1565c0" rx="0.5" />
-            <rect x={x} y={y0 - h1} width={barW} height={h1} fill="#F18631" rx="0.5" />
-            <text x={x + barW / 2} y={h - 6} textAnchor="middle" fontSize="5" fill="#6b6b6b">
-              {d.d.split(' ')[0]}
-            </text>
-          </g>
-        );
-      })}
+    <div className="soan-chart-wrap">
+      <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Orders by status">
+        {data.map((d, i) => {
+          const x = pad + (i * (w - 2 * pad)) / data.length + 2;
+          const t = d.del + d.tr + d.can;
+          const h1 = t ? (d.del / t) * (h - 2 * pad) : 0;
+          const h2 = t ? (d.tr / t) * (h - 2 * pad) : 0;
+          const h3 = t ? (d.can / t) * (h - 2 * pad) : 0;
+          const y0 = h - pad;
+          return (
+            <g key={d.d}>
+              <rect x={x} y={y0 - h1 - h2 - h3} width={barW} height={h3} fill={COLORS.red} rx="1" />
+              <rect x={x} y={y0 - h1 - h2} width={barW} height={h2} fill={COLORS.blue} rx="1" />
+              <rect x={x} y={y0 - h1} width={barW} height={h1} fill={COLORS.green} rx="1" />
+              <text x={x + barW / 2} y={h - 6} textAnchor="middle" fontSize="5" fill={COLORS.axis}>
+                {d.d.split(' ')[0]}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function IcProductsEmpty() {
+  return (
+    <svg viewBox="0 0 64 64" width="56" height="56" fill="none" aria-hidden style={{ color: '#d1d5db' }}>
+      <rect x="10" y="16" width="44" height="36" rx="4" stroke="currentColor" strokeWidth="2" />
+      <path d="M10 24h44M22 16V12h20v4" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M22 34h20M22 42h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -328,174 +381,210 @@ export default function ShopOwnerAnalyticsPage() {
     return ((currentRev - previousRev) / previousRev) * 100;
   }, [currentRev, previousRev]);
   const miniBars = useMemo(() => ddata.slice(-7).map((x) => x.del + x.tr + x.can), [ddata]);
+  const chartFallback = [{ d: '—', rev: 0, del: 0, tr: 0, can: 0 }];
+  const chartData = ddata.length ? ddata : chartFallback;
+  const showProductsEmpty = !loading && topProducts.length === 0;
+  const hasNoOrderActivity = miniBars.every((v) => v === 0);
 
   return (
-    <div className="sop" style={{ position: 'relative' }}>
-      <div className="sopPageH">
+    <div className="soan-page">
+      <header className="soan-head">
         <h1>Analytics</h1>
-        <div className="sopPerR" role="group" aria-label="Period">
+        <div className="soan-periods" role="group" aria-label="Period">
           {PERIODS.map((p) => (
-            <button key={p.id} type="button" className={per === p.id ? 'sopPill2 sopPill2--on' : 'sopPill2'} onClick={() => setPer(p.id)}>
+            <button
+              key={p.id}
+              type="button"
+              className={per === p.id ? 'soan-period soan-period--on' : 'soan-period'}
+              onClick={() => setPer(p.id)}
+            >
               {p.label}
             </button>
           ))}
         </div>
-      </div>
+      </header>
+
       {loadError ? (
-        <div className="sopAnCard" style={{ borderColor: '#f0c7c7' }}>
-          <p style={{ margin: 0, color: '#b42318', fontSize: '0.88rem' }}>{loadError}</p>
+        <div className="soan-error" role="alert">
+          <p>{loadError}</p>
         </div>
       ) : null}
-      <div className="sopAnCard" style={{ position: 'relative' }}>
-        <div className="soAnH">
-          <h2>Revenue overview</h2>
-        </div>
-        <p className="sopAnBigG" style={{ margin: '0.1rem 0' }}>{formatGBP(currentRev)}</p>
-        <p className={`sopChgP ${chg >= 0 ? 'sopChgP--u' : 'sopChgP--d'}`}>
+
+      <section className="soan-card" style={{ position: 'relative' }} aria-labelledby="soan-rev-title">
+        <h2 id="soan-rev-title" className="soan-card-title">
+          Revenue Overview
+        </h2>
+        <p className="soan-big-value">{formatGBP(currentRev)}</p>
+        <span className={`soan-chg-pill ${chg >= 0 ? 'soan-chg-pill--up' : 'soan-chg-pill--down'}`}>
           {chg >= 0 ? '▲' : '▼'} {Math.abs(chg).toFixed(1)}% vs previous period
-        </p>
-        <RevLine data={ddata.length ? ddata : [{ d: '—', rev: 0, del: 0, tr: 0, can: 0 }]} setTip={setTip} />
-        {tip && (
-          <div className="sopTtip" style={{ left: tip.x + 10, top: tip.y - 40 }}>
+        </span>
+        <RevLine data={chartData} setTip={setTip} />
+        {tip ? (
+          <div className="soan-tooltip" style={{ left: tip.x + 10, top: tip.y - 40 }}>
             {tip.l} · {formatGBP(tip.v)} revenue
           </div>
-        )}
-        <p style={{ fontSize: '0.65rem', color: '#888', margin: '0.2rem 0 0' }}>
-          {loading ? 'Loading analytics…' : `Based on your last ${per} days.`}
-        </p>
-      </div>
-      <div className="sopAnCard" style={{ marginTop: 8 }}>
-        <div className="soAnH">
-          <h2>Orders overview</h2>
+        ) : null}
+        <p className="soan-footnote">{loading ? 'Loading analytics…' : `Based on your last ${per} days.`}</p>
+      </section>
+
+      <section className="soan-card" aria-labelledby="soan-ord-title">
+        <h2 id="soan-ord-title" className="soan-card-title">
+          Orders Overview
+        </h2>
+        <p className="soan-card-sub">Stacked: delivered · in transit · cancelled</p>
+        <StackedBars data={chartData} />
+        <div className="soan-legend" aria-hidden>
+          <span className="soan-legend-item">
+            <span className="soan-legend-dot soan-legend-dot--del" />
+            Delivered
+          </span>
+          <span className="soan-legend-item">
+            <span className="soan-legend-dot soan-legend-dot--tr" />
+            In transit
+          </span>
+          <span className="soan-legend-item">
+            <span className="soan-legend-dot soan-legend-dot--can" />
+            Cancelled
+          </span>
         </div>
-        <p style={{ fontSize: '0.72rem', color: '#6b6b6b', margin: '0 0 0.3rem' }}>
-          Stacked: delivered (green) · in transit (blue) · cancelled (red)
-        </p>
-        <StackedBars data={ddata.length ? ddata : [{ d: '—', rev: 0, del: 0, tr: 0, can: 0 }]} />
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 10, fontSize: '0.7rem', marginTop: 6, flexWrap: 'wrap' }}>
-          <span><span style={{ color: '#F18631' }}>■</span> Delivered</span>
-          <span><span style={{ color: '#1565c0' }}>■</span> In transit</span>
-          <span><span style={{ color: '#c62828' }}>■</span> Cancelled</span>
-        </div>
-      </div>
-      <div className="sopGrid2x2">
-        <div className="sopAnCard" style={{ margin: 0 }}>
-          <p style={{ fontSize: '0.7rem', color: '#6b6b6b', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Average order value</p>
-          <p style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0.15rem 0' }}>{formatGBP(aov)}</p>
-            <div className="sopSmini">
+      </section>
+
+      <div className="soan-stats-grid">
+        <article className="soan-stat-card">
+          <p className="soan-stat-label">Average order value</p>
+          <p className="soan-stat-value">{formatGBP(aov)}</p>
+          <div className="soan-stat-mini">
             <MiniLine d="0,14 10,6 20,8 30,2 40,0 48,4" />
           </div>
-        </div>
-        <div className="sopAnCard" style={{ margin: 0 }}>
-          <p style={{ fontSize: '0.7rem', color: '#6b6b6b', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Order completion rate</p>
-          <p style={{ fontSize: '1.25rem', fontWeight: 800, color: '#F18631', margin: '0.15rem 0' }}>{completionRate.toFixed(0)}%</p>
-          <MiniDonut pct={completionRate} />
-        </div>
-        <div className="sopAnCard" style={{ margin: 0 }}>
-          <p style={{ fontSize: '0.7rem', color: '#6b6b6b', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Most active day</p>
-          <p style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0.15rem 0' }}>{activeDay}</p>
-          <div className="sopSmini">
-            <MiniBars bars={miniBars} />
+        </article>
+        <article className="soan-stat-card">
+          <p className="soan-stat-label">Order completion rate</p>
+          <p className="soan-stat-value">{completionRate.toFixed(0)}%</p>
+          <div className="soan-stat-mini">
+            <MiniDonut pct={completionRate} />
           </div>
-        </div>
-        <div className="sopAnCard" style={{ margin: 0 }}>
-          <p style={{ fontSize: '0.7rem', color: '#6b6b6b', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Customer return rate</p>
-          <p style={{ fontSize: '1.25rem', fontWeight: 800, color: '#F18631', margin: '0.15rem 0' }}>{returnRate.toFixed(0)}%</p>
-            <div className="sopSmini">
+        </article>
+        <article className="soan-stat-card">
+          <p className="soan-stat-label">Most active day</p>
+          <p className="soan-stat-value" style={{ fontSize: '1.35rem', color: '#1f2937' }}>
+            {activeDay}
+          </p>
+          <div className="soan-stat-mini">
+            <MiniBars bars={miniBars} placeholder={hasNoOrderActivity} />
+          </div>
+        </article>
+        <article className="soan-stat-card">
+          <p className="soan-stat-label">Customer return rate</p>
+          <p className="soan-stat-value">{returnRate.toFixed(0)}%</p>
+          <div className="soan-stat-mini">
             <MiniLine d="0,16 12,0 24,4 40,0 48,3" w={48} h={20} />
           </div>
-        </div>
+        </article>
       </div>
-      <div className="sopSecH">
-        <h2>Best performing products</h2>
-      </div>
-      <div className="sopTwrap">
-        <table className="sopTable" style={{ minWidth: 500 }} aria-label="Top products">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Units sold</th>
-              <th>Revenue</th>
-              <th>Stock left</th>
-              <th>Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="admDim" style={{ padding: '1rem' }}>
-                  Loading products…
-                </td>
-              </tr>
-            ) : topProducts.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="admDim" style={{ padding: '1rem' }}>
-                  No product sales yet.
-                </td>
-              </tr>
-            ) : (
-              topProducts.map((p) => (
-                <tr key={p.name}>
-                  <td style={{ fontWeight: 800 }}>{p.name}</td>
-                  <td>{p.u}</td>
-                  <td style={{ color: '#F18631', fontWeight: 800 }}>{formatGBP(p.r)}</td>
-                  <td>{p.s}</td>
-                  <td>—</td>
+
+      <section className="soan-products-card" aria-labelledby="soan-prod-title">
+        <h2 id="soan-prod-title" className="soan-card-title">
+          Best Performing Products
+        </h2>
+        {showProductsEmpty ? (
+          <div className="soan-table-empty-wrap" role="status">
+            <IcProductsEmpty />
+            <p>No product sales yet.</p>
+          </div>
+        ) : (
+          <div className="soan-table-scroll">
+            <table className="soan-table" aria-label="Top products">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Units Sold</th>
+                  <th>Revenue</th>
+                  <th>Stock Left</th>
+                  <th>Trend</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="sopAnCard" style={{ marginTop: 12 }}>
-        <h2 style={{ margin: '0 0 0.4rem', fontSize: '0.95rem', fontWeight: 800 }}>Delivery stats</h2>
-        <p style={{ margin: '0.15rem 0', fontSize: '0.82rem' }}>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="soan-table-loading">
+                      Loading products…
+                    </td>
+                  </tr>
+                ) : (
+                  topProducts.map((p) => (
+                    <tr key={p.name}>
+                      <td className="soan-td-name">{p.name}</td>
+                      <td>{p.u}</td>
+                      <td className="soan-td-rev">{formatGBP(p.r)}</td>
+                      <td>{p.s}</td>
+                      <td>—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="soan-card" aria-labelledby="soan-del-title">
+        <h2 id="soan-del-title" className="soan-card-title">
+          Delivery Stats
+        </h2>
+        <p className="soan-tracked">
           Total tracked orders: <strong>{allOrdersCount}</strong>
         </p>
-        <div className="sopDbarC">
-          <div className="sopDbarR">
-            <span style={{ width: 6 }}> </span> On time
-            <div className="sopDbarH" style={{ flex: 1 }}>
-              <div className="sopDbarF sopDbarF--g" style={{ width: `${onTimePct.toFixed(1)}%` }} />
+        <div className="soan-dbar-list">
+          <div className="soan-dbar-row">
+            <span className="soan-dbar-label">On time</span>
+            <div className="soan-dbar-track">
+              <div className="soan-dbar-fill soan-dbar-fill--on" style={{ width: `${onTimePct.toFixed(1)}%` }} />
             </div>
-            <span>{onTimePct.toFixed(0)}%</span>
+            <span className="soan-dbar-pct">{onTimePct.toFixed(0)}%</span>
           </div>
-          <div className="sopDbarR">
-            <span> </span> Late
-            <div className="sopDbarH" style={{ flex: 1 }}>
-              <div className="sopDbarF sopDbarF--r" style={{ width: `${inTransitPct.toFixed(1)}%` }} />
+          <div className="soan-dbar-row">
+            <span className="soan-dbar-label">Late</span>
+            <div className="soan-dbar-track">
+              <div className="soan-dbar-fill soan-dbar-fill--late" style={{ width: `${inTransitPct.toFixed(1)}%` }} />
             </div>
-            <span>{inTransitPct.toFixed(0)}%</span>
+            <span className="soan-dbar-pct">{inTransitPct.toFixed(0)}%</span>
           </div>
-          <div className="sopDbarR">
-            <span> </span> Cancelled
-            <div className="sopDbarH" style={{ flex: 1 }}>
-              <div className="sopDbarF sopDbarF--gr" style={{ width: `${cancelPct.toFixed(1)}%` }} />
+          <div className="soan-dbar-row">
+            <span className="soan-dbar-label">Cancelled</span>
+            <div className="soan-dbar-track">
+              <div className="soan-dbar-fill soan-dbar-fill--can" style={{ width: `${cancelPct.toFixed(1)}%` }} />
             </div>
-            <span>{cancelPct.toFixed(0)}%</span>
+            <span className="soan-dbar-pct">{cancelPct.toFixed(0)}%</span>
           </div>
         </div>
-        <p style={{ fontSize: '0.7rem', color: '#6b6b6b', margin: '0.3rem 0 0' }}>Horizontal view of current order outcomes</p>
-        <div className="sopHBar" style={{ marginTop: 8, height: 10 }}>
-          <div className="sopHSeg" style={{ flex: Math.max(onTimePct, 0.1), background: '#F18631' }} title="On time" />
-          <div className="sopHSeg" style={{ flex: Math.max(inTransitPct, 0.1), background: '#c62828' }} title="Late" />
-          <div className="sopHSeg" style={{ flex: Math.max(cancelPct, 0.1), background: '#9e9e9e' }} title="Cancelled" />
+        <div className="soan-hstack" role="img" aria-label="Combined order outcomes">
+          <div className="soan-hstack-seg soan-hstack-seg--on" style={{ flex: Math.max(onTimePct, 0.1) }} title="On time" />
+          <div className="soan-hstack-seg soan-hstack-seg--late" style={{ flex: Math.max(inTransitPct, 0.1) }} title="Late" />
+          <div className="soan-hstack-seg soan-hstack-seg--can" style={{ flex: Math.max(cancelPct, 0.1) }} title="Cancelled" />
         </div>
-      </div>
-      <div className="sopAnCard">
-        <h2 style={{ margin: '0 0 0.3rem', fontSize: '0.95rem', fontWeight: 800 }}>Customer insights</h2>
-        <p style={{ fontSize: '0.85rem', margin: '0.2rem 0' }}>
-          New customers this period: <strong>{Math.max(uniqueCustomers - returningCustomers, 0)}</strong> · Returning: <strong>{returningCustomers}</strong>
+      </section>
+
+      <section className="soan-card" aria-labelledby="soan-cust-title">
+        <h2 id="soan-cust-title" className="soan-card-title">
+          Customer Insights
+        </h2>
+        <p className="soan-insights-line">
+          New customers this period: <strong>{Math.max(uniqueCustomers - returningCustomers, 0)}</strong> · Returning:{' '}
+          <strong>{returningCustomers}</strong>
         </p>
-        <p style={{ fontSize: '0.72rem', color: '#6b6b6b', margin: '0.3rem 0 0.15rem' }}>Top delivery locations</p>
-        <div>
-          {(topLocations.length ? topLocations : ['No location data']).map((L) => (
-            <span key={L} className="sopLocP">
-              {L}
-            </span>
-          ))}
-        </div>
-      </div>
+        <p className="soan-locations-title">Top delivery locations</p>
+        {topLocations.length ? (
+          <div className="soan-locations">
+            {topLocations.map((L) => (
+              <span key={L} className="soan-loc-pill">
+                {L}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="soan-loc-empty">No location data</p>
+        )}
+      </section>
     </div>
   );
 }

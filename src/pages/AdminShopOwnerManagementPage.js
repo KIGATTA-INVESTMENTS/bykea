@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { Link } from 'react-router-dom';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
@@ -255,16 +256,14 @@ export default function AdminShopOwnerManagementPage() {
     });
   }, [rows, search, tab]);
 
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
-      <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Shop owner management</h2>
-        <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-          Refresh
-        </button>
-      </div>
-
-      <p style={{ margin: '0 0 0.75rem', color: '#555', fontSize: '0.88rem', maxWidth: '44rem' }}>
+      <p className="admDim" style={{ margin: '0 0 0.75rem', fontSize: '0.88rem', maxWidth: '44rem' }}>
         Profiles from <strong>/shop-owner/register</strong> (<code>shop_owners</code>). Orders and revenue are aggregated from checkout lines tied to each owner.
       </p>
 
@@ -284,7 +283,7 @@ export default function AdminShopOwnerManagementPage() {
         </article>
         <article className="admCard admSmallCard">
           <p className="k">With customer orders</p>
-          <p className="v" style={{ color: '#2DB84B' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : stats.withSales.toLocaleString()}
           </p>
         </article>
@@ -367,7 +366,7 @@ export default function AdminShopOwnerManagementPage() {
                       {item.cityLabel}
                     </td>
                     <td>{item.orders}</td>
-                    <td style={{ color: '#2DB84B', fontWeight: 700 }}>{formatGBP(item.revenue)}</td>
+                    <td style={{ color: '#0A58A6', fontWeight: 700 }}>{formatGBP(item.revenue)}</td>
                     <td>{item.products}</td>
                     <td className="admDim">{item.joined}</td>
                     <td>

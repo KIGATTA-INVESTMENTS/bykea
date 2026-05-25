@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
@@ -452,20 +453,18 @@ export default function AdminTransactionsPage() {
     });
   }, [activeFilter, query, rows]);
 
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
       <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Transactions</h2>
         <div className="admFilters">
-          <span
-            className="admDim admInput"
-            style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e2e8e9', fontSize: '0.88rem' }}
-          >
+          <span className="admDim admInput" style={{ display: 'inline-flex', alignItems: 'center', fontSize: '0.88rem' }}>
             {monthChip}
           </span>
-          <button className="admBtn admBtnAuto" type="button" disabled={loading} onClick={() => load()}>
-            Refresh
-          </button>
         </div>
       </div>
 
@@ -482,7 +481,7 @@ export default function AdminTransactionsPage() {
         </article>
         <article className="admCard admSmallCard">
           <p className="k">Customer sale volume</p>
-          <p className="v" style={{ color: '#2DB84B' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : formatGBP(stats.saleVolume)}
           </p>
         </article>

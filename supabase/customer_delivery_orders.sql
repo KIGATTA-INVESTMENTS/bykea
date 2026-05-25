@@ -30,7 +30,7 @@ create table if not exists public.customer_delivery_orders (
   distance_fee_amount numeric(12, 4) not null default 0,
   service_fee_amount numeric(12, 4) not null default 0,
   total_amount numeric(12, 4) not null,
-  currency text not null default 'GBP',
+  currency text not null default 'USD',
 
   payment_method text not null,
 

@@ -1,10 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import ShopOrderTrackingSteps from '../components/ShopOrderTrackingSteps';
 import { mapDriverRegistrationRow } from '../lib/customerOrderFeed';
 import { formatGBP } from '../lib/currency';
 import { readShopOrderConfirmationState } from '../lib/shopOrderConfirmationSession';
+import { takePaynowReturnPath, peekPaynowReturnPath } from '../lib/paynowReturnSession';
+import { shopOrderProgressMessage, shopOrderStatusLabel } from '../lib/shopOrderStatus';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './orderTracking.css';
+import './orderConfirmationPremium.css';
 
 const DRIVER = {
   name: 'Zain Ahmed',
@@ -15,7 +18,10 @@ const DRIVER = {
 function formatPlacedAt(iso) {
   try {
     if (!iso) return new Date().toLocaleString();
-    return new Date(iso).toLocaleString();
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
   } catch {
     return new Date().toLocaleString();
   }
@@ -23,22 +29,22 @@ function formatPlacedAt(iso) {
 
 function PhoneIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
-      <path d="M6.5 1C5.1 1 4 2.1 4 3.5v17C4 21.9 5.1 23 6.5 23h11c1.4 0 2.5-1.1 2.5-2.5v-17C20 2.1 18.9 1 17.5 1h-11Z" fill="currentColor" opacity="0.2" />
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path
-        d="M12.5 18.3a.8.8 0 0 0-.1.2.8.8 0 0 0 1.3.3.8.8 0 0 0 0-1.1.8.8 0 0 0-1.2.6Z"
-        fill="currentColor"
+        d="M6.5 4.5h3.2l1.2 3.5 2.2-1.2a11 11 0 0 0 4.8 4.8l-1.2-2.2 3.5-1.2v3.2a2 2 0 0 1-2 1.8A13.5 13.5 0 0 1 4.7 6.5a2 2 0 0 1 1.8-2Z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
 }
+
 function ChatIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path
-        d="M4 4h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H7l-3 2.5V5a1 1 0 0 1 1-1Z"
-        fill="currentColor"
-        fillOpacity="0.1"
+        d="M5 5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 4V7a2 2 0 0 1 2-2Z"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
@@ -55,6 +61,18 @@ export default function OrderConfirmationPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const order = useMemo(() => readShopOrderConfirmationState(location.state), [location.state]);
+
+  useLayoutEffect(() => {
+    const ret = peekPaynowReturnPath();
+    if (!ret || ret !== '/driver/wallet') return;
+    const hasShopOrDelivery =
+      order.source === 'shop' ||
+      order.source === 'delivery' ||
+      (order.source === 'ride' && order.taxiBookingId);
+    if (hasShopOrDelivery) return;
+    takePaynowReturnPath();
+    navigate('/driver/wallet', { replace: true, state: { paynowDepositReturn: true } });
+  }, [order, navigate]);
 
   useLayoutEffect(() => {
     if (order.source !== 'ride' || !order.taxiBookingId) return;
@@ -101,8 +119,64 @@ export default function OrderConfirmationPage() {
   }, [isShopOrder, order.supabaseOrderId]);
 
   const [liveDriverRow, setLiveDriverRow] = useState(null);
+  const [liveShopOrder, setLiveShopOrder] = useState(null);
+
+  const shopOrderDbId = useMemo(() => {
+    if (!isShopOrder) return null;
+    const id = order.shopOrderDbId;
+    if (id == null || String(id).trim() === '') return null;
+    return String(id).trim();
+  }, [isShopOrder, order.shopOrderDbId]);
 
   useEffect(() => {
+    if (!shopOrderDbId || !isSupabaseConfigured || !supabase) {
+      setLiveShopOrder(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const fetchShopOrder = async () => {
+      try {
+        const { data: row, error } = await supabase
+          .from('shop_customer_orders')
+          .select('id, status, assigned_driver_id')
+          .eq('id', shopOrderDbId)
+          .maybeSingle();
+        if (cancelled || error) return;
+        if (!row) {
+          setLiveShopOrder(null);
+          return;
+        }
+        setLiveShopOrder(row);
+        const aid = row.assigned_driver_id;
+        if (!aid) {
+          setLiveDriverRow(null);
+          return;
+        }
+        const { data: d, error: de } = await supabase
+          .from('driver_registrations')
+          .select('id, full_name, phone, phone_country_code, vehicle_type, vehicle_make, vehicle_model, vehicle_plate, vehicle_color')
+          .eq('id', aid)
+          .maybeSingle();
+        if (cancelled) return;
+        if (!de && d) setLiveDriverRow(d);
+        else setLiveDriverRow(null);
+      } catch {
+        if (!cancelled) {
+          setLiveShopOrder(null);
+          setLiveDriverRow(null);
+        }
+      }
+    };
+    fetchShopOrder();
+    const timer = window.setInterval(fetchShopOrder, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [shopOrderDbId]);
+
+  useEffect(() => {
+    if (isShopOrder) return undefined;
     if (!deliveryUuid || !isSupabaseConfigured || !supabase) {
       setLiveDriverRow(null);
       return undefined;
@@ -139,153 +213,202 @@ export default function OrderConfirmationPage() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [deliveryUuid]);
+  }, [deliveryUuid, isShopOrder]);
+
+  const shopStatus = liveShopOrder?.status || 'placed';
+  const shopHasDriver = Boolean(liveShopOrder?.assigned_driver_id);
+  const shopProgressMsg = useMemo(
+    () => shopOrderProgressMessage(shopStatus, { hasDriver: shopHasDriver }),
+    [shopStatus, shopHasDriver],
+  );
+  const shopStatusLabel = shopOrderStatusLabel(shopStatus);
+  const shopOrderNavKey = shopOrderDbId ? `shop:${shopOrderDbId}` : null;
 
   const assignedDriverUi = useMemo(
     () => (liveDriverRow ? mapDriverRegistrationRow(liveDriverRow) : null),
     [liveDriverRow],
   );
 
+  const shopAwaitingDriver =
+    isShopOrder &&
+    !assignedDriverUi &&
+    ['ready for delivery', 'picked up', 'in transit'].includes(
+      String(shopStatus || '')
+        .toLowerCase()
+        .trim(),
+    );
+  const showDriverSection = !isShopOrder || assignedDriverUi || shopAwaitingDriver;
+
   if (isRidePaynowReturn) {
     return (
-      <div className="oc-page" role="status" aria-live="polite" style={{ padding: '2rem', textAlign: 'center' }}>
-        <p style={{ margin: 0, fontWeight: 700, color: '#333' }}>Opening live tracking…</p>
+      <div className="ty-page ty-page--loading" role="status" aria-live="polite">
+        <p className="ty-loading-text">Opening live tracking…</p>
       </div>
     );
   }
 
+  const driverPhoneOk =
+    assignedDriverUi?.phone && assignedDriverUi.phone !== '—'
+      ? String(assignedDriverUi.phone).replace(/[^\d+]/g, '')
+      : '';
+
   return (
-    <div className="oc-page" role="main" aria-label="Order confirmation">
-      <div className="oc-hero">
-        <div className="oc-check" aria-hidden>
-          <div className="oc-check__ring" />
-          <div className="oc-check__svg" style={{ position: 'relative' }}>
-            <svg viewBox="0 0 32 32" width="32" height="32" fill="none" aria-hidden>
-              <path
-                className="oc-check__path"
-                d="M7 16l5 5 12-12"
-                stroke="white"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.2"
-                strokeDasharray="28"
-                strokeDashoffset="28"
-              />
+    <div className="ty-page" role="main" aria-label="Order confirmation">
+      <div className="ty-hero">
+        <div className="ty-check" aria-hidden>
+          <div className="ty-check__ring" />
+          <div className="ty-check__circle">
+            <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden>
+              <path className="ty-check__path" d="M7 16l5 5 12-12" />
             </svg>
           </div>
         </div>
-        <h1 className="oc-title">Order Placed!</h1>
-        <p className="oc-sub">{isShopOrder ? 'Your shop order is confirmed' : 'Your delivery is confirmed'}</p>
+        <h1 className="ty-title">Thank you!</h1>
+        <p className="ty-sub">
+          {isShopOrder ? 'Your shop order is confirmed' : 'Your order is confirmed'}
+        </p>
       </div>
 
-      <div className="oc-content">
-        <section className="oc-card" aria-label="Order details">
-          <div className="oc-card__id">
-            <code>Order ID: {orderId}</code>
-            <span className="oc-card__dt">{formatPlacedAt(placedAt)}</span>
+      <div className="ty-scroll">
+        <section className="ty-card" aria-label="Order details">
+          <div className="ty-card__head">
+            <p className="ty-card__id">Order {orderId}</p>
+            <time className="ty-card__date" dateTime={placedAt}>
+              {formatPlacedAt(placedAt)}
+            </time>
           </div>
-          <div className="oc-route">
-            <div className="oc-route__line" />
-            <div className="oc-route__row">
-              <span className="oc-dot oc-dot--g" />
-              From: {from}
-            </div>
-            <div className="oc-route__row">
-              <span className="oc-dot oc-dot--r" />
-              To: {to}
-            </div>
+
+          <div className="ty-locs">
+            <span className="ty-locs__line" aria-hidden />
+            <p className="ty-loc">
+              <span className="ty-loc__dot ty-loc__dot--pickup" aria-hidden />
+              <span>
+                <span className="ty-loc__label">From</span>
+                {from}
+              </span>
+            </p>
+            <p className="ty-loc">
+              <span className="ty-loc__dot ty-loc__dot--drop" aria-hidden />
+              <span>
+                <span className="ty-loc__label">To</span>
+                {to}
+              </span>
+            </p>
           </div>
-          <p style={{ margin: '0.35rem 0 0.2rem' }}>
-            <span className="oc-badge">{deliveryType}</span>
-          </p>
-          <div className="oc-meta">
+
+          <span className="ty-badge">{deliveryType}</span>
+
+          <div className="ty-meta">
             <span>Estimated arrival</span>
-            <span>{eta}</span>
+            <span className="ty-meta__val">{eta}</span>
           </div>
-          <p className="oc-total">Total paid: {price}</p>
+
+          <p className="ty-total">
+            Total paid: <span>{price}</span>
+          </p>
         </section>
 
-        {customer && (
-          <section className="oc-card oc-card--cust" aria-label={isShopOrder ? 'Your contact details' : 'Delivery contact'}>
-            <h2 className="oc-custH">{isShopOrder ? 'Your details' : 'Delivering to'}</h2>
-            <p className="oc-custN">{customer.fullName}</p>
-            <p className="oc-custM">{customer.phone}</p>
-            {customer.email ? <p className="oc-custM">{customer.email}</p> : null}
-            <p className="oc-custAddr">{customer.address}</p>
+        {isShopOrder && shopOrderDbId ? (
+          <section className="ty-card" aria-label="Order tracking">
+            <div className="ty-track-head">
+              <h2 className="ty-card__title">Order tracking</h2>
+              <span className="ty-track-badge">{shopStatusLabel}</span>
+            </div>
+            <p className="ty-track-msg" role="status">
+              {shopProgressMsg}
+            </p>
+            <ShopOrderTrackingSteps status={shopStatus} variant="ty" />
+            {shopOrderNavKey ? (
+              <Link to={`/order/${encodeURIComponent(shopOrderNavKey)}`} className="ty-track-link">
+                View full order details
+              </Link>
+            ) : null}
+          </section>
+        ) : null}
+
+        {customer ? (
+          <section className="ty-card" aria-label={isShopOrder ? 'Your contact details' : 'Delivery contact'}>
+            <h2 className="ty-card__title">{isShopOrder ? 'Your details' : 'Delivering to'}</h2>
+            <p className="ty-cust-name">{customer.fullName}</p>
+            <p className="ty-cust-line">{customer.phone}</p>
+            {customer.email ? <p className="ty-cust-line">{customer.email}</p> : null}
+            <p className="ty-cust-line">{customer.address}</p>
             {customer.notes ? (
-              <p className="oc-custNotes">
+              <p className="ty-cust-notes">
                 <strong>Notes:</strong> {customer.notes}
               </p>
             ) : null}
           </section>
-        )}
+        ) : null}
 
-        {!isShopOrder ? (
-          <section className="oc-dcard" aria-label="Driver assignment">
-            <div className="oc-dhead" style={{ width: '100%' }}>
-              <div className="oc-avatar" aria-hidden />
-              <div className="oc-dtext">
+        {showDriverSection ? (
+          <section className="ty-card" aria-label="Driver assignment">
+            <h2 className="ty-card__title">{isShopOrder ? 'Delivery driver' : 'Your driver'}</h2>
+            <div className="ty-rider">
+              <div className="ty-rider__avatar" aria-hidden />
+              <div className="ty-rider__info">
                 {assignedDriverUi ? (
                   <>
-                    <p className="oc-dname">{assignedDriverUi.name}</p>
-                    <div className="oc-stars" role="img" aria-label="Rated driver">
+                    <span className="ty-rider__role">{isShopOrder ? 'Driver' : 'Rider'}</span>
+                    <p className="ty-rider__name">{assignedDriverUi.name}</p>
+                    <p className="ty-rider__stars" aria-label="Rated driver">
                       ★★★★★
-                    </div>
-                    <p className="oc-veh">
+                    </p>
+                    <p className="ty-rider__veh">
                       {assignedDriverUi.vehicle} · {assignedDriverUi.plate}
                     </p>
                   </>
-                ) : deliveryUuid ? (
+                ) : deliveryUuid || shopAwaitingDriver ? (
                   <>
-                    <p className="oc-dname">Finding a driver…</p>
-                    <p className="oc-veh" style={{ fontStyle: 'normal', color: '#666', fontSize: '0.78rem' }}>
-                      Driver details appear here once a driver accepts your delivery.
+                    <span className="ty-rider__role">{isShopOrder ? 'Driver' : 'Rider'}</span>
+                    <p className="ty-rider__name">Finding a driver…</p>
+                    <p className="ty-rider__hint">
+                      {isShopOrder
+                        ? 'Driver details appear here once someone accepts your shop delivery.'
+                        : 'Driver details appear here once someone accepts your delivery.'}
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="oc-dname">{DRIVER.name}</p>
-                    <div className="oc-stars" role="img" aria-label="4.8 out of 5">
+                    <span className="ty-rider__role">Rider</span>
+                    <p className="ty-rider__name">{DRIVER.name}</p>
+                    <p className="ty-rider__stars" aria-label="4.8 out of 5">
                       ★★★★★
-                    </div>
-                    <p className="oc-veh">
+                    </p>
+                    <p className="ty-rider__veh">
                       {DRIVER.vehicle} · {DRIVER.plate}
                     </p>
                   </>
                 )}
               </div>
               {assignedDriverUi ? (
-                <div className="oc-dactions">
+                <div className="ty-rider__actions">
                   <a
-                    className="oc-icon-btn"
-                    href={
-                      assignedDriverUi.phone && assignedDriverUi.phone !== '—'
-                        ? `tel:${String(assignedDriverUi.phone).replace(/[^\d+]/g, '')}`
-                        : '#'
-                    }
+                    className="ty-rider__btn"
+                    href={driverPhoneOk ? `tel:${driverPhoneOk}` : undefined}
+                    aria-disabled={!driverPhoneOk}
                     onClick={(e) => {
-                      if (!assignedDriverUi.phone || assignedDriverUi.phone === '—') e.preventDefault();
+                      if (!driverPhoneOk) e.preventDefault();
                     }}
                     aria-label="Call driver"
-                    style={
-                      !assignedDriverUi.phone || assignedDriverUi.phone === '—'
-                        ? { pointerEvents: 'none', opacity: 0.45 }
-                        : undefined
-                    }
                   >
                     <PhoneIcon />
                   </a>
-                  <Link className="oc-icon-btn" to="/chat" state={{ name: assignedDriverUi.name, role: 'customer' }} aria-label="Message driver">
+                  <Link
+                    className="ty-rider__btn"
+                    to="/chat"
+                    state={{ name: assignedDriverUi.name, role: 'customer' }}
+                    aria-label="Message driver"
+                  >
                     <ChatIcon />
                   </Link>
                 </div>
-              ) : !deliveryUuid ? (
-                <div className="oc-dactions">
-                  <button type="button" className="oc-icon-btn" aria-label="Call driver" onClick={() => {}}>
+              ) : !deliveryUuid && !shopAwaitingDriver ? (
+                <div className="ty-rider__actions">
+                  <button type="button" className="ty-rider__btn" aria-label="Call driver" disabled>
                     <PhoneIcon />
                   </button>
-                  <button type="button" className="oc-icon-btn" aria-label="Message driver" onClick={() => {}}>
+                  <button type="button" className="ty-rider__btn" aria-label="Message driver" disabled>
                     <ChatIcon />
                   </button>
                 </div>
@@ -293,17 +416,17 @@ export default function OrderConfirmationPage() {
             </div>
           </section>
         ) : null}
+      </div>
 
-        <div className="oc-actions">
-          {isShopOrder ? (
-            <Link to="/shops" className="oc-btn--primary" replace>
-              Continue shopping
-            </Link>
-          ) : null}
-          <Link to="/home" className="oc-btn--outline" replace>
-            Back to Home
+      <div className="ty-footer">
+        {isShopOrder ? (
+          <Link to="/shops" className="ty-btn ty-btn--primary" replace>
+            Continue shopping
           </Link>
-        </div>
+        ) : null}
+        <Link to="/home" className="ty-btn ty-btn--outline" replace>
+          Back to home
+        </Link>
       </div>
     </div>
   );

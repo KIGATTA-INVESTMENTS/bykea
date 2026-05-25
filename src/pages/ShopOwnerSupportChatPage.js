@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
 import { ensureShopOwnerSupportConversation, listSupportMessages, sendSupportMessage } from '../lib/supportChat';
-import './chatNotifyRating.css';
+import './shopOwnerDashboardPremium.css';
+import './shopOwnerSupportChatPremium.css';
 
 function timeNow() {
   return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -36,15 +37,21 @@ function BackIcon() {
 
 function SendIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
-      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" transform="translate(0.5,0.5)" />
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path
+        d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function Ticks() {
   return (
-    <span className="ingChat__tick" aria-label="Read">
+    <span className="soc-tick" aria-label="Read">
       <svg viewBox="0 0 20 10" width="16" height="8" fill="none" aria-hidden>
         <path d="M1.5 5.5l2.2 2.2L6.8 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         <path d="M6.5 5.5l2.2 2.2L11.8 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
@@ -115,44 +122,56 @@ export default function ShopOwnerSupportChatPage() {
   }, [conversationId, input, loadMessages]);
 
   return (
-    <div className="ingChat ingChat--support ingChat--shopOwner" role="main" aria-label="Shop owner support chat">
-      <header className="ingChat__head">
-        <button type="button" className="ingChat__back" onClick={() => navigate('/shop-owner/dashboard')} aria-label="Back">
+    <div className="soc-page" role="main" aria-label="Shop owner support chat">
+      <header className="soc-header-card">
+        <button type="button" className="soc-back" onClick={() => navigate('/shop-owner/dashboard')} aria-label="Back">
           <BackIcon />
         </button>
-        <div className="ingChat__headC">
-          <div className="ingChat__ava ingChat__ava--support" aria-hidden />
-          <h1 className="ingChat__name">InGo Admin Support</h1>
-          <p className="ingChat__sub">
-            <span className="ingChat__dotA" aria-hidden />
-            <span className="ingChat__subA">Support</span>
+        <div className="soc-header-center">
+          <div className="soc-avatar-wrap">
+            <span className="soc-avatar" aria-hidden>
+              A
+            </span>
+            <span className="soc-online-dot" aria-hidden />
+          </div>
+          <h1 className="soc-name">InGo Admin Support</h1>
+          <p className="soc-status">
+            <span className="soc-status-dot" aria-hidden />
+            <span>● Support</span>
           </p>
-          <span className="ingChat__pill" aria-label="Chat type">Shop owner support</span>
+          <span className="soc-badge-pill" aria-label="Chat type">
+            Shop owner support
+          </span>
         </div>
-        <span className="ingChat__spacerRt" aria-hidden />
       </header>
 
-      <div className="ingChat__msgs" aria-live="polite" aria-atomic="false">
+      <div className="soc-messages" aria-live="polite" aria-atomic="false">
         {messages.map((m) => {
           if (m.kind === 'sys') {
-            return <div key={m.id} className="ingChat__sys" role="status">{m.text}</div>;
+            return (
+              <div key={m.id} className="soc-sys" role="status">
+                {m.text}
+              </div>
+            );
           }
           if (m.kind === 'recv') {
             return (
-              <div key={m.id} className="ingChat__row ingChat__row--L ingChat__row--support">
-                <span className="ingChat__avaS ingChat__avaS--support" aria-hidden />
-                <div>
-                  <div className="ingChat__bubbleR">{m.text}</div>
-                  <time className="ingChat__metaL" dateTime={m.t}>{m.t}</time>
+              <div key={m.id} className="soc-row soc-row--recv">
+                <span className="soc-msg-avatar" aria-hidden />
+                <div className="soc-msg-block">
+                  <div className="soc-bubble soc-bubble--recv">{m.text}</div>
+                  <time className="soc-meta soc-meta--left" dateTime={m.t}>
+                    {m.t}
+                  </time>
                 </div>
               </div>
             );
           }
           return (
-            <div key={m.id} className="ingChat__row ingChat__row--R">
-              <div>
-                <div className="ingChat__bubbleS">{m.text}</div>
-                <div className="ingChat__metaR">
+            <div key={m.id} className="soc-row soc-row--sent">
+              <div className="soc-msg-block">
+                <div className="soc-bubble soc-bubble--sent">{m.text}</div>
+                <div className="soc-meta soc-meta--right">
                   <time dateTime={m.t}>{m.t}</time>
                   {m.read ? <Ticks /> : null}
                 </div>
@@ -164,21 +183,21 @@ export default function ShopOwnerSupportChatPage() {
       </div>
 
       <form
-        className="ingChat__inBar"
+        className="soc-input-bar"
         onSubmit={(e) => {
           e.preventDefault();
           send();
         }}
       >
         <input
-          className="ingChat__in"
+          className="soc-input"
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Message InGo Admin..."
           aria-label="Type a message"
         />
-        <button type="submit" className="ingChat__send" aria-label="Send message">
+        <button type="submit" className="soc-send" aria-label="Send message">
           <SendIcon />
         </button>
       </form>

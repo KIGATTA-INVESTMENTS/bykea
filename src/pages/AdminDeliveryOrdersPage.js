@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderOutlineBtn, AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
@@ -267,18 +268,19 @@ export default function AdminDeliveryOrdersPage() {
   const selUser = sel ? resolveUser(sel) : null;
   const selName = sel ? customerDisplayName(sel) : '';
 
+  useSetAdminHeaderActions(
+    <>
+      <AdminHeaderOutlineBtn type="button">Export</AdminHeaderOutlineBtn>
+      <AdminHeaderRefresh onClick={() => load()} disabled={loading} />
+    </>,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
       <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Delivery orders</h2>
         <div className="admFilters">
           <input className="admInput admDateInput" readOnly defaultValue="Live data" title="Filtered list loads from database" />
-          <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-            Refresh
-          </button>
-          <button className="admOutlineBtn" type="button">
-            Export
-          </button>
         </div>
       </div>
 
@@ -289,10 +291,10 @@ export default function AdminDeliveryOrdersPage() {
       ) : null}
 
       <section className="admGrid4" style={{ marginBottom: '0.85rem' }}>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2DB84B' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Total delivery orders</h4>
           <p className="v">{loading ? '…' : stats.total}</p>
-          <p className="s" style={{ color: '#2DB84B' }}>
+          <p className="s" style={{ color: '#0A58A6' }}>
             Excluding cancelled
           </p>
         </article>
@@ -305,12 +307,12 @@ export default function AdminDeliveryOrdersPage() {
             Awaiting payment / fulfilment
           </p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2e7bff' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Paid &amp; in progress</h4>
-          <p className="v" style={{ color: '#2e7bff' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : stats.paid}
           </p>
-          <p className="s" style={{ color: '#2e7bff' }}>
+          <p className="s" style={{ color: '#0A58A6' }}>
             Paid, assigned, or delivered
           </p>
         </article>
@@ -594,7 +596,7 @@ export default function AdminDeliveryOrdersPage() {
                   Base: {formatGBP(sel.base_fare_amount)} · Distance: {formatGBP(sel.distance_fee_amount)} · Service:{' '}
                   {formatGBP(sel.service_fee_amount)}
                 </p>
-                <p style={{ color: '#2DB84B', fontWeight: 800, marginBottom: '0.2rem' }}>
+                <p style={{ color: '#0A58A6', fontWeight: 800, marginBottom: '0.2rem' }}>
                   Total: {formatGBP(sel.total_amount)}
                 </p>
                 <span className={statusBadgeClass(sel.status)}>{sel.status ?? 'placed'}</span>

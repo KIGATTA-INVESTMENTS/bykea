@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderOutlineBtn, AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import {
   ADMIN_REPORT_PERIOD_DAYS,
   downloadAdminReportsBundlePdf,
@@ -92,23 +93,24 @@ export default function AdminReportsPage() {
       .filter(Boolean);
   }, [payload]);
 
+  useSetAdminHeaderActions(
+    <>
+      <AdminHeaderOutlineBtn type="button" disabled={loading || pdfWorking || !payload?.ok} onClick={onDownloadPdf}>
+        {pdfWorking ? 'Building PDF…' : 'Download PDF'}
+      </AdminHeaderOutlineBtn>
+      <AdminHeaderRefresh onClick={() => load()} disabled={loading} />
+    </>,
+    [loading, load, pdfWorking, payload?.ok, onDownloadPdf],
+  );
+
   return (
     <div className="adm">
       <div className="admToolbar">
-        <div>
-          <h2 style={{ margin: 0 }}>Reports</h2>
-          <p className="admDim" style={{ margin: '0.25rem 0 0', fontSize: '0.82rem' }}>
-            Rolling {ADMIN_REPORT_PERIOD_DAYS}-day slice · {payload?.ok ? payload.meta.rangeLabel : '—'}
-          </p>
-        </div>
+        <p className="admDim" style={{ margin: 0, fontSize: '0.82rem' }}>
+          Rolling {ADMIN_REPORT_PERIOD_DAYS}-day slice · {payload?.ok ? payload.meta.rangeLabel : '—'}
+        </p>
         <div className="admFilters">
           <input className="admInput admDateInput" readOnly value={`${ADMIN_REPORT_PERIOD_DAYS}d × 2 comparison`} />
-          <button className="admBtn admBtnAuto" type="button" disabled={loading || pdfWorking || !payload?.ok} onClick={onDownloadPdf}>
-            {pdfWorking ? 'Building PDF…' : 'Download full report (PDF)'}
-          </button>
-          <button className="admOutlineBtn" type="button" disabled={loading} onClick={() => load()}>
-            Refresh
-          </button>
         </div>
       </div>
 

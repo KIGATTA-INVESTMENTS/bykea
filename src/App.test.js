@@ -9,7 +9,7 @@ beforeEach(() => {
 
 test('shows InGo splash on first visit at /', () => {
   render(<App />);
-  const logo = screen.getByText(/inGo/i);
+  const logo = screen.getByAltText('InGo');
   expect(logo).toBeInTheDocument();
 });
 

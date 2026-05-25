@@ -18,7 +18,7 @@ import {
 import { forwardGeocodeAddress } from '../lib/reverseGeocode';
 import { estimateRoadKm, haversineKm } from '../lib/routeEstimate';
 import AddressSuggestInput from '../components/AddressSuggestInput';
-import './requestFlow.css';
+import './bookRide.css';
 
 const LONDON_CENTER = { lat: 51.5074, lng: -0.1278 };
 
@@ -45,25 +45,19 @@ function GpsIcon() {
   );
 }
 
-function MapPinA() {
+function IconChevron() {
   return (
-    <svg viewBox="0 0 32 40" width="36" height="44" aria-hidden>
-      <path
-        d="M16 2.5C10.2 2.5 5.5 7.1 5.5 12.6c0 4.6 2.1 6.1 3.1 7.1l7.4 9.1 7.4-9.1c1-1.1 3-2.3 3-7.1C26.4 7.1 21.7 2.5 16 2.5Z"
-        fill="#F18631"
-      />
-      <circle cx="16" cy="12" r="4" fill="white" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9.5 7.5L14 12l-4.5 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
-function MapPinB() {
+
+function IconDeliverBag() {
   return (
-    <svg viewBox="0 0 32 40" width="36" height="44" aria-hidden>
-      <path
-        d="M16 2.5C10.2 2.5 5.5 7.1 5.5 12.6c0 4.6 2.1 6.1 3.1 7.1l7.4 9.1 7.4-9.1c1-1.1 3-2.3 3-7.1C26.4 7.1 21.7 2.5 16 2.5Z"
-        fill="#e53935"
-      />
-      <circle cx="16" cy="12" r="4" fill="white" />
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="5" y="8" width="14" height="12" rx="2" fill="#EC6C23" fillOpacity="0.15" stroke="#EC6C23" strokeWidth="1.6" />
+      <path d="M8 8V6a4 4 0 0 1 8 0v2" stroke="#EC6C23" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -232,7 +226,6 @@ export default function RequestDeliveryPage() {
     const p = debouncedPickup.trim();
 
     if (p && stopTexts.length >= 1) {
-      // Avoid flaky text-only directions embeds while coordinate route resolves (see coordsRouteSrc).
       return publicPlaceMapUrl(p);
     }
     if (p) return publicPlaceMapUrl(p);
@@ -274,122 +267,150 @@ export default function RequestDeliveryPage() {
     }
   };
 
+  const distanceLabel =
+    routeDistanceKm != null && Number.isFinite(routeDistanceKm)
+      ? `${routeDistanceKm.toFixed(1)} km`
+      : '—';
+
   return (
-    <div className="flow-screen">
-      <div className="flow-topbar">
-        <Link to="/home" className="flow-back" aria-label="Back to home">
+    <form id="rd-delivery-form" className="br-page" onSubmit={onContinue}>
+      <header className="br-nav">
+        <Link to="/home" className="br-nav__back" aria-label="Back to home">
           <BackArrow />
         </Link>
-        <h1 className="flow-topbar__title">Request Delivery</h1>
-        <span className="flow-topbar__spacer" aria-hidden />
-      </div>
+        <h1 className="br-nav__title">Delivery</h1>
+        <span className="br-nav__spacer" aria-hidden />
+      </header>
 
-      <div
-        className={`flow-map${useDeliveryInteractiveMap || requestMapSrc ? ' flow-map--gmap' : ''}`}
-        role="img"
-        aria-label="Map with pickup and dropoff markers"
-      >
-        {useDeliveryInteractiveMap ? (
-          <LiveUserGoogleMap
-            mapCenter={deliveryInteractiveMapCenter}
-            fallbackCenter={LONDON_CENTER}
-            hasFix={live.hasFix}
-            accurate={live.hasFix}
-            accuracyM={live.accuracy}
-            onLoadError={() => setDeliveryJsMapFailed(true)}
-            zoomWithFix={15}
-            zoomFallback={12}
-            showUserLocationMarker={!hasPickupAndDropoff}
-          />
-        ) : (
-          <>
-            <GoogleMapEmbed src={requestMapSrc} title="Delivery route preview" />
-            <LiveUserMapPuck
-              headingDeg={live.headingDeg}
-              accurate={live.hasFix}
-              visible={
-                !hasPickupAndDropoff && (live.hasFix || live.geoError !== 'denied')
-              }
-              className="live-puck--inMap"
-            />
-            <div className="flow-map__path" />
-            <div className="flow-map__pin flow-map__pin--a">
-              <MapPinA />
+      <div className="br-scroll">
+        <section className="br-tiers br-tiers--delivery" aria-label="Delivery service">
+          <div className="br-delivery-hero">
+            <span className="br-delivery-hero__icon" aria-hidden>
+              <IconDeliverBag />
+            </span>
+            <div className="br-delivery-hero__text">
+              <p className="br-delivery-hero__title">Send a package</p>
+              <p className="br-delivery-hero__sub">Fast, reliable deliveries across town</p>
             </div>
-            <div className="flow-map__pin flow-map__pin--b">
-              <MapPinB />
-            </div>
-          </>
-        )}
-      </div>
-
-      <LocationPermissionPrompt live={live} placement="flow" />
-
-      <form className="flow-sheet" onSubmit={onContinue}>
-        <div className="flow-sheet--scroll">
-          <div className="flow-field flow-field--addrSuggest">
-            <div className="flow-label">
-              <span className="flow-dot flow-dot--g" />
-              Pickup Location
-            </div>
-            <AddressSuggestInput
-              id="flow-pickup"
-              name="pickup"
-              value={pickup}
-              onChange={(v) => {
-                setGpsNotice('');
-                setPickup(v);
-              }}
-              placeholder="Enter pickup address"
-              autoComplete="street-address"
-              ariaLabel="Pickup address"
-              inline
-            />
-            <button
-              type="button"
-              className="flow-geo"
-              onClick={useGps}
-              disabled={gpsLoading}
-              aria-busy={gpsLoading}
-            >
-              <GpsIcon />
-              {gpsLoading ? 'Finding address…' : 'Use my current location'}
-            </button>
-            {gpsNotice ? (
-              <p className="flow-geo-notice" role="alert">
-                {gpsNotice}
-              </p>
-            ) : null}
           </div>
+        </section>
 
-          <div key={stops[0]?.id} className="flow-field flow-field--addrSuggest">
-            <div className="flow-label">
-              <span className="flow-dot flow-dot--r" />
-              Drop-off Location
-            </div>
-            <AddressSuggestInput
-              id="flow-dropoff"
-              name="dropoff"
-              value={stops[0]?.value ?? ''}
-              onChange={(v) => setAt(0, v)}
-              placeholder="Enter drop-off address"
-              autoComplete="off"
-              ariaLabel="Drop-off address"
-              inline
-            />
+        <div className="br-map-wrap">
+          <div
+            className={`br-map${useDeliveryInteractiveMap || requestMapSrc ? ' br-map--gmap' : ''}`}
+            role="img"
+            aria-label="Map with pickup and dropoff route"
+          >
+            {useDeliveryInteractiveMap ? (
+              <LiveUserGoogleMap
+                mapCenter={deliveryInteractiveMapCenter}
+                fallbackCenter={LONDON_CENTER}
+                hasFix={live.hasFix}
+                accurate={live.hasFix}
+                accuracyM={live.accuracy}
+                onLoadError={() => setDeliveryJsMapFailed(true)}
+                zoomWithFix={15}
+                zoomFallback={12}
+                showUserLocationMarker={!hasPickupAndDropoff}
+              />
+            ) : (
+              <>
+                <GoogleMapEmbed src={requestMapSrc} title="Delivery route preview" />
+                <LiveUserMapPuck
+                  headingDeg={live.headingDeg}
+                  accurate={live.hasFix}
+                  visible={
+                    !hasPickupAndDropoff && (live.hasFix || live.geoError !== 'denied')
+                  }
+                  className="live-puck--inMap"
+                />
+              </>
+            )}
           </div>
         </div>
-        <div
-          style={{
-            padding: '0.25rem 1.15rem 0.85rem',
-            paddingBottom: 'max(0.85rem, env(safe-area-inset-bottom, 0))',
-          }}
-        >
-          <button type="submit" className="flow-btn">
-            Continue
-          </button>
+
+        <LocationPermissionPrompt live={live} placement="flow" />
+
+        <div className="br-loc-card">
+          <div className="br-loc-list">
+            <div className="br-loc-row flow-field--addrSuggest">
+              <span className="br-loc-row__dot br-loc-row__dot--pickup" aria-hidden />
+              <div className="br-loc-row__main">
+                <span className="br-loc-row__label">Pickup location</span>
+                <div className="br-loc-row__input">
+                  <AddressSuggestInput
+                    id="flow-pickup"
+                    name="pickup"
+                    value={pickup}
+                    onChange={(v) => {
+                      setGpsNotice('');
+                      setPickup(v);
+                    }}
+                    placeholder={pickup.trim() || (live.hasFix ? 'Current location' : 'Enter pickup address')}
+                    autoComplete="street-address"
+                    ariaLabel="Pickup address"
+                    inline
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="br-loc-gps"
+                  onClick={useGps}
+                  disabled={gpsLoading}
+                  aria-busy={gpsLoading}
+                >
+                  <GpsIcon />
+                  {gpsLoading ? 'Finding address…' : 'Use current location'}
+                </button>
+                {gpsNotice ? (
+                  <p className="br-geo-notice" role="alert">
+                    {gpsNotice}
+                  </p>
+                ) : null}
+              </div>
+              <span className="br-loc-row__chev" aria-hidden>
+                <IconChevron />
+              </span>
+            </div>
+
+            <div className="br-loc-row flow-field--addrSuggest">
+              <span className="br-loc-row__dot br-loc-row__dot--drop" aria-hidden />
+              <div className="br-loc-row__main">
+                <span className="br-loc-row__label">Drop-off location</span>
+                <div className="br-loc-row__input">
+                  <AddressSuggestInput
+                    id="flow-dropoff"
+                    name="dropoff"
+                    value={stops[0]?.value ?? ''}
+                    onChange={(v) => setAt(0, v)}
+                    placeholder="Enter drop-off location"
+                    autoComplete="off"
+                    ariaLabel="Drop-off address"
+                    inline
+                  />
+                </div>
+              </div>
+              <span className="br-loc-row__chev" aria-hidden>
+                <IconChevron />
+              </span>
+            </div>
+          </div>
         </div>
-      </form>
-    </div>
+
+        <section className="br-fare" aria-label="Route distance">
+          <div className="br-fare__top">
+            <span className="br-fare__lab">Estimated distance</span>
+            <span className="br-fare__amt">{distanceLabel}</span>
+          </div>
+          <p className="br-delivery-hint">Fare and package options on the next step.</p>
+        </section>
+      </div>
+
+      <div className="br-footer">
+        <button type="submit" className="br-confirm">
+          Continue
+        </button>
+      </div>
+    </form>
   );
 }

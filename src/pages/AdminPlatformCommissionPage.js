@@ -83,7 +83,7 @@ export default function AdminPlatformCommissionPage() {
           id: PLATFORM_COMMISSION_ROW_ID,
           driver_commission_percent: d,
           shop_commission_percent: sh,
-          currency: 'GBP',
+          currency: 'USD',
           updated_at: now,
         },
         { onConflict: 'id' },

@@ -12,7 +12,7 @@ import {
 } from '../lib/stripeEdge';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { useShopCart } from '../context/ShopCartContext';
-import './taxiAndShop.css';
+import './shopCheckoutPremium.css';
 
 function useShopPaynowConfig() {
   return useMemo(() => {
@@ -24,13 +24,13 @@ function useShopPaynowConfig() {
   }, []);
 }
 
-function BackIcon() {
+function BackArrow() {
   return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M15.5 19.5L8 12l7.5-7.5"
+        d="M15.5 18.5L8.5 12l7-7.5"
         stroke="currentColor"
-        strokeWidth="1.7"
+        strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -89,6 +89,18 @@ export default function ShopCheckoutPage() {
       setPaymentMethod(shopPaynow.available ? 'paynow' : 'cod');
     }
   }, [paymentMethod, shopPaynow.available, stripeShop]);
+
+  const submitLabel = submitting
+    ? paymentMethod === 'paynow'
+      ? 'Starting payment…'
+      : paymentMethod === 'stripe'
+        ? 'Preparing card payment…'
+        : 'Placing order…'
+    : paymentMethod === 'paynow' && shopPaynow.available
+      ? 'Continue to Paynow'
+      : paymentMethod === 'stripe' && stripeShop
+        ? 'Continue with card'
+        : 'Place order';
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -223,139 +235,153 @@ export default function ShopCheckoutPage() {
   }
 
   return (
-    <div className="schk" role="main" aria-label="Checkout">
-      <header className="schk__h">
-        <button type="button" className="schk__back" onClick={() => navigate('/shop/cart')} aria-label="Back to cart">
-          <BackIcon />
+    <div className="cko-page" role="main" aria-label="Checkout">
+      <header className="cko-nav">
+        <button type="button" className="cko-nav__back" onClick={() => navigate('/shop/cart')} aria-label="Back to cart">
+          <BackArrow />
         </button>
-        <h1 className="schk__title">Checkout</h1>
+        <h1 className="cko-nav__title">Checkout</h1>
+        <span aria-hidden />
       </header>
 
-      <form className="schk__body" onSubmit={onSubmit}>
-        <p className="schk__lead">Enter your details to place your shop order.</p>
+      <form className="cko-form" onSubmit={onSubmit}>
+        <div className="cko-scroll">
+          <p className="cko-lead">Enter your details to place your shop order.</p>
 
-        <section className="schk__sum" aria-label="Order summary">
-          <h2 className="schk__secT">Order summary</h2>
-          <ul className="schk__lines">
-            {items.map((l) => (
-              <li key={l.id} className="schk__line">
-                <span className="schk__lineN">
-                  {l.name}
-                  <span className="schk__lineQ">
-                    {' '}
-                    ×
-                    {l.qty}
+          <section className="cko-card" aria-label="Order summary">
+            <h2 className="cko-card__title">Order summary</h2>
+            <ul className="cko-lines">
+              {items.map((l) => (
+                <li key={l.id} className="cko-line">
+                  <span className="cko-line__name">
+                    {l.name}
+                    <span className="cko-line__qty">
+                      {' '}
+                      ×
+                      {l.qty}
+                    </span>
                   </span>
+                  <span className="cko-line__price">{FMT.format(l.price * l.qty)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="cko-row">
+              <span>Subtotal</span>
+              <span>{FMT.format(subtotal)}</span>
+            </div>
+            <div className="cko-row">
+              <span>Delivery</span>
+              <span>{FMT.format(deliveryFee)}</span>
+            </div>
+            <div className="cko-row cko-row--total">
+              <span>Total</span>
+              <span>{FMT.format(grandTotal)}</span>
+            </div>
+          </section>
+
+          <section className="cko-card" aria-label="Your details">
+            <h2 className="cko-card__title">Your details</h2>
+
+            <div className="cko-field">
+              <label className="cko-label" htmlFor="cko-name">
+                Full name
+                <span className="cko-req" aria-hidden>
+                  {' '}
+                  *
                 </span>
-                <span className="schk__lineP">{FMT.format(l.price * l.qty)}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="schk__subtot">
-            <span>Subtotal</span>
-            <span>{FMT.format(subtotal)}</span>
-          </div>
-          <div className="schk__subtot">
-            <span>Delivery</span>
-            <span>{FMT.format(deliveryFee)}</span>
-          </div>
-          <div className="schk__tot schk__tot--grand">
-            <span>Total</span>
-            <span>{FMT.format(grandTotal)}</span>
-          </div>
-        </section>
+              </label>
+              <input
+                id="cko-name"
+                className="cko-input"
+                name="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                autoComplete="name"
+                placeholder="As on your ID"
+                required
+              />
+            </div>
 
-        <section className="schk__fields" aria-label="Your details">
-          <h2 className="schk__secT">Your details</h2>
-          <label className="schk__lab" htmlFor="schk-name">
-            Full name
-            <span className="schk__req" aria-hidden>
-              {' '}
-              *
-            </span>
-          </label>
-          <input
-            id="schk-name"
-            className="schk__inp"
-            name="fullName"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            autoComplete="name"
-            placeholder="As on your ID"
-            required
-          />
+            <div className="cko-field">
+              <label className="cko-label" htmlFor="cko-phone">
+                Phone
+                <span className="cko-req" aria-hidden>
+                  {' '}
+                  *
+                </span>
+              </label>
+              <input
+                id="cko-phone"
+                className="cko-input"
+                name="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                autoComplete="tel"
+                placeholder="+44 7700 900123"
+                required
+              />
+            </div>
 
-          <label className="schk__lab" htmlFor="schk-phone">
-            Phone
-            <span className="schk__req" aria-hidden>
-              {' '}
-              *
-            </span>
-          </label>
-          <input
-            id="schk-phone"
-            className="schk__inp"
-            name="phone"
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            autoComplete="tel"
-            placeholder="+44 7700 900123"
-            required
-          />
+            <div className="cko-field">
+              <label className="cko-label" htmlFor="cko-email">
+                Email
+              </label>
+              <input
+                id="cko-email"
+                className="cko-input"
+                name="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                placeholder="you@example.com"
+              />
+            </div>
 
-          <label className="schk__lab" htmlFor="schk-email">
-            Email
-          </label>
-          <input
-            id="schk-email"
-            className="schk__inp"
-            name="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            placeholder="you@example.com"
-          />
+            <div className="cko-field">
+              <label className="cko-label" htmlFor="cko-address">
+                Delivery address
+                <span className="cko-req" aria-hidden>
+                  {' '}
+                  *
+                </span>
+              </label>
+              <textarea
+                id="cko-address"
+                className="cko-textarea"
+                name="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                autoComplete="street-address"
+                placeholder="House / street, area, city"
+                rows={3}
+                required
+              />
+            </div>
 
-          <label className="schk__lab" htmlFor="schk-address">
-            Delivery address
-            <span className="schk__req" aria-hidden>
-              {' '}
-              *
-            </span>
-          </label>
-          <textarea
-            id="schk-address"
-            className="schk__ta"
-            name="address"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            autoComplete="street-address"
-            placeholder="House / street, area, city"
-            rows={3}
-            required
-          />
-
-          <label className="schk__lab" htmlFor="schk-notes">
-            Notes for delivery (optional)
-          </label>
-          <textarea
-            id="schk-notes"
-            className="schk__ta schk__ta--sm"
-            name="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Gate code, landmark, etc."
-            rows={2}
-          />
+            <div className="cko-field">
+              <label className="cko-label" htmlFor="cko-notes">
+                Notes for delivery (optional)
+              </label>
+              <textarea
+                id="cko-notes"
+                className="cko-textarea cko-textarea--sm"
+                name="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Gate code, landmark, etc."
+                rows={2}
+              />
+            </div>
+          </section>
 
           {shopPaynow.available || stripeShop ? (
-            <>
-              <h2 className="schk__secT">Payment</h2>
-              <fieldset className="schk__payFieldset">
-                <legend className="schk__payLegend">Payment method</legend>
-                <label className="schk__payOpt">
+            <section className="cko-card" aria-label="Payment method">
+              <h2 className="cko-card__title">Payment</h2>
+              <fieldset className="cko-pay-list">
+                <legend className="cko-sr-only">Payment method</legend>
+                <label className="cko-pay-opt">
                   <input
                     type="radio"
                     name="paymentMethod"
@@ -363,10 +389,13 @@ export default function ShopCheckoutPage() {
                     checked={paymentMethod === 'cod'}
                     onChange={() => setPaymentMethod('cod')}
                   />
-                  <span>Cash on delivery</span>
+                  <span className="cko-pay-opt__body">
+                    <span className="cko-pay-opt__label">Cash on delivery</span>
+                    <span className="cko-pay-opt__sub">Pay when your order arrives</span>
+                  </span>
                 </label>
                 {shopPaynow.available ? (
-                  <label className="schk__payOpt">
+                  <label className="cko-pay-opt">
                     <input
                       type="radio"
                       name="paymentMethod"
@@ -374,11 +403,14 @@ export default function ShopCheckoutPage() {
                       checked={paymentMethod === 'paynow'}
                       onChange={() => setPaymentMethod('paynow')}
                     />
-                    <span>Pay now (Paynow — EcoCash, card, or other enabled methods)</span>
+                    <span className="cko-pay-opt__body">
+                      <span className="cko-pay-opt__label">Paynow</span>
+                      <span className="cko-pay-opt__sub">EcoCash, card, or other enabled methods</span>
+                    </span>
                   </label>
                 ) : null}
                 {stripeShop ? (
-                  <label className="schk__payOpt">
+                  <label className="cko-pay-opt">
                     <input
                       type="radio"
                       name="paymentMethod"
@@ -386,44 +418,39 @@ export default function ShopCheckoutPage() {
                       checked={paymentMethod === 'stripe'}
                       onChange={() => setPaymentMethod('stripe')}
                     />
-                    <span>Card</span>
+                    <span className="cko-pay-opt__body">
+                      <span className="cko-pay-opt__label">Card</span>
+                      <span className="cko-pay-opt__sub">Secure checkout on Stripe</span>
+                    </span>
                   </label>
                 ) : null}
               </fieldset>
-            </>
+            </section>
           ) : null}
-        </section>
 
-        {error ? (
-          <p className="schk__err" role="alert">
-            {error}
-          </p>
-        ) : null}
+          {error ? (
+            <p className="cko-err" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-        <button type="submit" className="schk__submit" disabled={submitting}>
-          {submitting
-            ? paymentMethod === 'paynow'
-              ? 'Starting payment…'
-              : paymentMethod === 'stripe'
-                ? 'Preparing card payment…'
-                : 'Placing order…'
-            : paymentMethod === 'paynow' && shopPaynow.available
-              ? 'Continue to Paynow'
-              : paymentMethod === 'stripe' && stripeShop
-                ? 'Continue with card'
-                : 'Place order'}
-        </button>
-        {shopPaynow.available && paymentMethod === 'paynow' ? (
-          <p className="schk__fine">You will be redirected to Paynow to complete payment.</p>
-        ) : null}
-        {stripeShop && paymentMethod === 'stripe' ? (
-          <p className="schk__fine">You will be redirected to a secure page to pay by card.</p>
-        ) : null}
-        <p className="schk__linkRow">
-          <Link to="/shop/cart" className="schk__link">
+          {shopPaynow.available && paymentMethod === 'paynow' ? (
+            <p className="cko-fine">You will be redirected to Paynow to complete payment.</p>
+          ) : null}
+          {stripeShop && paymentMethod === 'stripe' ? (
+            <p className="cko-fine">You will be redirected to a secure page to pay by card.</p>
+          ) : null}
+
+          <Link to="/shop/cart" className="cko-back-link">
             ← Back to cart
           </Link>
-        </p>
+        </div>
+
+        <div className="cko-footer">
+          <button type="submit" className="cko-submit" disabled={submitting}>
+            {submitting ? submitLabel : `${submitLabel} · ${FMT.format(grandTotal)}`}
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -2,16 +2,16 @@ import { useState } from 'react';
 import './adminPortal.css';
 
 const baseFares = [
-  { service: 'Bike Delivery', base: 'Â£1.00', min: 'Â£0.80' },
-  { service: 'Car Delivery', base: 'Â£2.00', min: 'Â£1.50' },
-  { service: 'Tuk-Tuk Ride', base: 'Â£0.80', min: 'Â£0.60' },
-  { service: 'Standard Taxi', base: 'Â£2.50', min: 'Â£2.00' },
-  { service: 'Premium Taxi', base: 'Â£4.00', min: 'Â£3.00' },
+  { service: 'Bike Delivery', base: 'Â$1.00', min: 'Â$0.80' },
+  { service: 'Car Delivery', base: 'Â$2.00', min: 'Â$1.50' },
+  { service: 'Tuk-Tuk Ride', base: 'Â$0.80', min: 'Â$0.60' },
+  { service: 'Standard Taxi', base: 'Â$2.50', min: 'Â$2.00' },
+  { service: 'Premium Taxi', base: 'Â$4.00', min: 'Â$3.00' },
 ];
 
 const initialPromos = [
   { code: 'INGO20', discount: '20% off', expiry: '30 Apr 2026', usage: '450 used', active: true },
-  { code: 'FREERIDE', discount: 'Â£2 fixed', expiry: '15 May 2026', usage: '220 used', active: true },
+  { code: 'FREERIDE', discount: 'Â$2 fixed', expiry: '15 May 2026', usage: '220 used', active: true },
   { code: 'SHOP5', discount: '5% off shop orders', expiry: '10 May 2026', usage: '180 used', active: false },
 ];
 
@@ -74,8 +74,8 @@ export default function AdminPricingConfigurationPage() {
       <section className="admGrid2" style={{ marginBottom: '0.85rem' }}>
         <article className="admCard">
           <div className="admSectionHeader"><h3>Per Kilometer Rate</h3></div>
-          <div className="admField"><label htmlFor="rate-first">First 2km rate</label><input id="rate-first" className="admInput" defaultValue="Â£0.30/km" /></div>
-          <div className="admField"><label htmlFor="rate-extra">Additional km rate</label><input id="rate-extra" className="admInput" defaultValue="Â£0.20/km" /></div>
+          <div className="admField"><label htmlFor="rate-first">First 2km rate</label><input id="rate-first" className="admInput" defaultValue="Â$0.30/km" /></div>
+          <div className="admField"><label htmlFor="rate-extra">Additional km rate</label><input id="rate-extra" className="admInput" defaultValue="Â$0.20/km" /></div>
           <div className="admField"><label htmlFor="rate-max">Maximum distance cap</label><input id="rate-max" className="admInput" defaultValue="50km" /></div>
           <label className="admToggleRow" htmlFor="traffic-multi">
             <span>Apply traffic multiplier</span>
@@ -131,7 +131,7 @@ export default function AdminPricingConfigurationPage() {
           <div className="admSectionHeader"><h3>Commission Settings</h3></div>
           <div className="admField"><label htmlFor="driver-commission">Driver commission</label><input id="driver-commission" className="admInput" defaultValue="15%" /></div>
           <div className="admField"><label htmlFor="shop-commission">Shop owner commission</label><input id="shop-commission" className="admInput" defaultValue="10%" /></div>
-          <div className="admField"><label htmlFor="min-commission">Minimum commission per order</label><input id="min-commission" className="admInput" defaultValue="Â£0.50" /></div>
+          <div className="admField"><label htmlFor="min-commission">Minimum commission per order</label><input id="min-commission" className="admInput" defaultValue="Â$0.50" /></div>
           <label className="admToggleRow" htmlFor="deduct-deposit">
             <span>Deduct from deposit</span>
             <input id="deduct-deposit" type="checkbox" checked={deductFromDeposit} onChange={(event) => setDeductFromDeposit(event.target.checked)} />
@@ -147,7 +147,7 @@ export default function AdminPricingConfigurationPage() {
         {promos.map((promo) => (
           <div key={promo.code} className="admPromoRow">
             <div>
-              <strong style={{ color: '#2DB84B' }}>{promo.code}</strong>
+              <strong style={{ color: '#0A58A6' }}>{promo.code}</strong>
               <div className="admDim">{promo.discount}</div>
             </div>
             <div className="admDim">{promo.expiry}</div>

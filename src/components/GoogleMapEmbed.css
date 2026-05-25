@@ -29,12 +29,15 @@
   pointer-events: none;
 }
 
-.lt-map--gmap::after {
+.lt-map--gmap::after,
+.lt-map-card--gmap::after {
   display: none;
 }
 .lt-map--gmap .lt-map__route,
 .lt-map--gmap .lt-pin,
-.lt-map--gmap .lt-rider {
+.lt-map--gmap .lt-rider,
+.lt-map-card--gmap .lt-map-card__route,
+.lt-map-card--gmap .lt-map-card__pin {
   opacity: 0;
   pointer-events: none;
 }

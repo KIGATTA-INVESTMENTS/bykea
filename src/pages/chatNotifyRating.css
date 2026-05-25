@@ -867,7 +867,7 @@
   font-weight: 800;
   color: #fff;
   cursor: pointer;
-  background: linear-gradient(180deg, #22c55e 0%, #16a34a 48%, #15803d 100%);
+  background: linear-gradient(180deg, #2f7ec6 0%, #0A58A6 48%, #08487f 100%);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.35) inset,
     0 4px 14px rgba(22, 163, 74, 0.35);
@@ -882,7 +882,7 @@
   border-bottom-color: rgba(45, 184, 75, 0.18);
 }
 .ingChat__ava--support {
-  background: linear-gradient(135deg, #2a6bdc, #2DB84B 95%);
+  background: linear-gradient(135deg, #0A58A6, #0A58A6 95%);
 }
 .ingChat__avaS--support {
   background: linear-gradient(135deg, #ffb36b, #F18631);
@@ -891,7 +891,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #2DB84B;
+  background: #0A58A6;
 }
 .ingChat__subA {
   font-size: 0.7rem;

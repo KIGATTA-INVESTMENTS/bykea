@@ -3,6 +3,8 @@ import { formatGBP } from '../lib/currency';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
+import './shopOwnerDashboardPremium.css';
+import './shopOwnerDeliveryDriverPremium.css';
 
 const ACTIVE_STATUSES = ['ready for delivery', 'picked up', 'in transit'];
 
@@ -31,6 +33,55 @@ function driverPhone(d) {
   if (!d?.phone) return '—';
   const cc = d.phone_country_code ? String(d.phone_country_code).trim() : '';
   return cc ? `${cc} ${d.phone}` : String(d.phone);
+}
+
+function IcInfo() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden className="sodd-info-icon">
+      <circle cx="12" cy="12" r="7.2" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <path d="M12 10.2V16M12 7.2v.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcNav() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path
+        d="M12 3v18M8 9l4-3 4 3M5 17h14"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IcRider() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <circle cx="12" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcScooterEmpty() {
+  return (
+    <svg viewBox="0 0 88 72" width="88" height="72" fill="none" aria-hidden className="sodd-empty-icon">
+      <circle cx="18" cy="58" r="8" stroke="currentColor" strokeWidth="2" />
+      <circle cx="62" cy="58" r="8" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M18 58h12l8-28h14l6 10h10M38 30h12l4 8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M52 22h10v8H52z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 export default function ShopOwnerDeliveryDriverPage() {
@@ -146,90 +197,109 @@ export default function ShopOwnerDeliveryDriverPage() {
   }, [load]);
 
   const headingCount = rows.filter((r) => String(r.order.status || '').toLowerCase().trim() === 'ready for delivery').length;
+  const showEmpty = !loading && rows.length === 0;
 
   return (
-    <div className="sop">
-      <div className="sopPageH">
-        <h1>Delivery driver</h1>
-        <span className="sopI2" style={{ fontSize: '0.78rem', color: '#555' }}>
-          Drivers who accepted your shop orders — live status (refreshes every ~12s).
+    <div className="sodd-page">
+      <div className="sodd-head">
+        <h1>Delivery Drivers</h1>
+        <span className="sodd-live-pill" role="status" aria-live="polite">
+          <span className="sodd-live-dot" aria-hidden />
+          LIVE
         </span>
       </div>
 
+      <div className="sodd-info" role="note">
+        <IcInfo />
+        <p>Drivers who accepted your shop orders — live status (refreshes every ~12s)</p>
+      </div>
+
       {err ? (
-        <div className="sopCard" style={{ borderColor: '#f0c7c7', marginBottom: '0.75rem' }}>
-          <p style={{ margin: 0, color: '#b42318', fontWeight: 600 }}>{err}</p>
+        <div className="sodd-error" role="alert">
+          <p>{err}</p>
         </div>
       ) : null}
 
-      <div className="sopRow2" style={{ marginBottom: '0.75rem' }}>
-        <div className="sopCard">
-          <p className="sopClab">Heading to your shop</p>
-          <p className="sopCval sopCval--o">{loading ? '…' : headingCount}</p>
-        </div>
-        <div className="sopCard">
-          <p className="sopClab">Active with driver</p>
-          <p className="sopCval">{loading ? '…' : rows.length}</p>
-        </div>
+      <div className="sodd-stats" aria-label="Driver summary">
+        <article className="sodd-stat">
+          <span className="sodd-stat-icon sodd-stat-icon--orange" aria-hidden>
+            <IcNav />
+          </span>
+          <p className="sodd-stat-label">Heading to your shop</p>
+          <p className="sodd-stat-value sodd-stat-value--orange">{loading ? '…' : headingCount}</p>
+          <p className="sodd-stat-foot">En route to pickup</p>
+        </article>
+        <article className="sodd-stat">
+          <span className="sodd-stat-icon sodd-stat-icon--blue" aria-hidden>
+            <IcRider />
+          </span>
+          <p className="sodd-stat-label">Active with driver</p>
+          <p className="sodd-stat-value sodd-stat-value--blue">{loading ? '…' : rows.length}</p>
+          <p className="sodd-stat-foot">Currently delivering</p>
+        </article>
       </div>
 
       {loading && rows.length === 0 ? (
-        <p className="sopI2" style={{ color: '#666' }}>
-          Loading…
-        </p>
-      ) : rows.length === 0 ? (
-        <div className="sopCard">
-          <p style={{ margin: 0, color: '#555', lineHeight: 1.45 }}>
-            No driver is assigned to your shop orders yet. When you mark an order <strong>Ready for delivery</strong> and a
-            driver accepts it, they appear here while they travel to your shop and complete the delivery.
+        <p className="sodd-loading">Loading…</p>
+      ) : showEmpty ? (
+        <div className="sodd-empty" role="status">
+          <IcScooterEmpty />
+          <h2>No drivers assigned yet</h2>
+          <p>
+            When you mark an order Ready for delivery and a driver accepts it, they will appear here while travelling
+            to your shop.
+          </p>
+          <p className="sodd-empty-note">
+            Mark orders as <span className="sodd-highlight">Ready for delivery</span> in My Orders when they are packed
+            and ready for pickup.
           </p>
         </div>
       ) : (
-        <div className="sopTwrap">
-          <table className="sopTable">
-            <thead>
-              <tr>
-                <th>Order</th>
-                <th>Stage</th>
-                <th>Driver</th>
-                <th>Driver phone</th>
-                <th>Vehicle</th>
-                <th>Customer</th>
-                <th>Drop-off</th>
-                <th>Your lines</th>
-                <th>Subtotal</th>
-                <th>Assigned</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ order: o, items, subtotal, driver: d, vehicleLine, phase }) => (
-                <tr key={o.id}>
-                  <td>
-                    <strong>{o.order_number}</strong>
-                  </td>
-                  <td>
-                    <span className="sopBdg sopBdg--t">{phase}</span>
-                  </td>
-                  <td>{d?.full_name?.trim() || '—'}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{d ? driverPhone(d) : '—'}</td>
-                  <td style={{ fontSize: '0.82rem', maxWidth: '12rem' }} title={vehicleLine}>
-                    {vehicleLine}
-                  </td>
-                  <td>{o.customer_full_name}</td>
-                  <td style={{ fontSize: '0.82rem', maxWidth: '14rem' }} title={o.customer_address}>
-                    {o.customer_address}
-                  </td>
-                  <td style={{ fontSize: '0.8rem', maxWidth: '14rem' }} title={items}>
-                    {items || '—'}
-                  </td>
-                  <td>{formatGBP(subtotal)}</td>
-                  <td className="sopI2" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                    {formatDt(o.assigned_at)}
-                  </td>
+        <div className="sodd-table-card">
+          <div className="sodd-table-scroll">
+            <table className="sodd-table" aria-label="Assigned drivers">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Stage</th>
+                  <th>Driver</th>
+                  <th>Driver phone</th>
+                  <th>Vehicle</th>
+                  <th>Customer</th>
+                  <th>Drop-off</th>
+                  <th>Your lines</th>
+                  <th>Subtotal</th>
+                  <th>Assigned</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map(({ order: o, items, subtotal, driver: d, vehicleLine, phase }) => (
+                  <tr key={o.id}>
+                    <td>
+                      <strong>{o.order_number}</strong>
+                    </td>
+                    <td>
+                      <span className="sodd-phase-badge">{phase}</span>
+                    </td>
+                    <td>{d?.full_name?.trim() || '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{d ? driverPhone(d) : '—'}</td>
+                    <td style={{ fontSize: '0.82rem', maxWidth: '12rem' }} title={vehicleLine}>
+                      {vehicleLine}
+                    </td>
+                    <td>{o.customer_full_name}</td>
+                    <td style={{ fontSize: '0.82rem', maxWidth: '14rem' }} title={o.customer_address}>
+                      {o.customer_address}
+                    </td>
+                    <td style={{ fontSize: '0.8rem', maxWidth: '14rem' }} title={items}>
+                      {items || '—'}
+                    </td>
+                    <td>{formatGBP(subtotal)}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{formatDt(o.assigned_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -15,7 +15,7 @@ create table if not exists public.shop_products (
   sku text,
   weight text,
 
-  currency text not null default 'GBP',
+  currency text not null default 'USD',
   is_active boolean not null default true,
 
   has_variants boolean not null default false,

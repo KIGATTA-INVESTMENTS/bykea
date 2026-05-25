@@ -9,7 +9,7 @@ export function mapShopOwnerToCard(row) {
     category: row.business_type?.trim() || 'Other',
     rating: null,
     delivery: row.business_address?.trim() ? truncateOneLine(row.business_address, 36) : 'Local shop',
-    fee: 'GBP',
+    fee: 'USD',
     imageUrl: row.shop_image_url?.trim() || null,
   };
 }

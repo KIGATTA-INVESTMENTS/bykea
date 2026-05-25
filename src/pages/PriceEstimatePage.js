@@ -17,7 +17,7 @@ import {
   stripeHostedCheckoutRedirect,
 } from '../lib/stripeEdge';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './requestFlow.css';
+import './bookRide.css';
 import './pePayment.css';
 
 const FALLBACK_PRICE_PER_KM = 0.5;
@@ -66,7 +66,7 @@ function IconCash() {
         width="20"
         height="12"
         rx="1"
-        fill="#1fa23e"
+        fill="#0A58A6"
         transform="rotate(4 16 16)"
         opacity="0.95"
       />
@@ -414,53 +414,75 @@ export default function PriceEstimatePage() {
     }
   };
 
+  const confirmLabel = checkoutBusy
+    ? 'Starting…'
+    : payChoice === 'card'
+      ? 'Continue to Paynow'
+      : payChoice === 'stripe'
+        ? 'Continue with card'
+        : 'Confirm & continue';
+
   return (
-    <>
-      <form className="pe-page" onSubmit={confirm}>
-        <div className="pe-header">
-          <div className="pe-header__row">
-            <Link to="/package-details" className="flow-back" state={navState} replace={false} aria-label="Back">
-              <BackArrow />
-            </Link>
-            <h1>Price Estimate</h1>
-          </div>
-          <p>Step 3 of 3</p>
+    <form className="br-page br-page--form" onSubmit={confirm}>
+      <header className="br-nav br-nav--stacked">
+        <Link
+          to="/package-details"
+          className="br-nav__back"
+          state={navState}
+          replace={false}
+          aria-label="Back to package details"
+        >
+          <BackArrow />
+        </Link>
+        <div className="br-nav__center">
+          <h1 className="br-nav__title">Price Estimate</h1>
+          <p className="br-nav__step">Step 3 of 3</p>
         </div>
-        <div className="pe-scroll">
-          <div className="pe-card" aria-label="Route summary">
-            <div className="pe-card__head">
-              <div className="pe-route" role="list">
-                <div className="pe-route__line" aria-hidden />
-                <div className="pe-route__row" role="listitem">
-                  <span className="pe-dot pe-dot--g" aria-hidden />
-                  <div className="pe-route__from">From: {from}</div>
-                </div>
-                <div className="pe-route__row" role="listitem">
-                  <span className="pe-dot pe-dot--r" aria-hidden />
-                  <div className="pe-route__to">To: {to}</div>
-                </div>
+        <span className="br-nav__spacer" aria-hidden />
+      </header>
+
+      <div className="br-scroll br-scroll--form">
+        <section className="br-pd-card br-pe-route" aria-label="Route summary">
+          <h2 className="br-pd-heading">Route</h2>
+          <div className="br-loc-list br-pe-loc" role="list">
+            <div className="br-loc-row br-pe-loc__row" role="listitem">
+              <span className="br-loc-row__dot br-loc-row__dot--pickup" aria-hidden />
+              <div className="br-loc-row__main">
+                <span className="br-loc-row__label">Pickup</span>
+                <p className="br-pe-loc__addr">{from}</p>
               </div>
-              <div className="pe-km">Distance: {distance}</div>
+            </div>
+            <div className="br-loc-row br-pe-loc__row" role="listitem">
+              <span className="br-loc-row__dot br-loc-row__dot--drop" aria-hidden />
+              <div className="br-loc-row__main">
+                <span className="br-loc-row__label">Drop-off</span>
+                <p className="br-pe-loc__addr">{to}</p>
+              </div>
             </div>
           </div>
+          <p className="br-pe-distance">
+            <span className="br-pe-distance__lab">Distance</span>
+            <span className="br-pe-distance__val">{distance}</span>
+          </p>
+        </section>
 
-          <div className="pe-sec">Delivery</div>
-          <div className="pe-opts pe-opts--single" aria-label="Delivery estimate">
-            <div className="pe-opt pe-opt--on pe-opt--single" role="group">
-              <span className="pe-opt__icon" aria-hidden>
-                <IconBike />
-              </span>
-              <div className="pe-opt__body">
-                <p className="pe-opt__title">Delivery</p>
-              </div>
-              <span className="pe-opt__price" aria-label={`Total ${totalLabel}`}>
-                {totalLabel}
-              </span>
+        <section className="br-pd-card" aria-label="Delivery estimate">
+          <h2 className="br-pd-heading">Delivery</h2>
+          <div className="br-pe-service" role="group" aria-label={`Delivery total ${totalLabel}`}>
+            <span className="br-pe-service__icon" aria-hidden>
+              <IconBike />
+            </span>
+            <div className="br-pe-service__body">
+              <p className="br-pe-service__title">Delivery</p>
+              <p className="br-pe-service__sub">Estimated fare for your parcel</p>
             </div>
+            <span className="br-pe-service__price">{totalLabel}</span>
           </div>
+        </section>
 
-          <div className="pe-sec">Payment</div>
-          <div className="pay-list" role="radiogroup" aria-label="Payment method">
+        <section className="br-pd-card br-pe-pay-card" aria-label="Payment method">
+          <h2 className="br-pd-heading">Payment</h2>
+          <div className="pay-list br-pe-pay-list" role="radiogroup" aria-label="Payment method">
             <label className={`pay-row${payChoice === 'cod' ? ' pay-row--on' : ''}`} htmlFor="pe-pay-cod">
               <span className="pay-row__icon" aria-hidden>
                 <IconCash />
@@ -500,7 +522,10 @@ export default function PriceEstimatePage() {
               </label>
             ) : null}
             {stripeConfigured ? (
-              <label className={`pay-row${payChoice === 'stripe' ? ' pay-row--on' : ''}`} htmlFor="pe-pay-stripe">
+              <label
+                className={`pay-row${payChoice === 'stripe' ? ' pay-row--on' : ''}`}
+                htmlFor="pe-pay-stripe"
+              >
                 <span className="pay-row__icon" aria-hidden>
                   <IconStripeCard />
                 </span>
@@ -520,53 +545,41 @@ export default function PriceEstimatePage() {
               </label>
             ) : null}
           </div>
+        </section>
 
-          {checkoutError ? (
-            <div
-              role="alert"
-              style={{
-                border: '1px solid #f0c7c7',
-                marginBottom: '0.75rem',
-                padding: '0.65rem 0.85rem',
-                borderRadius: 10,
-                background: '#fff',
-              }}
-            >
-              <p style={{ margin: 0, color: '#b42318', fontSize: '0.9rem' }}>{checkoutError}</p>
-            </div>
-          ) : null}
+        {checkoutError ? (
+          <p className="br-pd-error" role="alert">
+            {checkoutError}
+          </p>
+        ) : null}
 
-          <div className="pe-break" aria-label="Price breakdown">
-            <h3>Price Breakdown</h3>
-            <div className="pe-break__row">
-              <span>Base fare</span>
-              <span>{ratesLoaded ? formatPe(baseFare) : '…'}</span>
-            </div>
-            <div className="pe-break__row">
-              <span>Distance fee</span>
-              <span>{ratesLoaded ? formatPe(distanceFee) : '…'}</span>
-            </div>
-            <div className="pe-break__row">
-              <span>Service fee</span>
-              <span>{ratesLoaded ? formatPe(serviceFee) : '…'}</span>
-            </div>
-            <hr className="pe-break__hr" />
-            <div className="pe-break__row pe-break__row--total">
-              <span>Total</span>
-              <span>{totalLabel}</span>
-            </div>
+        <section className="br-pd-card br-pe-breakdown" aria-label="Price breakdown">
+          <h2 className="br-pd-heading">Price breakdown</h2>
+          <div className="br-pe-break__row">
+            <span>Base fare</span>
+            <span>{ratesLoaded ? formatPe(baseFare) : '…'}</span>
           </div>
-          <button type="submit" className="pe-btn" disabled={!ratesLoaded || checkoutBusy}>
-            {checkoutBusy
-              ? 'Starting…'
-              : payChoice === 'card'
-                ? 'Continue to Paynow'
-                : payChoice === 'stripe'
-                  ? 'Continue with card'
-                  : 'Confirm & continue'}
-          </button>
-        </div>
-      </form>
-    </>
+          <div className="br-pe-break__row">
+            <span>Distance fee</span>
+            <span>{ratesLoaded ? formatPe(distanceFee) : '…'}</span>
+          </div>
+          <div className="br-pe-break__row">
+            <span>Service fee</span>
+            <span>{ratesLoaded ? formatPe(serviceFee) : '…'}</span>
+          </div>
+          <hr className="br-pe-break__hr" />
+          <div className="br-pe-break__row br-pe-break__row--total">
+            <span>Total</span>
+            <span>{totalLabel}</span>
+          </div>
+        </section>
+      </div>
+
+      <div className="br-footer">
+        <button type="submit" className="br-confirm" disabled={!ratesLoaded || checkoutBusy}>
+          {confirmLabel}
+        </button>
+      </div>
+    </form>
   );
 }

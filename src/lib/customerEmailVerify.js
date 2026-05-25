@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { parseEdgeFunctionResult } from './edgeFunctionErrors';
 
 /** @typedef {'customer' | 'driver' | 'shop_owner'} EmailVerifyRealm */
 
@@ -11,9 +12,13 @@ export async function customerEmailVerifySend({ email, password, realm = 'custom
   const { data, error } = await supabase.functions.invoke('customer-email-verify', {
     body: { action: 'send', realm, email: String(email).trim().toLowerCase(), password },
   });
-  if (error) return { ok: false, error: error.message || 'Could not send verification email.' };
-  if (data?.error) return { ok: false, error: String(data.error), retryAfterSec: data.retryAfterSec };
-  if (!data?.ok) return { ok: false, error: 'Could not send verification email.' };
+  const parsed = await parseEdgeFunctionResult(
+    { data, error },
+    { action: 'send', fallback: 'Could not send verification email.' },
+  );
+  if (!parsed.ok) {
+    return { ok: false, error: parsed.error, retryAfterSec: parsed.retryAfterSec };
+  }
   return { ok: true };
 }
 
@@ -25,8 +30,12 @@ export async function customerEmailVerifySubmit({ email, code, realm = 'customer
   const { data, error } = await supabase.functions.invoke('customer-email-verify', {
     body: { action: 'verify', realm, email: String(email).trim().toLowerCase(), code: String(code).trim() },
   });
-  if (error) return { ok: false, error: error.message || 'Could not verify email.' };
-  if (data?.error) return { ok: false, error: String(data.error) };
-  if (!data?.ok) return { ok: false, error: 'Verification failed.' };
-  return { ok: true, alreadyVerified: Boolean(data.alreadyVerified) };
+  const parsed = await parseEdgeFunctionResult(
+    { data, error },
+    { action: 'verify', fallback: 'Verification failed.' },
+  );
+  if (!parsed.ok) {
+    return { ok: false, error: parsed.error };
+  }
+  return { ok: true, alreadyVerified: Boolean(data?.alreadyVerified) };
 }

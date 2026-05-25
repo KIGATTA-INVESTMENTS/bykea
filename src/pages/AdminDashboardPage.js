@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './adminPortal.css';
 
 function dayKey(d) {
   const x = new Date(d);
@@ -38,12 +38,68 @@ function shortOrderRef(prefix, id) {
   return `${prefix}-${short}`;
 }
 
+function initialsFromName(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
+}
+
+function trendClass(text) {
+  if (!text || text === '—' || text === 'same as yesterday') return 'admTrendNeutral';
+  if (text.startsWith('+') || text === 'new vs yesterday') return 'admTrendUp';
+  if (text.startsWith('-')) return 'admTrendDown';
+  return 'admTrendNeutral';
+}
+
 function orderStatusClass(status) {
   const s = String(status || '').toLowerCase();
-  if (s === 'delivered' || s === 'completed' || s === 'paid') return 'admBadgeStatus admGreen';
-  if (s === 'cancelled') return 'admBadgeStatus admRed';
-  if (s === 'assigned' || s === 'confirmed') return 'admBadgeStatus admBlue';
-  return 'admBadgeStatus admOrange';
+  if (s === 'delivered' || s === 'completed' || s === 'paid') return 'admd-status admd-status--success';
+  if (s === 'cancelled') return 'admd-status admd-status--cancel';
+  if (s === 'placed' || s === 'confirmed' || s === 'assigned') return 'admd-status admd-status--placed';
+  if (s === 'requested' || s === 'pending') return 'admd-status admd-status--requested';
+  return 'admd-status admd-status--default';
+}
+
+function typeBadgeClass(kind) {
+  if (kind === 'Delivery') return 'admd-type admd-type--orange';
+  return 'admd-type admd-type--blue';
+}
+
+function IconUsers() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M4 20c.5-3 2.5-5 5-5s4.5 2 5 5M16 8a2.5 2.5 0 1 1 0 5M14 20c.3-2 1.5-3.5 4-3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconScooter() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <circle cx="6" cy="17" r="2" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="18" cy="17" r="2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 17h8M10 12l2-4h5l2 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconBox() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path d="M4 8l8-4 8 4v10l-8 4-8-4V8Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M12 4v18M4 8l8 4 8-4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconChart() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function BarChart({ ordersByDay }) {
@@ -52,8 +108,8 @@ function BarChart({ ordersByDay }) {
   const height = 230;
   const barWidth = 34;
   return (
-    <svg className="admChart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Orders last 7 days">
-      <text x="8" y="20" fill="#8a8a8a" fontSize="10">
+    <svg className="admd-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Orders last 7 days">
+      <text x="8" y="20" fill="#9ca3af" fontSize="10" fontWeight="600">
         Orders
       </text>
       {ordersByDay.map((item, index) => {
@@ -62,14 +118,22 @@ function BarChart({ ordersByDay }) {
         const y = 175 - barHeight;
         return (
           <g key={`${item.day}-${index}`}>
-            <rect x={x} y={y} width={barWidth} height={barHeight} rx="7" fill="#2DB84B" />
-            <text x={x + barWidth / 2} y="198" textAnchor="middle" fill="#777" fontSize="11">
+            <rect
+              className="admd-chart__bar"
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barHeight}
+              rx="7"
+              fill="#07408F"
+            />
+            <text x={x + barWidth / 2} y="198" textAnchor="middle" fill="#9ca3af" fontSize="11">
               {item.day}
             </text>
           </g>
         );
       })}
-      <line x1="30" y1="177" x2="396" y2="177" stroke="#ebefec" />
+      <line x1="30" y1="177" x2="396" y2="177" stroke="#e5e7eb" />
     </svg>
   );
 }
@@ -81,30 +145,33 @@ function LineChart({ revenueByDay }) {
   const width = 420;
   const height = 230;
   const span = max - min || 1;
-  const points = revenueByDay.map((item, index) => {
+  const coords = revenueByDay.map((item, index) => {
     const x = 34 + index * 53;
     const y = 35 + ((max - item.value) / span) * 130;
-    return `${x},${y}`;
+    return { x, y, day: item.day };
   });
+  const linePoints = coords.map((c) => `${c.x},${c.y}`).join(' ');
+  const areaPoints =
+    coords.length > 0
+      ? `M${coords[0].x},177 ${coords.map((c) => `L${c.x},${c.y}`).join(' ')} L${coords[coords.length - 1].x},177 Z`
+      : '';
+
   return (
-    <svg className="admChart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Revenue last 7 days">
-      <polyline fill="none" stroke="#2DB84B" strokeWidth="3" points={points.join(' ')} />
-      {revenueByDay.map((item, index) => {
-        const x = 34 + index * 53;
-        const y = 35 + ((max - item.value) / span) * 130;
-        return (
-          <g key={`${item.day}-${index}`}>
-            <circle cx={x} cy={y} r="4" fill="#2DB84B" />
-            <text x={x} y="198" textAnchor="middle" fill="#777" fontSize="11">
-              {item.day}
-            </text>
-          </g>
-        );
-      })}
-      <line x1="28" y1="177" x2="396" y2="177" stroke="#ebefec" />
-      <text x="8" y="20" fill="#8a8a8a" fontSize="10">
+    <svg className="admd-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Revenue last 7 days">
+      <text x="8" y="20" fill="#9ca3af" fontSize="10" fontWeight="600">
         Amount
       </text>
+      {areaPoints ? <path d={areaPoints} fill="rgba(236,108,35,0.08)" stroke="none" /> : null}
+      <polyline fill="none" stroke="#EC6C23" strokeWidth="3" strokeLinejoin="round" points={linePoints} />
+      {coords.map((c, index) => (
+        <g key={`${c.day}-${index}`}>
+          <circle cx={c.x} cy={c.y} r="4" fill="#EC6C23" />
+          <text x={c.x} y="198" textAnchor="middle" fill="#9ca3af" fontSize="11">
+            {c.day}
+          </text>
+        </g>
+      ))}
+      <line x1="28" y1="177" x2="396" y2="177" stroke="#e5e7eb" />
     </svg>
   );
 }
@@ -548,250 +615,249 @@ export default function AdminDashboardPage() {
 
   const ordersSubtitle = useMemo(() => pct(ordersToday, ordersYesterday), [ordersToday, ordersYesterday, pct]);
   const revenueSubtitle = useMemo(() => pct(revenueToday, revenueYesterday), [revenueToday, revenueYesterday, pct]);
+  const updatedLabel = lastLoadedAt
+    ? `Updated ${lastLoadedAt.toLocaleTimeString()}`
+    : loading
+      ? 'Loading…'
+      : '—';
+
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
 
   return (
-    <div className="adm">
-      <div className="admToolbar" style={{ marginBottom: '0.75rem' }}>
+    <div className="admd-page">
+      <div className="admd-subhead admToolbar">
         <div>
-          <p style={{ margin: 0, fontWeight: 700 }}>Dashboard</p>
-          <p className="admDim" style={{ margin: '0.15rem 0 0', fontSize: '0.82rem' }}>
-            Live aggregates ·{' '}
-            {lastLoadedAt ? `Updated ${lastLoadedAt.toLocaleTimeString()}` : loading ? 'Loading…' : '—'}
+          <h2 className="admd-subhead__title">Overview</h2>
+          <p className="admDim" style={{ margin: '0.3rem 0 0' }}>
+            Live aggregates · {updatedLabel}
           </p>
         </div>
-        <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-          Refresh
-        </button>
       </div>
 
-      {loadError ? (
-        <div className="admCard" style={{ borderColor: '#f0c7c7', marginBottom: '0.85rem' }}>
-          <p style={{ margin: 0, color: '#b42318' }}>{loadError}</p>
-        </div>
-      ) : null}
+      <div>
+        {loadError ? <div className="admd-alert" role="alert">{loadError}</div> : null}
 
-      <section className="admGrid4" style={{ marginBottom: '0.8rem' }}>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2DB84B' }}>
-          <span className="admIconChip admChipGreen">👤</span>
-          <h4>Total customers</h4>
-          <p className="v">{loading ? '…' : totalCustomers.toLocaleString()}</p>
-          <p className="s" style={{ color: '#2DB84B' }}>
-            {loading ? '…' : `+${customersThisWeek.toLocaleString()} in last 7 days`}
-          </p>
-        </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2e7bff' }}>
-          <span className="admIconChip admChipBlue">🚚</span>
-          <h4>Approved drivers</h4>
-          <p className="v">{loading ? '…' : approvedDrivers.toLocaleString()}</p>
-          <p className="s" style={{ color: '#2e7bff' }}>
-            {loading ? '…' : `${liveDrivers.toLocaleString()} with live location (15m)`}
-          </p>
-        </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#ec9120' }}>
-          <span className="admIconChip admChipOrange">📦</span>
-          <h4>Orders today</h4>
-          <p className="v">{loading ? '…' : ordersToday.toLocaleString()}</p>
-          <p className="s" style={{ color: '#ec9120' }}>
-            {loading ? '…' : ordersSubtitle}
-          </p>
-        </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2DB84B' }}>
-          <span className="admIconChip admChipGreen">💵</span>
-          <h4>Revenue today</h4>
-          <p className="v" style={{ color: '#2DB84B' }}>
-            {loading ? '…' : formatGBP(revenueToday)}
-          </p>
-          <p className="s" style={{ color: '#2DB84B' }}>
-            {loading ? '…' : revenueSubtitle}
-          </p>
-        </article>
-      </section>
-
-      <section className="admGrid3" style={{ marginBottom: '0.8rem' }}>
-        <article className="admCard">
-          <h4 style={{ color: '#ec9120', margin: 0 }}>Pending approvals</h4>
-          <p style={{ margin: '0.36rem 0', fontWeight: 800, fontSize: '1.2rem' }}>
-            {loading ? '…' : `${pendingDrivers.toLocaleString()} driver${pendingDrivers === 1 ? '' : 's'}`}
-          </p>
-          <Link className="admLink" to="/admin/driver-requests">
-            View all
-          </Link>
-        </article>
-        <article className="admCard">
-          <h4 style={{ color: '#d34444', margin: 0 }}>Pending withdrawals</h4>
-          <p style={{ margin: '0.36rem 0', fontWeight: 800, fontSize: '1.2rem' }}>
-            {loading ? '…' : `${pendingWithdrawals.toLocaleString()} open`}
-          </p>
-          <Link className="admLink" to="/admin/driver-withdrawals">
-            View all
-          </Link>
-        </article>
-        <article className="admCard">
-          <h4 style={{ color: '#2DB84B', margin: 0 }}>Data source</h4>
-          <p style={{ margin: '0.36rem 0', fontWeight: 800, fontSize: '1.2rem', color: '#2DB84B' }}>Connected</p>
-          <p style={{ margin: 0, color: '#777', fontSize: '0.85rem' }}>
-            Delivery, taxi, tuk-tuk & shop activity from your database
-          </p>
-        </article>
-      </section>
-
-      <section className="admGrid2" style={{ marginBottom: '0.8rem' }}>
-        <article className="admCard">
-          <div className="admSectionHeader">
-            <h3>Orders (last 7 days)</h3>
-          </div>
-          {loading ? <p className="admDim">Loading chart…</p> : <BarChart ordersByDay={ordersByDay} />}
-        </article>
-        <article className="admCard">
-          <div className="admSectionHeader">
-            <h3>Revenue (last 7 days)</h3>
-          </div>
-          {loading ? <p className="admDim">Loading chart…</p> : <LineChart revenueByDay={revenueByDay} />}
-        </article>
-      </section>
-
-      <section className="admCard" style={{ marginBottom: '0.8rem' }}>
-        <div className="admSectionHeader">
-          <h3>Recent activity</h3>
-          <Link className="admLink" to="/admin/delivery-orders">
-            Delivery orders
-          </Link>
-        </div>
-        <div className="admTableWrap">
-          <table className="admTable">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Ref</th>
-                <th>Customer</th>
-                <th>Driver</th>
-                <th>Route</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
+        <section className="admd-grid4">
+          <article className="admd-card">
+            <span className="admd-stat__icon admd-stat__icon--blue" aria-hidden>
+              <IconUsers />
+            </span>
+            <p className="admd-stat__label">Total customers</p>
+            <p className="admd-stat__value">{loading ? '…' : totalCustomers.toLocaleString()}</p>
+            <div className="admd-stat__foot">
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="admDim">
-                    Loading…
-                  </td>
-                </tr>
-              ) : recentRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="admDim">
-                    No bookings yet.
-                  </td>
-                </tr>
+                <p className="admd-stat__sub">…</p>
               ) : (
-                recentRows.map((row) => (
-                  <tr className="admClickableRow" key={`${row.kind}-${row.rawId}`}>
-                    <td>
-                      <span className="admBadgeStatus admBlue">{row.kind}</span>
-                    </td>
-                    <td>{row.id}</td>
-                    <td>{row.customer}</td>
-                    <td>{row.driver}</td>
-                    <td className="admDim" style={{ maxWidth: 220 }}>
-                      {row.route}
-                    </td>
-                    <td>{row.amount}</td>
-                    <td>
-                      <span className={orderStatusClass(row.status)}>{row.status}</span>
-                    </td>
-                    <td>{timeAgo(row.when)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="admGrid2">
-        <article className="admCard">
-          <div className="admSectionHeader">
-            <h3>Top drivers (90 days)</h3>
-          </div>
-          {loading ? (
-            <p className="admDim">Loading…</p>
-          ) : topDrivers.length === 0 ? (
-            <p className="admDim">No completed trips with an assigned driver yet.</p>
-          ) : (
-            topDrivers.map((driver) => (
-              <div
-                key={driver.rank}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '20px 34px 1fr auto',
-                  gap: '0.55rem',
-                  alignItems: 'center',
-                  padding: '0.4rem 0',
-                  borderBottom: '1px solid #f0f2f0',
-                }}
-              >
-                <strong>{driver.rank}</strong>
-                <span className="admAvatar" style={{ width: 34, height: 34, fontSize: '0.75rem' }}>
-                  {driver.name
-                    .split(' ')
-                    .map((n) => n[0])
-                    .join('')
-                    .slice(0, 2)}
+                <span className="admTrendUp">
+                  +{customersThisWeek.toLocaleString()} in last 7 days
                 </span>
-                <div>
-                  <div style={{ fontWeight: 700 }}>{driver.name}</div>
-                  <div style={{ color: '#777', fontSize: '0.78rem' }}>{driver.deliveries} completed trips</div>
-                  <div style={{ color: '#2DB84B', fontSize: '0.8rem' }}>
-                    {driver.rating !== '—' ? `★ ${driver.rating}` : 'No reviews'}
-                  </div>
-                </div>
-                <strong style={{ color: '#2DB84B' }}>{driver.earnings}</strong>
-              </div>
-            ))
-          )}
-        </article>
-        <article className="admCard">
-          <div className="admSectionHeader">
-            <h3>Recent trip reviews</h3>
-            <Link className="admOutlineBtn" to="/admin/reviews" style={{ padding: '0.33rem 0.58rem', textDecoration: 'none' }}>
-              Open reviews
+              )}
+            </div>
+          </article>
+          <article className="admd-card">
+            <span className="admd-stat__icon admd-stat__icon--orange" aria-hidden>
+              <IconScooter />
+            </span>
+            <p className="admd-stat__label">Approved drivers</p>
+            <p className="admd-stat__value">{loading ? '…' : approvedDrivers.toLocaleString()}</p>
+            <div className="admd-stat__foot">
+              <p className="admd-stat__sub">
+                {loading ? '…' : `${liveDrivers.toLocaleString()} with live location (15m)`}
+              </p>
+            </div>
+          </article>
+          <article className="admd-card">
+            <span className="admd-stat__icon admd-stat__icon--green" aria-hidden>
+              <IconBox />
+            </span>
+            <p className="admd-stat__label">Orders today</p>
+            <p className="admd-stat__value">{loading ? '…' : ordersToday.toLocaleString()}</p>
+            <div className="admd-stat__foot">
+              {loading ? (
+                <p className="admd-stat__sub">…</p>
+              ) : (
+                <span className={trendClass(ordersSubtitle)}>{ordersSubtitle}</span>
+              )}
+            </div>
+          </article>
+          <article className="admd-card">
+            <span className="admd-stat__icon admd-stat__icon--purple" aria-hidden>
+              <IconChart />
+            </span>
+            <p className="admd-stat__label">Revenue today</p>
+            <p className="admd-stat__value admd-stat__value--blue">{loading ? '…' : formatGBP(revenueToday)}</p>
+            <div className="admd-stat__foot">
+              {loading ? (
+                <p className="admd-stat__sub">…</p>
+              ) : (
+                <span className={trendClass(revenueSubtitle)}>{revenueSubtitle}</span>
+              )}
+            </div>
+          </article>
+        </section>
+
+        <section className="admd-grid3">
+          <article className="admd-card">
+            <p className="admd-mini__label admd-mini__label--orange">Pending approvals</p>
+            <p className="admd-mini__value">
+              {loading ? '…' : `${pendingDrivers.toLocaleString()} driver${pendingDrivers === 1 ? '' : 's'}`}
+            </p>
+            <Link className="admd-link" to="/admin/driver-requests">
+              View all
+            </Link>
+          </article>
+          <article className="admd-card">
+            <p className="admd-mini__label admd-mini__label--red">Pending withdrawals</p>
+            <p className="admd-mini__value">{loading ? '…' : `${pendingWithdrawals.toLocaleString()} open`}</p>
+            <Link className="admd-link" to="/admin/driver-withdrawals">
+              View all
+            </Link>
+          </article>
+          <article className="admd-card">
+            <p className="admd-mini__label admd-mini__label--blue">Data source</p>
+            <div className="admd-connected">
+              <span className="admd-pulse" aria-hidden />
+              <span className="admd-connected__text">Connected</span>
+            </div>
+            <p className="admd-mini__hint">Delivery, taxi, tuk-tuk & shop activity from your database</p>
+          </article>
+        </section>
+
+        <section className="admd-grid2">
+          <article className="admd-card">
+            <div className="admd-section-head">
+              <h3>Orders (last 7 days)</h3>
+            </div>
+            {loading ? <p className="admd-empty">Loading chart…</p> : <BarChart ordersByDay={ordersByDay} />}
+          </article>
+          <article className="admd-card">
+            <div className="admd-section-head">
+              <h3>Revenue (last 7 days)</h3>
+            </div>
+            {loading ? <p className="admd-empty">Loading chart…</p> : <LineChart revenueByDay={revenueByDay} />}
+          </article>
+        </section>
+
+        <section className="admd-card" style={{ marginBottom: 12 }}>
+          <div className="admd-section-head">
+            <h3>Recent activity</h3>
+            <Link className="admd-link" to="/admin/delivery-orders">
+              Delivery orders →
             </Link>
           </div>
-          {loading ? (
-            <p className="admDim">Loading…</p>
-          ) : recentReviews.length === 0 ? (
-            <p className="admDim">No reviews submitted yet.</p>
-          ) : (
-            recentReviews.map((rev) => (
-              <div
-                key={rev.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  alignItems: 'start',
-                  gap: '0.55rem',
-                  padding: '0.46rem 0',
-                  borderBottom: '1px solid #f0f2f0',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700 }}>★ {rev.rating}</div>
-                  <div style={{ fontSize: '0.78rem', color: '#555' }}>{rev.reviewer_role === 'driver' ? 'Driver review' : 'Customer review'}</div>
+          <div className="admd-table-wrap">
+            <table className="admd-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Ref</th>
+                  <th>Customer</th>
+                  <th>Driver</th>
+                  <th>Route</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="admd-empty">
+                      Loading…
+                    </td>
+                  </tr>
+                ) : recentRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="admd-empty">
+                      No bookings yet.
+                    </td>
+                  </tr>
+                ) : (
+                  recentRows.map((row) => (
+                    <tr key={`${row.kind}-${row.rawId}`}>
+                      <td>
+                        <span className={typeBadgeClass(row.kind)}>{row.kind}</span>
+                      </td>
+                      <td className="admd-table__ref">{row.id}</td>
+                      <td className="admd-table__customer">{row.customer}</td>
+                      <td>{row.driver}</td>
+                      <td className="admd-table__route" title={row.route}>
+                        {row.route}
+                      </td>
+                      <td className="admd-table__amount">{row.amount}</td>
+                      <td>
+                        <span className={orderStatusClass(row.status)}>{row.status}</span>
+                      </td>
+                      <td className="admd-table__time">{timeAgo(row.when)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="admd-grid2">
+          <article className="admd-card">
+            <div className="admd-section-head">
+              <h3>Top drivers (90 days)</h3>
+            </div>
+            {loading ? (
+              <p className="admd-empty">Loading…</p>
+            ) : topDrivers.length === 0 ? (
+              <p className="admd-empty">No completed trips with an assigned driver yet.</p>
+            ) : (
+              topDrivers.map((driver) => (
+                <div key={driver.rank} className="admd-driver-row">
+                  <span className="admd-driver-row__rank">{driver.rank}</span>
+                  <span className="admd-driver-row__avatar" aria-hidden>
+                    {initialsFromName(driver.name)}
+                  </span>
+                  <div>
+                    <div className="admd-driver-row__name">{driver.name}</div>
+                    <div className="admd-driver-row__meta">{driver.deliveries} completed trips</div>
+                    <div className="admd-driver-row__stars">
+                      {driver.rating !== '—' ? `★ ${driver.rating}` : 'No reviews'}
+                    </div>
+                  </div>
+                  <span className="admd-driver-row__earn">{driver.earnings}</span>
+                </div>
+              ))
+            )}
+          </article>
+          <article className="admd-card">
+            <div className="admd-section-head">
+              <h3>Recent trip reviews</h3>
+              <Link className="admd-link" to="/admin/reviews">
+                Open reviews →
+              </Link>
+            </div>
+            {loading ? (
+              <p className="admd-empty">Loading…</p>
+            ) : recentReviews.length === 0 ? (
+              <p className="admd-empty">No reviews submitted yet.</p>
+            ) : (
+              recentReviews.map((rev) => (
+                <div key={rev.id} className="admd-review-row">
+                  <div className="admd-review-row__stars">★ {rev.rating}</div>
+                  <div className="admd-review-row__role">
+                    {rev.reviewer_role === 'driver' ? 'Driver review' : 'Customer review'}
+                  </div>
                   {rev.review_text ? (
-                    <div style={{ fontSize: '0.82rem', marginTop: '0.2rem', color: '#444' }}>
+                    <div className="admd-review-row__text">
                       {rev.review_text.length > 120 ? `${rev.review_text.slice(0, 120)}…` : rev.review_text}
                     </div>
                   ) : null}
-                  <div className="admDim" style={{ fontSize: '0.75rem', marginTop: '0.15rem' }}>
-                    {timeAgo(rev.created_at)}
-                  </div>
+                  <div className="admd-review-row__time">{timeAgo(rev.created_at)}</div>
                 </div>
-              </div>
-            ))
-          )}
-        </article>
-      </section>
+              ))
+            )}
+          </article>
+        </section>
+      </div>
     </div>
   );
 }

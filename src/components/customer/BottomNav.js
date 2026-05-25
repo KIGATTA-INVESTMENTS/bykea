@@ -1,8 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import './CustomerApp.css';
 
-const active = '#F18631';
-const inactive = '#6b6b6b';
+const active = '#EC6C23';
+const inactive = '#9ca3af';
 
 function IconHome({ isOn }) {
   const c = isOn ? active : inactive;
@@ -30,26 +30,18 @@ function IconList({ isOn }) {
   );
 }
 
-function IconShops({ isOn }) {
+function IconShop({ isOn }) {
   const c = isOn ? active : inactive;
   return (
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden>
       <path
-        d="M4 10V8a2 2 0 0 1 2-2h2l1-2h6l1 2h2a2 2 0 0 1 2 2v2"
+        d="M6 7h12v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7Z"
         stroke={c}
-        strokeWidth="1.55"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
+        strokeWidth="1.6"
+        fill={isOn ? c : 'none'}
+        fillOpacity={isOn ? 0.12 : 0}
       />
-      <path
-        d="M5 10h14v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9Z"
-        stroke={c}
-        strokeWidth="1.55"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <path d="M9 14h6" stroke={c} strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke={c} strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -73,9 +65,13 @@ function IconUser({ isOn }) {
 const items = [
   { to: '/home', end: true, label: 'Home', Icon: IconHome },
   { to: '/orders', label: 'Orders', Icon: IconList },
-  { to: '/shops', label: 'Shops', Icon: IconShops },
+  { to: '/shops', label: 'Shop', Icon: IconShop },
   { to: '/profile', label: 'Profile', Icon: IconUser },
 ];
+
+function isShopRoute(pathname) {
+  return pathname === '/shops' || pathname.startsWith('/shop/');
+}
 
 export default function BottomNav() {
   const location = useLocation();
@@ -86,20 +82,21 @@ export default function BottomNav() {
     <nav className="bnav" aria-label="Main">
       {items.map(({ to, end, label, Icon }) => {
         const profileExtra =
-          to === '/profile' &&
+          label === 'Profile' &&
           (location.pathname.startsWith('/profile') || onSupportChat);
+        const shopExtra = label === 'Shop' && isShopRoute(location.pathname);
         return (
           <NavLink
-            key={to}
+            key={label}
             to={to}
             end={end}
             className={({ isActive }) => {
-              const on = profileExtra ? true : isActive;
+              const on = profileExtra || shopExtra || isActive;
               return on ? 'bnav__item bnav__item--active' : 'bnav__item';
             }}
           >
             {({ isActive }) => {
-              const on = profileExtra || isActive;
+              const on = profileExtra || shopExtra || isActive;
               return (
                 <>
                   <span className="bnav__icon" aria-hidden>

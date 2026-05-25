@@ -115,7 +115,7 @@ export default function AdminServiceRatesPage() {
         price_per_km: pk,
         base_fare: bf,
         service_fee: sf,
-        currency: 'GBP',
+        currency: 'USD',
         updated_at: new Date().toISOString(),
       });
     }
@@ -173,7 +173,7 @@ export default function AdminServiceRatesPage() {
             each delivery class: <strong>Motorbike</strong>, <strong>Tuk-Tuk</strong>, and <strong>Car</strong>. The
             customer flow picks one of these on package details; the price estimate uses the matching row.{' '}
             <strong>Taxi (ride)</strong> and <strong>Tuk-Tuk (ride)</strong> are for ride bookings, not parcel delivery.
-            Currency: GBP.
+            Currency: USD.
           </div>
         </div>
       </section>
@@ -197,9 +197,9 @@ export default function AdminServiceRatesPage() {
               <thead>
                 <tr>
                   <th>Service</th>
-                  <th>Price per km (Â£)</th>
-                  <th>Base fare (Â£)</th>
-                  <th>Service fee (Â£)</th>
+                  <th>Price per km (Â$)</th>
+                  <th>Base fare (Â$)</th>
+                  <th>Service fee (Â$)</th>
                 </tr>
               </thead>
               <tbody>

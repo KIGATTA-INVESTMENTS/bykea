@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { isAdminSignedIn, markAdminSignedOut } from '../../lib/adminAuth';
+import InGoLogo from '../InGoLogo';
+import { AdminHeaderActionsProvider, useAdminHeaderActions } from './adminHeaderActions';
 import '../../pages/adminPortal.css';
+import '../../pages/adminSidebarPremium.css';
+import '../../pages/adminDesignSystem.css';
 
-function Icon({ path, color = 'currentColor' }) {
+function Icon({ path }) {
   return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d={path} stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d={path} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -92,14 +96,20 @@ const sectionItems = [
 ];
 
 function TopBar({ title, onMenuClick }) {
+  const { actions } = useAdminHeaderActions() || { actions: null };
   return (
     <header className="admTopbar">
       <button className="admIconBtn admMenuBtn" type="button" aria-label="Open menu" onClick={onMenuClick}>
         <Icon path="M4 7h16M4 12h16M4 17h16" />
       </button>
-      <div className="admTopTitle">{title}</div>
-      <div className="admTopDate">Saturday 25 April 2026</div>
-      <div className="admAvatar">SA</div>
+      <h1 className="admTopbar__title">{title}</h1>
+      <div className="admTopbar__actions">{actions}</div>
+      <div className="admTopbar__avatar-wrap">
+        <div className="admTopbar__avatar" aria-hidden>
+          SA
+        </div>
+        <span className="admTopbar__online" aria-hidden />
+      </div>
     </header>
   );
 }
@@ -178,40 +188,49 @@ export default function AdminLayout() {
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
+    <AdminHeaderActionsProvider>
     <div className="adm admShell">
       {sidebarOpen ? <button type="button" className="admSidebarOverlay" aria-label="Close menu" onClick={closeSidebar} /> : null}
       <aside className={`admSidebar${sidebarOpen ? ' admSidebar--open' : ''}`}>
-        <div className="admBrand">
-          <strong>InGo</strong>
-          <span className="admAdminBadge">Admin</span>
-        </div>
-        <div className="admProfile">
-          <div className="admAvatar">SA</div>
-          <div>
-            <div style={{ fontWeight: 700 }}>Shuaib Admin</div>
-            <span className="admRole">Super Admin</span>
+        <div className="admSidebar__head">
+          <div className="admBrand">
+            <InGoLogo variant="adminSidebar" />
+            <span className="admAdminBadge">Admin</span>
+          </div>
+          <div className="admProfile">
+            <div className="admSidebarAvatar" aria-hidden>
+              SA
+            </div>
+            <div className="admProfile__text">
+              <div className="admProfile__name">Shuaib Admin</div>
+              <span className="admRole">Super Admin</span>
+            </div>
           </div>
         </div>
-        {sectionItems.map((section) => (
-          <div key={section.label}>
-            <div className="admNavLabel">{section.label}</div>
-            {section.items.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) => `admNavItem${isActive ? ' active' : ''}`}
-                onClick={closeSidebar}
-              >
-                <Icon path={item.icon} />
-                {item.name}
-              </NavLink>
-            ))}
-          </div>
-        ))}
-        <button className="admNavItem admDanger" type="button" onClick={handleLogout}>
-          <Icon path="M14 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" color="#d83a3a" />
-          Logout
-        </button>
+        <div className="admSidebar__scroll">
+          {sectionItems.map((section, sectionIdx) => (
+            <div key={section.label} className="admNavSection">
+              {sectionIdx > 0 ? <div className="admNavDivider" role="presentation" /> : null}
+              <div className="admNavLabel">{section.label}</div>
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => `admNavItem${isActive ? ' active' : ''}`}
+                  onClick={closeSidebar}
+                >
+                  <Icon path={item.icon} />
+                  {item.name}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+          <div className="admNavDivider" role="presentation" />
+          <button className="admNavItem admDanger" type="button" onClick={handleLogout}>
+            <Icon path="M14 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" />
+            Logout
+          </button>
+        </div>
       </aside>
       <main className="admMain">
         <TopBar title={pageTitle} onMenuClick={() => setSidebarOpen((v) => !v)} />
@@ -220,5 +239,6 @@ export default function AdminLayout() {
         </div>
       </main>
     </div>
+    </AdminHeaderActionsProvider>
   );
 }

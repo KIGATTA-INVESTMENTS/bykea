@@ -65,6 +65,7 @@ import ShopOwnerSupportPage from './pages/ShopOwnerSupportPage';
 import ShopOwnerSupportChatPage from './pages/ShopOwnerSupportChatPage';
 import ShopOwnerPaymentsPage from './pages/ShopOwnerPaymentsPage';
 import ShopOwnerAnalyticsPage from './pages/ShopOwnerAnalyticsPage';
+import ShopOwnerNotificationsPage from './pages/ShopOwnerNotificationsPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboardPage from './pages/AdminDashboardPage';
@@ -97,6 +98,7 @@ import AdminReviewsPage from './pages/AdminReviewsPage';
 import AdminDriverWithdrawalsPage from './pages/AdminDriverWithdrawalsPage';
 import AdminShopWithdrawalsPage from './pages/AdminShopWithdrawalsPage';
 import MapsDebugPage from './pages/MapsDebugPage';
+import DesktopAdminOnlyGuard from './components/DesktopAdminOnlyGuard';
 
 const STORAGE_KEY = 'ingo_onboarding_complete';
 
@@ -162,9 +164,10 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTopOnRouteChange />
-      <ShopCartProvider>
-        <div className="App">
-          <Routes>
+      <DesktopAdminOnlyGuard>
+        <ShopCartProvider>
+          <div className="App">
+            <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/register" element={<RegisterPage />} />
@@ -328,6 +331,7 @@ function App() {
               />
               <Route path="payments" element={<ShopOwnerPaymentsPage />} />
               <Route path="analytics" element={<ShopOwnerAnalyticsPage />} />
+              <Route path="notifications" element={<ShopOwnerNotificationsPage />} />
               <Route path="chat" element={<ShopOwnerSupportChatPage />} />
               <Route path="profile" element={<ShopOwnerProfilePage />} />
               <Route path="support" element={<ShopOwnerSupportPage />} />
@@ -348,9 +352,10 @@ function App() {
               <Route path="chat/support" element={<ChatPage support />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-      </ShopCartProvider>
+            </Routes>
+          </div>
+        </ShopCartProvider>
+      </DesktopAdminOnlyGuard>
     </BrowserRouter>
   );
 }

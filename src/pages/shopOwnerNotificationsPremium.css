@@ -1,0 +1,115 @@
+/* Shop Owner — Notifications (within portal layout) */
+.sopntf-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: #f0f2f5;
+  color: #1f2937;
+}
+
+.sopntf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0 0 0.75rem;
+}
+
+.sopntf-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sopntf-refresh {
+  border: 2px solid #07408f;
+  border-radius: 50rem;
+  background: #fff;
+  color: #07408f;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.sopntf-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sopntf-error {
+  margin: 0 0 0.65rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  color: #b42318;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.sopntf-loading {
+  margin: 2rem 0;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.sopntf-card--click {
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  border: none;
+  font: inherit;
+}
+
+.sopntf-card--click:focus-visible {
+  outline: 2px solid #ec6c23;
+  outline-offset: 2px;
+}
+
+.sopntf-head h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 4.5vw, 1.65rem);
+  font-weight: 800;
+  color: #07408f;
+  line-height: 1.2;
+}
+
+.sopntf-mark {
+  border: none;
+  background: transparent;
+  color: #ec6c23;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sopntf-mark:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sopntf-tabs {
+  margin: 0 -0.15rem 0;
+  border-radius: 12px 12px 0 0;
+  overflow: hidden;
+}
+
+.sopntf-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.75rem 0 1rem;
+}
+
+.sopntf-scroll .ntf-empty {
+  margin-top: 2rem;
+}

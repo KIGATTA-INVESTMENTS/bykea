@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { shopOrderGrandTotal } from '../lib/shopDeliverySettings';
 import { shopOrderStatusLabel } from '../lib/shopOrderStatus';
@@ -160,15 +161,16 @@ export default function AdminShopOrdersPage() {
 
   const v = viewOrder;
 
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
       <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Shop orders</h2>
         <div className="admFilters">
           <input className="admInput admDateInput" readOnly defaultValue="Live data" title="From shop checkout" />
-          <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-            Refresh
-          </button>
         </div>
       </div>
 
@@ -186,22 +188,22 @@ export default function AdminShopOrdersPage() {
             From /shops checkout
           </p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2e7bff' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Product units sold</h4>
-          <p className="v" style={{ color: '#2e7bff' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : stats.items}
           </p>
-          <p className="s" style={{ color: '#2e7bff' }}>
+          <p className="s" style={{ color: '#0A58A6' }}>
             Sum of line quantities
           </p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2DB84B' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Subtotal (all orders)</h4>
-          <p className="v" style={{ color: '#2DB84B' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : formatGBP(stats.revenue)}
           </p>
-          <p className="s" style={{ color: '#2DB84B' }}>
-            GBP
+          <p className="s" style={{ color: '#0A58A6' }}>
+            USD
           </p>
         </article>
         <article className="admCard admStat" style={{ borderLeftColor: '#9aa899' }}>

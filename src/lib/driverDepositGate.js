@@ -1,7 +1,21 @@
 import { fetchPlatformCommissionSettings } from './platformCommissionSettings';
 
-/** Minimum security deposit (GBP) required to go online and accept bookings. */
+/** Minimum security deposit (USD) required to go online and accept bookings. */
 export const DRIVER_SECURITY_DEPOSIT_MIN_GBP = 10;
+
+/**
+ * Whether the driver has met the security deposit requirement (top-up or legacy flag).
+ * @param {Record<string, unknown> | null | undefined} row
+ */
+export function isDriverDepositSatisfied(row) {
+  if (!row || typeof row !== 'object') return false;
+  if (row.deposit_paid === true) return true;
+  const requiredRaw = Number(row.deposit_required_gbp);
+  const required =
+    Number.isFinite(requiredRaw) && requiredRaw > 0 ? requiredRaw : DRIVER_SECURITY_DEPOSIT_MIN_GBP;
+  const balance = Number(row.driver_deposit_balance_gbp);
+  return Number.isFinite(balance) && balance >= required;
+}
 
 /**
  * @param {import('./supabaseClient').SupabaseClient | null} supabase

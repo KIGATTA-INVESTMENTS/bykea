@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { formatVehicleTypeForDisplay } from '../lib/vehicleTypeDisplay';
@@ -182,15 +183,13 @@ export default function AdminDriverRequestsPage() {
     setStatus(id, 'rejected', { adminNotes: null });
   };
 
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
-      <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Driver requests</h2>
-        <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-          Refresh
-        </button>
-      </div>
-
       <section className="admGrid4" style={{ marginBottom: '0.8rem' }}>
         <article className="admCard admSmallCard">
           <p className="k">Total</p>
@@ -204,7 +203,7 @@ export default function AdminDriverRequestsPage() {
         </article>
         <article className="admCard admSmallCard">
           <p className="k">Approved</p>
-          <p className="v" style={{ color: '#2DB84B' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {counts.approved}
           </p>
         </article>
@@ -316,8 +315,8 @@ export default function AdminDriverRequestsPage() {
                               display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              borderColor: '#2DB84B',
-                              color: '#2DB84B',
+                              borderColor: '#0A58A6',
+                              color: '#0A58A6',
                             }}
                             disabled={actionId === r.id}
                             aria-label={`Approve ${r.full_name}`}
@@ -427,7 +426,7 @@ export default function AdminDriverRequestsPage() {
                   style={{
                     width: 'auto',
                     minWidth: '2.5rem',
-                    background: '#2DB84B',
+                    background: '#0A58A6',
                     padding: '0.5rem 0.75rem',
                     display: 'inline-flex',
                     alignItems: 'center',

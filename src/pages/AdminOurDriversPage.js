@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
+import { isDriverDepositSatisfied } from '../lib/driverDepositGate';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { formatVehicleTypeForDisplay } from '../lib/vehicleTypeDisplay';
 import { PARCEL_DRIVER_VEHICLE_TYPES } from '../lib/deliveryVehicleTypes';
@@ -8,7 +10,7 @@ const VEHICLE_TYPES = [...PARCEL_DRIVER_VEHICLE_TYPES];
 const PHONE_CODES = ['+44', '+1', '+971'];
 
 function formatDt(iso) {
-  if (!iso) return '—';
+  if (!iso) return '�';
   try {
     return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
@@ -18,7 +20,7 @@ function formatDt(iso) {
 
 function initials(name) {
   const n = String(name || '').trim();
-  if (!n) return '—';
+  if (!n) return '�';
   const parts = n.split(/\s+/).filter(Boolean);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -29,7 +31,7 @@ function isHttpUrl(s) {
 }
 
 function DocLink({ label, url }) {
-  if (!url) return <span style={{ color: '#999' }}>{label}: —</span>;
+  if (!url) return <span style={{ color: '#999' }}>{label}: �</span>;
   const href = String(url).trim();
   if (isHttpUrl(href)) {
     return (
@@ -40,7 +42,7 @@ function DocLink({ label, url }) {
   }
   return (
     <span title={href}>
-      {label}: <code style={{ fontSize: '0.72rem' }}>{href.length > 48 ? `${href.slice(0, 48)}…` : href}</code>
+      {label}: <code style={{ fontSize: '0.72rem' }}>{href.length > 48 ? `${href.slice(0, 48)}�` : href}</code>
     </span>
   );
 }
@@ -162,6 +164,16 @@ export default function AdminOurDriversPage() {
     });
   }, [rows, search]);
 
+  const openViewDriver = useCallback(async (r) => {
+    setViewDriver(r);
+    if (!isSupabaseConfigured || !supabase || !r?.id) return;
+    const { data } = await supabase.from('driver_registrations').select('*').eq('id', r.id).maybeSingle();
+    if (data) {
+      setViewDriver(data);
+      setRows((prev) => prev.map((x) => (x.id === data.id ? data : x)));
+    }
+  }, []);
+
   const openEdit = (r) => {
     setEditErr('');
     setEditRow(r);
@@ -237,24 +249,25 @@ export default function AdminOurDriversPage() {
 
   const v = viewDriver;
   const ef = editForm;
+  const depositPaid = v ? isDriverDepositSatisfied(v) : false;
+  const depositRequired = v ? Number(v.deposit_required_gbp ?? 10) : 10;
+  const depositBalance = v ? Number(v.driver_deposit_balance_gbp ?? 0) : 0;
+
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
 
   return (
     <div className="adm">
-      <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Drivers</h2>
-        <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-          Refresh
-        </button>
-      </div>
-
-      <p style={{ margin: '0 0 0.75rem', color: '#555', fontSize: '0.88rem', maxWidth: '42rem' }}>
+      <p className="admDim" style={{ margin: '0 0 0.75rem', fontSize: '0.88rem', maxWidth: '42rem' }}>
         Drivers listed here have an <strong>approved</strong> registration. They are the only accounts that can sign in to the driver app.
       </p>
 
       <section className="admGrid4" style={{ marginBottom: '0.8rem' }}>
         <article className="admCard admSmallCard">
           <p className="k">Approved drivers</p>
-          <p className="v" style={{ color: '#2DB84B' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {rows.length}
           </p>
         </article>
@@ -268,7 +281,7 @@ export default function AdminOurDriversPage() {
 
       <section className="admCard" style={{ marginBottom: '0.8rem' }}>
         <div className="admSearch">
-          <input placeholder="Search name, email, phone, plate…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input placeholder="Search name, email, phone, plate�" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </section>
 
@@ -290,7 +303,7 @@ export default function AdminOurDriversPage() {
               {loading ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
-                    Loading…
+                    Loading�
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
@@ -317,7 +330,7 @@ export default function AdminOurDriversPage() {
                     </td>
                     <td>
                       <span className="admBadgeStatus admBlue">
-                        {formatVehicleTypeForDisplay(r.vehicle_type) || r.vehicle_type} · {r.vehicle_make} {r.vehicle_model}
+                        {formatVehicleTypeForDisplay(r.vehicle_type) || r.vehicle_type} � {r.vehicle_make} {r.vehicle_model}
                       </span>
                     </td>
                     <td>{r.vehicle_plate}</td>
@@ -328,7 +341,7 @@ export default function AdminOurDriversPage() {
                           type="button"
                           className="admShopOrdIcon admShopOrdIcon--view"
                           aria-label={`View ${r.full_name}`}
-                          onClick={() => setViewDriver(r)}
+                          onClick={() => openViewDriver(r)}
                         >
                           <IconView />
                         </button>
@@ -370,7 +383,7 @@ export default function AdminOurDriversPage() {
                 {v.full_name}
               </h2>
               <p className="admDim" style={{ margin: '0 0 0.75rem', fontSize: '0.82rem' }}>
-                Approved driver · {formatDt(v.updated_at || v.created_at)}
+                Approved driver � {formatDt(v.updated_at || v.created_at)}
               </p>
               <p style={{ margin: '0 0 0.35rem', fontSize: '0.72rem', fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Contact</p>
               <p style={{ margin: 0, fontSize: '0.88rem' }}>
@@ -388,16 +401,24 @@ export default function AdminOurDriversPage() {
 
               <p style={{ margin: '0.85rem 0 0.35rem', fontSize: '0.72rem', fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Vehicle</p>
               <p style={{ margin: 0, fontSize: '0.88rem' }}>
-                {formatVehicleTypeForDisplay(v.vehicle_type) || v.vehicle_type} — {v.vehicle_make} {v.vehicle_model}
+                {formatVehicleTypeForDisplay(v.vehicle_type) || v.vehicle_type} � {v.vehicle_make} {v.vehicle_model}
               </p>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.88rem' }}>
-                Plate {v.vehicle_plate} · {v.vehicle_color}
+                Plate {v.vehicle_plate} � {v.vehicle_color}
               </p>
 
               <p style={{ margin: '0.85rem 0 0.35rem', fontSize: '0.72rem', fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Deposit</p>
               <p style={{ margin: 0, fontSize: '0.88rem' }}>
-                £{Number(v.deposit_required_gbp ?? 10).toFixed(2)} required · {v.deposit_paid ? 'Paid' : 'Not paid'}
+                ${depositRequired.toFixed(2)} required ·{' '}
+                <span style={{ color: depositPaid ? '#166534' : '#b42318', fontWeight: 700 }}>
+                  {depositPaid ? 'Paid' : 'Not paid'}
+                </span>
               </p>
+              {depositBalance > 0 ? (
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#555' }}>
+                  Current balance: ${depositBalance.toFixed(2)}
+                </p>
+              ) : null}
 
               {v.admin_notes ? (
                 <>
@@ -612,7 +633,7 @@ export default function AdminOurDriversPage() {
                   Cancel
                 </button>
                 <button type="button" className="admInfoBtn" disabled={saveWorking} onClick={() => saveEdit()}>
-                  {saveWorking ? 'Saving…' : 'Save changes'}
+                  {saveWorking ? 'Saving�' : 'Save changes'}
                 </button>
               </div>
             </div>
@@ -631,7 +652,7 @@ export default function AdminOurDriversPage() {
           <div className="admModalCard">
             <div className="admModalCardInner">
               <div className="admModalIconWrap" aria-hidden>
-                🗑
+                ??
               </div>
               <h2 id="adm-od-del-title" className="admModalTitle">
                 Delete this driver record?
@@ -649,7 +670,7 @@ export default function AdminOurDriversPage() {
                   Cancel
                 </button>
                 <button type="button" className="admModalBtnDanger" disabled={deleteWorking} onClick={() => confirmDelete()}>
-                  {deleteWorking ? 'Deleting…' : 'Yes, delete'}
+                  {deleteWorking ? 'Deleting�' : 'Yes, delete'}
                 </button>
               </div>
             </div>

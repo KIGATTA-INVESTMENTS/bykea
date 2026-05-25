@@ -7,7 +7,7 @@ export const MOCK_SHOPS = [
     category: 'Groceries',
     rating: 4.6,
     delivery: '20–30 min',
-    fee: '£0.99',
+    fee: '�$0.99',
     imageUrl:
       'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=640&q=80',
   },
@@ -17,7 +17,7 @@ export const MOCK_SHOPS = [
     category: 'Pharmacy',
     rating: 4.8,
     delivery: '15–25 min',
-    fee: 'Free over £20',
+    fee: 'Free over �$20',
     imageUrl:
       'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=800&q=80',
   },
@@ -27,7 +27,7 @@ export const MOCK_SHOPS = [
     category: 'Electronics',
     rating: 4.4,
     delivery: '25–40 min',
-    fee: '£1.50',
+    fee: '�$1.50',
     imageUrl:
       'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=640&q=80',
   },
@@ -37,7 +37,7 @@ export const MOCK_SHOPS = [
     category: 'Food',
     rating: 4.7,
     delivery: '18–30 min',
-    fee: '£0.00',
+    fee: '�$0.00',
     imageUrl:
       'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=640&q=80',
   },

@@ -1,0 +1,359 @@
+/* Driver Earnings — premium layout */
+.dvRoot--premium {
+  --de-blue: #07408f;
+  --de-orange: #ec6c23;
+  --de-page-bg: #f0f2f5;
+  --de-grey-soft: #6b7280;
+  background: var(--de-page-bg) !important;
+  padding: 0;
+}
+
+.dvRoot--premium .dvH {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  padding: calc(0.6rem + env(safe-area-inset-top, 0)) 1rem 0.65rem;
+  background: var(--de-blue);
+  border-bottom: none;
+  gap: 0;
+}
+
+.dvRoot--premium .dvH h1 {
+  grid-column: 2;
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+}
+
+.dvRoot--premium .dvFil {
+  grid-column: 3;
+  justify-self: end;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: transparent;
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.dvRoot--premium .dvFil:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dvRoot--premium .dv__heroSpacer {
+  grid-column: 1;
+}
+
+.dvRoot--premium .dvSc {
+  padding: 1rem 1rem 0.5rem;
+  padding-bottom: calc(1rem + var(--dp-bnav-total, 4rem));
+}
+
+.dvRoot--premium .dv__notice {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--de-grey-soft);
+}
+
+.dvRoot--premium .dv__notice--error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+/* Hero card */
+.dvRoot--premium .dvSum {
+  margin: 0 0 1rem;
+  padding: 1.15rem 1.1rem 1rem;
+  background: var(--de-blue);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(7, 64, 143, 0.22);
+  color: #fff;
+}
+
+.dvRoot--premium .dvSumL {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.dvRoot--premium .dvSumAmt {
+  margin: 0.35rem 0 0.4rem;
+  font-size: clamp(2.5rem, 9vw, 3.25rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.dvRoot--premium .dvSumNet {
+  margin: 0 0 1rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.45;
+}
+
+.dvRoot--premium .dvSumNet span {
+  font-weight: 700;
+  color: #fff;
+}
+
+.dvRoot--premium .dv3r {
+  gap: 0.5rem;
+  margin-top: 0;
+}
+
+.dvRoot--premium .dv3b {
+  padding: 0.65rem 0.35rem 0.55rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  box-shadow: none;
+  color: #fff;
+}
+
+.dvRoot--premium .dv3b b {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 0.2rem;
+}
+
+.dvRoot--premium .dv3b span {
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Period tabs */
+.dvRoot--premium .dvTabs {
+  margin: 0 0 1rem;
+  padding: 0 0.15rem;
+  gap: 0.5rem;
+  border-bottom: none;
+}
+
+.dvRoot--premium .dvTab {
+  flex: 1;
+  padding: 0.5rem 0.25rem 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--de-grey-soft);
+  border-bottom: 3px solid transparent;
+  margin-bottom: 0;
+}
+
+.dvRoot--premium .dvTab--on {
+  color: #1f2937;
+  font-weight: 800;
+  border-bottom-color: var(--de-orange);
+}
+
+/* Chart card */
+.dvRoot--premium .dvCh {
+  margin: 0 0 1rem;
+  padding: 1rem 1rem 0.85rem;
+  background: #fff;
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  min-height: 8.5rem;
+}
+
+.dvRoot--premium .dvChT {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--de-blue);
+}
+
+.dvRoot--premium .dvChNote {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--de-grey-soft);
+  line-height: 1.45;
+}
+
+.dvRoot--premium .dvBars {
+  height: 6.5rem;
+  padding: 0 0.1rem;
+}
+
+.dvRoot--premium .dvBbar {
+  background: var(--de-orange);
+  border-radius: 6px 6px 0 0;
+  box-shadow: none;
+}
+
+.dvRoot--premium .dvBbar--empty {
+  background: #e5e7eb !important;
+  min-height: 4px !important;
+  box-shadow: none;
+}
+
+.dvRoot--premium .dvBval {
+  font-size: 0.5rem;
+  color: #fff;
+}
+
+.dvRoot--premium .dvBday {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #9ca3af;
+  margin-top: 0.35rem;
+}
+
+/* Breakdown card */
+.dvRoot--premium .dvBD {
+  margin: 0 0 1rem;
+  padding: 0.25rem 1rem 0.5rem;
+  background: #fff;
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  text-align: left;
+}
+
+.dvRoot--premium .dvBDL {
+  padding: 0.85rem 0;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1f2937;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.dvRoot--premium .dvBDL:last-child {
+  border-bottom: none;
+}
+
+.dvRoot--premium .dvBDL--commission span:first-child {
+  font-weight: 500;
+  color: var(--de-grey-soft);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  flex: 1;
+  padding-right: 0.5rem;
+}
+
+.dvRoot--premium .dvBDL--net {
+  margin-top: 0.15rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e2e8f0;
+  border-bottom: none;
+}
+
+.dvRoot--premium .dvBDL--net span:first-child {
+  font-weight: 800;
+  color: var(--de-blue);
+  font-size: 0.9375rem;
+}
+
+.dvRoot--premium .dvBDR--b {
+  color: #1f2937;
+  font-size: 0.9375rem;
+}
+
+.dvRoot--premium .dvBDR--r {
+  color: #dc2626;
+  font-size: 0.9375rem;
+}
+
+.dvRoot--premium .dvBDR--net {
+  color: var(--de-blue);
+  font-size: 1.0625rem;
+  margin-top: 0;
+}
+
+.dvRoot--premium .dvBdiv {
+  display: none;
+}
+
+/* Completed jobs */
+.dvRoot--premium .dvRsec {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--de-blue);
+}
+
+.dvRoot--premium .dvJobsEmpty,
+.dvRoot--premium .dvJobsCard {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 0.75rem;
+}
+
+.dvRoot--premium .dvJobsEmpty {
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+}
+
+.dvRoot--premium .dvJobsEmpty p {
+  margin: 0;
+  font-size: 0.875rem;
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--de-grey-soft);
+}
+
+.dvRoot--premium .dvJobsEmpty code {
+  font-size: 0.72em;
+  font-style: normal;
+}
+
+.dvRoot--premium .dvJobsCard {
+  padding: 0.25rem 0.85rem;
+  overflow: hidden;
+}
+
+.dvRoot--premium .dvJobsCard .dvRrow {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.dvRoot--premium .dvJobsCard .dvRrow:last-child {
+  border-bottom: none;
+}
+
+.dvRoot--premium .dvRid {
+  color: var(--de-blue);
+  font-size: 0.875rem;
+}
+
+.dvRoot--premium .dvRkind {
+  font-size: 0.68rem;
+  color: var(--de-grey-soft);
+  font-weight: 600;
+}
+
+.dvRoot--premium .dvRrowMeta {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.dvRoot--premium .dvRAmt {
+  color: var(--de-blue);
+}
+
+.dvRoot--premium .dvRnet {
+  color: var(--de-grey-soft);
+  font-size: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dvRoot--premium .dvFil {
+    transition: none;
+  }
+}

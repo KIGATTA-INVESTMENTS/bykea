@@ -1,0 +1,379 @@
+/* Shop Owner — My Orders premium */
+.soo-page {
+  --soo-blue: #07408f;
+  --soo-orange: #ec6c23;
+  --soo-grey: #6b7280;
+  --soo-page-bg: #f0f2f5;
+  color: #1f2937;
+}
+
+.soo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.soo-head h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 4.5vw, 1.65rem);
+  font-weight: 800;
+  color: var(--soo-blue);
+  line-height: 1.2;
+}
+
+.soo-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-radius: 50rem;
+  background: var(--soo-blue);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter 0.15s ease;
+}
+
+.soo-refresh:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.soo-refresh:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.soo-error {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.soo-error p {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* Filter tabs */
+.soo-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  margin: 0 0 0.85rem;
+  padding: 0 0 0.15rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.soo-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.soo-tab {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.85rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 50rem;
+  background: #fff;
+  color: #374151;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.soo-tab:hover {
+  border-color: #cbd5e1;
+}
+
+.soo-tab--on {
+  background: var(--soo-orange);
+  border-color: var(--soo-orange);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* Search */
+.soo-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 48px;
+  margin: 0 0 1rem;
+  padding: 0 1rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.soo-search-wrap:focus-within {
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 3px rgba(7, 64, 143, 0.1);
+}
+
+.soo-search-icon {
+  flex-shrink: 0;
+  color: #9ca3af;
+  line-height: 0;
+}
+
+.soo-search {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  border: none;
+  background: transparent;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  color: #1f2937;
+  padding: 0;
+}
+
+.soo-search::placeholder {
+  color: #9ca3af;
+}
+
+.soo-search:focus {
+  outline: none;
+}
+
+/* Table card */
+.soo-table-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.soo-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.soo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  table-layout: fixed;
+}
+
+.soo-table th {
+  padding: 0.75rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--soo-blue);
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.soo-table td {
+  padding: 0.7rem 0.65rem;
+  border-bottom: 1px solid #f0f2f5;
+  vertical-align: middle;
+  color: #374151;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.soo-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.soo-table-loading td {
+  text-align: center;
+  color: var(--soo-grey);
+  padding: 1.25rem;
+}
+
+.soo-order-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--soo-blue);
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.soo-order-link:hover {
+  text-decoration: underline;
+}
+
+.soo-items-cell {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.soo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.soo-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--soo-blue);
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.soo-icon-btn:hover {
+  background: #e8f0fb;
+}
+
+.soo-icon-btn--danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.soo-icon-btn--danger:hover {
+  background: #fef2f2;
+}
+
+/* Empty state */
+.soo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+}
+
+.soo-empty-icon {
+  color: #d1d5db;
+  margin-bottom: 1rem;
+  line-height: 0;
+}
+
+.soo-empty h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #374151;
+}
+
+.soo-empty p {
+  margin: 0;
+  max-width: 20rem;
+  font-size: 0.875rem;
+  color: var(--soo-grey);
+  line-height: 1.5;
+}
+
+.soo-empty--filter p {
+  font-style: normal;
+}
+
+/* Count */
+.soo-count {
+  margin: 0.85rem 0 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--soo-grey);
+}
+
+/* Status badges */
+.soo-badge {
+  display: inline-block;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 50rem;
+  color: #fff;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.soo-badge--pending {
+  background: var(--soo-orange);
+}
+
+.soo-badge--processing {
+  background: var(--soo-blue);
+}
+
+.soo-badge--ready {
+  background: #7c3aed;
+}
+
+.soo-badge--picked {
+  background: #0d9488;
+}
+
+.soo-badge--transit {
+  background: #2563eb;
+}
+
+.soo-badge--delivered {
+  background: #16a34a;
+}
+
+.soo-badge--cancelled {
+  background: #dc2626;
+}
+
+/* Side panel — light touch on orders page */
+.soo-page .sopPan {
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -8px 0 24px rgba(7, 64, 143, 0.12);
+}
+
+.soo-page .sopPanH h2 {
+  color: var(--soo-blue);
+}
+
+@media (max-width: 900px) {
+  .soo-table {
+    min-width: 720px;
+  }
+
+  .soo-table-card--has-rows .soo-table-scroll {
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soo-refresh,
+  .soo-tab {
+    transition: none;
+  }
+}

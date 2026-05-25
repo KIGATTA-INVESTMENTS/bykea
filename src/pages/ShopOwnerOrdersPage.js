@@ -3,6 +3,8 @@ import { formatGBP } from '../lib/currency';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
+import './shopOwnerDashboardPremium.css';
+import './shopOwnerOrdersPremium.css';
 
 const STEPS = ['Order placed', 'Processing', 'Ready for delivery', 'Picked up', 'In transit', 'Delivered'];
 
@@ -44,13 +46,47 @@ function displayStatus(raw) {
 
 function bdg(s) {
   const x = String(s || '').toLowerCase();
-  if (x === 'delivered') return 'sopBdg sopBdg--d';
-  if (x === 'in transit') return 'sopBdg sopBdg--t';
-  if (x === 'picked up') return 'sopBdg sopBdg--u';
-  if (x === 'ready for delivery') return 'sopBdg sopBdg--r';
-  if (x === 'processing' || x === 'pending') return 'sopBdg sopBdg--p';
-  if (x === 'cancelled') return 'sopBdg sopBdg--x';
-  return 'sopBdg sopBdg--p';
+  if (x === 'delivered') return 'soo-badge soo-badge--delivered';
+  if (x === 'in transit') return 'soo-badge soo-badge--transit';
+  if (x === 'picked up') return 'soo-badge soo-badge--picked';
+  if (x === 'ready for delivery') return 'soo-badge soo-badge--ready';
+  if (x === 'processing') return 'soo-badge soo-badge--processing';
+  if (x === 'cancelled') return 'soo-badge soo-badge--cancelled';
+  if (x === 'pending' || x === 'placed') return 'soo-badge soo-badge--pending';
+  return 'soo-badge soo-badge--pending';
+}
+
+function IcRefresh() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden>
+      <path
+        d="M20 12a8 8 0 1 1-2.1-5.3M20 4v6h-6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IcSearch() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden className="soo-search-icon">
+      <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M16 16l4.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcEmptyBox() {
+  return (
+    <svg viewBox="0 0 80 80" width="80" height="80" fill="none" aria-hidden className="soo-empty-icon">
+      <rect x="12" y="22" width="56" height="44" rx="4" stroke="currentColor" strokeWidth="2.5" />
+      <path d="M12 34h56" stroke="currentColor" strokeWidth="2" />
+      <path d="M28 22V14h24v8" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function stepIndex(status) {
@@ -291,30 +327,32 @@ export default function ShopOwnerOrdersPage() {
     }
   };
 
+  const showEmpty = !loading && filtered.length === 0;
+  const emptyNoOrders = rows.length === 0;
+
   return (
-    <div>
-      <div className="sopH2O">
-        <h1>My orders</h1>
-        <div className="sopFilR">
-          <button type="button" className="sopEx" aria-label="Refresh" onClick={() => load()} disabled={loading}>
-            Refresh
-          </button>
-        </div>
+    <div className="soo-page">
+      <div className="soo-head">
+        <h1>My Orders</h1>
+        <button type="button" className="soo-refresh" aria-label="Refresh" onClick={() => load()} disabled={loading}>
+          <IcRefresh />
+          Refresh
+        </button>
       </div>
 
       {loadError ? (
-        <div className="sopCard" style={{ borderColor: '#f0c7c7', marginBottom: '0.65rem', padding: '0.65rem 0.85rem' }}>
-          <p style={{ margin: 0, color: '#b42318', fontSize: '0.88rem' }}>{loadError}</p>
+        <div className="soo-error" role="alert">
+          <p>{loadError}</p>
         </div>
       ) : null}
 
-      <div className="sopTabs" role="tablist" aria-label="Filter orders">
+      <div className="soo-tabs" role="tablist" aria-label="Filter orders">
         {TABS.map((t) => (
           <button
             key={t}
             type="button"
             role="tab"
-            className={tab === t ? 'sopTab sopTab--on' : 'sopTab'}
+            className={tab === t ? 'soo-tab soo-tab--on' : 'soo-tab'}
             aria-selected={tab === t}
             onClick={() => setTab(t)}
           >
@@ -322,90 +360,101 @@ export default function ShopOwnerOrdersPage() {
           </button>
         ))}
       </div>
-      <input
-        className="sopSrch"
-        placeholder="Search by order ID, customer, items…"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        aria-label="Search orders"
-      />
-      <div className="sopTwrap">
-        <table className="sopTable" style={{ minWidth: 800 }} aria-label="All orders">
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th>Pickup</th>
-              <th>Delivery</th>
-              <th>Your total</th>
-              <th>Date &amp; time</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={9} className="admDim" style={{ padding: '1rem' }}>
-                  Loading orders…
-                </td>
-              </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="admDim" style={{ padding: '1rem' }}>
-                  {rows.length === 0
-                    ? 'No orders yet. When customers buy your products from /shops, those orders appear here.'
-                    : 'No orders match this filter.'}
-                </td>
-              </tr>
-            ) : (
-              filtered.map((r) => (
-                <tr key={r.orderDbId}>
-                  <td>
-                    <button
-                      type="button"
-                      className="sopLink2"
-                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
-                      onClick={() => setSel(r.orderDbId)}
-                    >
-                      {r.id}
-                    </button>
-                  </td>
-                  <td>{r.customer}</td>
-                  <td style={{ maxWidth: 220, fontSize: '0.78rem' }}>{r.items}</td>
-                  <td style={{ maxWidth: 120, fontSize: '0.75rem' }}>{r.pickup}</td>
-                  <td style={{ maxWidth: 120, fontSize: '0.75rem' }}>{r.drop}</td>
-                  <td>{r.amount}</td>
-                  <td style={{ fontSize: '0.7rem' }}>{r.date}</td>
-                  <td>
-                    <span className={bdg(r.status)}>{r.status}</span>
-                  </td>
-                  <td>
-                    <button type="button" className="sopIconB sopIconB--g" aria-label="View" onClick={() => setSel(r.orderDbId)}>
-                      <IcView />
-                    </button>
-                    <button type="button" className="sopIconB" style={{ marginLeft: 2 }} aria-label="View details" onClick={() => setSel(r.orderDbId)}>
-                      <IcTr />
-                    </button>
-                    {r.status !== 'Cancelled' && r.status !== 'Delivered' && (
-                      <button type="button" className="sopIconB sopIconB--d" style={{ marginLeft: 2 }} aria-label="Cancel order" onClick={() => setSel(r.orderDbId)}>
-                        <IcX />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+
+      <div className="soo-search-wrap">
+        <IcSearch />
+        <input
+          className="soo-search"
+          placeholder="Search by order ID, customer, items..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="Search orders"
+        />
       </div>
 
-      <div className="sopPag" aria-label="Pagination">
-        <span className="admDim" style={{ fontSize: '0.78rem' }}>
-          {filtered.length} order{filtered.length === 1 ? '' : 's'} shown
-        </span>
+      <div className={`soo-table-card${filtered.length > 0 ? ' soo-table-card--has-rows' : ''}`}>
+        {showEmpty ? (
+          <div className={`soo-empty${emptyNoOrders ? '' : ' soo-empty--filter'}`} role="status">
+            <IcEmptyBox />
+            <h2>{emptyNoOrders ? 'No orders yet' : 'No matching orders'}</h2>
+            <p>
+              {emptyNoOrders
+                ? 'When customers buy your products from your shop, orders will appear here.'
+                : 'Try a different filter or search term.'}
+            </p>
+          </div>
+        ) : (
+          <div className="soo-table-scroll">
+            <table className="soo-table" aria-label="All orders">
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Customer</th>
+                  <th>Items</th>
+                  <th>Pickup</th>
+                  <th>Delivery</th>
+                  <th>Your Total</th>
+                  <th>Date &amp; Time</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="soo-table-loading">
+                      Loading orders…
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((r) => (
+                    <tr key={r.orderDbId}>
+                      <td>
+                        <button type="button" className="soo-order-link" onClick={() => setSel(r.orderDbId)}>
+                          {r.id}
+                        </button>
+                      </td>
+                      <td>{r.customer}</td>
+                      <td className="soo-items-cell">{r.items}</td>
+                      <td>{r.pickup}</td>
+                      <td>{r.drop}</td>
+                      <td>{r.amount}</td>
+                      <td style={{ fontSize: '0.75rem' }}>{r.date}</td>
+                      <td>
+                        <span className={bdg(r.status)}>{r.status}</span>
+                      </td>
+                      <td>
+                        <div className="soo-actions">
+                          <button type="button" className="soo-icon-btn" aria-label="View" onClick={() => setSel(r.orderDbId)}>
+                            <IcView />
+                          </button>
+                          <button type="button" className="soo-icon-btn" aria-label="View details" onClick={() => setSel(r.orderDbId)}>
+                            <IcTr />
+                          </button>
+                          {r.status !== 'Cancelled' && r.status !== 'Delivered' && (
+                            <button
+                              type="button"
+                              className="soo-icon-btn soo-icon-btn--danger"
+                              aria-label="Cancel order"
+                              onClick={() => setSel(r.orderDbId)}
+                            >
+                              <IcX />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      <p className="soo-count" aria-live="polite">
+        {filtered.length} order{filtered.length === 1 ? '' : 's'} shown
+      </p>
 
       <div className={o ? 'sopPan sopPan--on' : 'sopPan'} role="dialog" aria-modal="true" aria-label="Order details" style={{ zIndex: 300 }}>
         {o && (
@@ -509,7 +558,7 @@ export default function ShopOwnerOrdersPage() {
               <div className="sopPanC">
                 <h3>Payment</h3>
                 <div>
-                  Total for your items: <strong style={{ color: '#F18631' }}>{o.amount}</strong>
+                  Total for your items: <strong style={{ color: '#0A58A6' }}>{o.amount}</strong>
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#666', marginTop: 4 }}>Demo: payment on delivery / as agreed with customer.</div>
               </div>

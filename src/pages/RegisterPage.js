@@ -4,9 +4,18 @@ import { customerEmailVerifySend, customerEmailVerifySubmit } from '../lib/custo
 import { getCustomerSession, isCustomerMarkedSignedIn, saveCustomerSession } from '../lib/customerSession';
 import { dialCodeForIso, PHONE_COUNTRY_CODES } from '../lib/phoneCountryCodes';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
+import InGoLogo from '../components/InGoLogo';
+import { LOGIN_HERO_ART, LOGIN_HERO_ICONS } from '../lib/ingoLogo';
 import './auth.css';
 
 const ONBOARDING_KEY = 'ingo_onboarding_complete';
+
+const TRUST_BADGES = [
+  { key: 'shield', label: 'Secure & Safe' },
+  { key: 'clock', label: 'Fast & Reliable' },
+  { key: 'headset', label: '24/7 Support' },
+  { key: 'medal', label: 'Trusted by Thousands' },
+];
 
 function markLoggedIn() {
   try {
@@ -26,6 +35,61 @@ function IconBack() {
         strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconPerson() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconPhone() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6.5 4h3l1.5 4-2 1.2a11 11 0 0 0 5.3 5.3L16.5 13l4 1.5v3a1.5 1.5 0 0 1-1.6 1.5 14 14 0 0 1-12.4-12.4A1.5 1.5 0 0 1 6.5 4Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconEnvelope() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 6h16v12H4V6Zm0 0 8 7 8-7"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconLock() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M8 11V8a4 4 0 0 1 8 0v3"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
       />
     </svg>
   );
@@ -53,6 +117,117 @@ function IconEye({ open }) {
         strokeLinecap="round"
       />
     </svg>
+  );
+}
+
+function TrustShield() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TrustClock() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 8v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TrustHeadset() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 14v-2a8 8 0 0 1 16 0v2M6 14h-1v4h3v-4M19 14h1v4h-3v-4"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TrustMedal() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="10" r="5" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M9 15l-2 7 5-3 5 3-2-7" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const TRUST_ICONS = {
+  shield: TrustShield,
+  clock: TrustClock,
+  headset: TrustHeadset,
+  medal: TrustMedal,
+};
+
+function AuthPremiumHero({ back }) {
+  return (
+    <header className="auth-login-hero">
+      {back}
+      <div className="auth-login-hero-waves" aria-hidden />
+      <div className="auth-login-hero-top">
+        <h1 className="auth-login-hero-logo-wrap">
+          <InGoLogo variant="hero" />
+        </h1>
+        <p className="auth-login-hero-tagline">Deliver. Ride. Shop.</p>
+      </div>
+      <div className="auth-login-hero-scene" aria-hidden>
+        <img
+          src={LOGIN_HERO_ART || LOGIN_HERO_ICONS[0]}
+          alt=""
+          className="auth-login-hero-art"
+          decoding="async"
+        />
+      </div>
+    </header>
+  );
+}
+
+function AuthTrustFooter() {
+  return (
+    <footer className="auth-login-footer">
+      <div className="auth-login-trust">
+        {TRUST_BADGES.map(({ key, label }) => {
+          const Icon = TRUST_ICONS[key];
+          return (
+            <div key={key} className="auth-login-trust-item">
+              <span className="auth-login-trust-icon" aria-hidden>
+                <Icon />
+              </span>
+              <span className="auth-login-trust-label">{label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="auth-login-copyright">
+        &copy; {new Date().getFullYear()} InGo. All rights reserved.
+      </p>
+    </footer>
+  );
+}
+
+function RegisterShell({ back, children, foot }) {
+  return (
+    <div className="auth-page auth-page--login auth-page--register">
+      <AuthPremiumHero back={back} />
+      <main className="auth-login-body">
+        <div className="auth-login-card">{children}</div>
+        {foot}
+      </main>
+      <AuthTrustFooter />
+    </div>
   );
 }
 
@@ -216,30 +391,42 @@ export default function RegisterPage() {
     }
   };
 
+  const loginFoot = (
+    <p className="auth-register-foot">
+      Already have an account?{' '}
+      <Link to="/login" className="auth-register-foot-link">
+        Login
+      </Link>
+    </p>
+  );
+
   if (step === 'verify' && pendingProfile) {
     return (
-      <div className="auth-page auth-page--register">
-        <div className="auth-top">
-          <button type="button" className="auth-back" onClick={handleStartOver} aria-label="Start over">
+      <RegisterShell
+        back={
+          <button type="button" className="auth-login-hero-back" onClick={handleStartOver} aria-label="Start over">
             <IconBack />
           </button>
-        </div>
-
-        <form className="auth-card" onSubmit={handleVerifySubmit} noValidate>
-          <p className="auth-logo">InGo</p>
-          <h1 className="auth-title auth-title--subhead-gap">Verify your email</h1>
-          <p className="auth-subtitle" style={{ marginBottom: '1rem' }}>
+        }
+        foot={loginFoot}
+      >
+        <form className="auth-login-form" onSubmit={handleVerifySubmit} noValidate>
+          <h2 className="auth-register-title">Verify your email</h2>
+          <p className="auth-register-verify-sub" role="status">
             {infoMessage || `Enter the code we sent to ${form.email.trim().toLowerCase()}.`}
           </p>
 
           <div className="auth-field auth-field--last">
-            <label className="auth-label" htmlFor="reg-verify-code">
+            <label className="auth-login-label" htmlFor="reg-verify-code">
               6-digit code
             </label>
-            <div className="auth-input-wrap">
+            <div className="auth-login-input-wrap">
+              <span className="auth-login-iconbox" aria-hidden>
+                <IconEnvelope />
+              </span>
               <input
                 id="reg-verify-code"
-                className="auth-input"
+                className="auth-login-input"
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -251,7 +438,7 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <button type="submit" className="auth-btn-primary" disabled={!verifyCodeOk || isSubmitting}>
+          <button type="submit" className="auth-register-btn" disabled={!verifyCodeOk || isSubmitting}>
             {isSubmitting ? 'Verifying…' : 'Verify & continue'}
           </button>
           <button
@@ -263,43 +450,44 @@ export default function RegisterPage() {
           >
             Resend code
           </button>
-          <button type="button" className="auth-link-inline" style={{ marginTop: '0.75rem', border: 'none', background: 'none', cursor: 'pointer', width: '100%' }} onClick={handleStartOver}>
+          <button
+            type="button"
+            className="auth-link-inline"
+            style={{ marginTop: '0.75rem', border: 'none', background: 'none', cursor: 'pointer', width: '100%' }}
+            onClick={handleStartOver}
+          >
             Start over with a different email
           </button>
 
           {errorMessage ? <p className="auth-message auth-message--error">{errorMessage}</p> : null}
         </form>
-
-        <p className="auth-foot">
-          Already have an account?{' '}
-          <Link to="/login" className="auth-link-inline">
-            Login
-          </Link>
-        </p>
-      </div>
+      </RegisterShell>
     );
   }
 
   return (
-    <div className="auth-page auth-page--register">
-      <div className="auth-top">
-        <Link to="/login" className="auth-back" aria-label="Back to login">
+    <RegisterShell
+      back={
+        <Link to="/login" className="auth-login-hero-back" aria-label="Back to login">
           <IconBack />
         </Link>
-      </div>
-
-      <form className="auth-card" onSubmit={handleRegisterSubmit} noValidate>
-        <p className="auth-logo">InGo</p>
-        <h1 className="auth-title auth-title--subhead-gap">Create Account</h1>
+      }
+      foot={loginFoot}
+    >
+      <form className="auth-login-form" onSubmit={handleRegisterSubmit} noValidate>
+        <h2 className="auth-register-title">Create Account</h2>
 
         <div className="auth-field">
-          <label className="auth-label" htmlFor="reg-name">
+          <label className="auth-login-label" htmlFor="reg-name">
             Full Name
           </label>
-          <div className="auth-input-wrap">
+          <div className="auth-login-input-wrap">
+            <span className="auth-login-iconbox" aria-hidden>
+              <IconPerson />
+            </span>
             <input
               id="reg-name"
-              className="auth-input"
+              className="auth-login-input"
               type="text"
               name="name"
               autoComplete="name"
@@ -311,26 +499,29 @@ export default function RegisterPage() {
         </div>
 
         <div className="auth-field">
-          <label className="auth-label" htmlFor="reg-phone">
+          <label className="auth-login-label" htmlFor="reg-phone">
             Phone Number
           </label>
-          <div className="auth-input-wrap auth-input-wrap--phone">
+          <div className="auth-login-input-wrap auth-register-phone-wrap">
+            <span className="auth-login-iconbox" aria-hidden>
+              <IconPhone />
+            </span>
             <select
               id="reg-country"
-              className="auth-phone-cc"
+              className="auth-register-phone-cc"
               aria-label="Country calling code"
               value={form.countryIso}
               onChange={(e) => setForm((f) => ({ ...f, countryIso: e.target.value }))}
             >
               {PHONE_COUNTRY_CODES.map((c) => (
                 <option key={c.iso} value={c.iso}>
-                  {c.name} ({c.dial})
+                  {c.dial} {c.name}
                 </option>
               ))}
             </select>
             <input
               id="reg-phone"
-              className="auth-input auth-input--phone"
+              className="auth-login-input auth-register-phone-input"
               type="tel"
               name="phone"
               autoComplete="tel-national"
@@ -343,13 +534,16 @@ export default function RegisterPage() {
         </div>
 
         <div className="auth-field">
-          <label className="auth-label" htmlFor="reg-email">
+          <label className="auth-login-label" htmlFor="reg-email">
             Email Address
           </label>
-          <div className="auth-input-wrap">
+          <div className="auth-login-input-wrap">
+            <span className="auth-login-iconbox" aria-hidden>
+              <IconEnvelope />
+            </span>
             <input
               id="reg-email"
-              className="auth-input"
+              className="auth-login-input"
               type="email"
               name="email"
               autoComplete="email"
@@ -361,13 +555,16 @@ export default function RegisterPage() {
         </div>
 
         <div className="auth-field">
-          <label className="auth-label" htmlFor="reg-password">
+          <label className="auth-login-label" htmlFor="reg-password">
             Password
           </label>
-          <div className="auth-input-wrap">
+          <div className="auth-login-input-wrap">
+            <span className="auth-login-iconbox" aria-hidden>
+              <IconLock />
+            </span>
             <input
               id="reg-password"
-              className="auth-input"
+              className="auth-login-input"
               type={showPassword ? 'text' : 'password'}
               name="password"
               autoComplete="new-password"
@@ -377,7 +574,7 @@ export default function RegisterPage() {
             />
             <button
               type="button"
-              className="auth-input-toggle"
+              className="auth-login-input-toggle"
               onClick={() => setShowPassword((s) => !s)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -387,13 +584,16 @@ export default function RegisterPage() {
         </div>
 
         <div className="auth-field auth-field--last">
-          <label className="auth-label" htmlFor="reg-confirm">
+          <label className="auth-login-label" htmlFor="reg-confirm">
             Confirm Password
           </label>
-          <div className="auth-input-wrap">
+          <div className="auth-login-input-wrap">
+            <span className="auth-login-iconbox" aria-hidden>
+              <IconLock />
+            </span>
             <input
               id="reg-confirm"
-              className="auth-input"
+              className="auth-login-input"
               type={showConfirm ? 'text' : 'password'}
               name="confirmPassword"
               autoComplete="new-password"
@@ -403,7 +603,7 @@ export default function RegisterPage() {
             />
             <button
               type="button"
-              className="auth-input-toggle"
+              className="auth-login-input-toggle"
               onClick={() => setShowConfirm((s) => !s)}
               aria-label={showConfirm ? 'Hide confirm password' : 'Show confirm password'}
             >
@@ -412,38 +612,32 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="auth-terms">
+        <label className="auth-register-terms" htmlFor="reg-terms">
           <input
             id="reg-terms"
-            className="auth-checkbox"
             type="checkbox"
+            className="auth-login-checkbox"
             checked={agree}
             onChange={(e) => setAgree(e.target.checked)}
           />
-          <label className="auth-terms-text" htmlFor="reg-terms">
+          <span className="auth-login-checkbox-box" aria-hidden />
+          <span className="auth-register-terms-text">
             I agree to the{' '}
-            <Link to="/terms">
+            <Link to="/terms" onClick={(e) => e.stopPropagation()}>
               Terms
             </Link>{' '}
             &amp;{' '}
-            <Link to="/privacy-policy">
+            <Link to="/privacy-policy" onClick={(e) => e.stopPropagation()}>
               Privacy Policy
             </Link>
-          </label>
-        </div>
+          </span>
+        </label>
 
-        <button type="submit" className="auth-btn-primary" disabled={!canSubmit || isSubmitting}>
+        <button type="submit" className="auth-register-btn" disabled={!canSubmit || isSubmitting}>
           {isSubmitting ? 'Creating Account...' : 'Create Account'}
         </button>
         {errorMessage ? <p className="auth-message auth-message--error">{errorMessage}</p> : null}
       </form>
-
-      <p className="auth-foot">
-        Already have an account?{' '}
-        <Link to="/login" className="auth-link-inline">
-          Login
-        </Link>
-      </p>
-    </div>
+    </RegisterShell>
   );
 }

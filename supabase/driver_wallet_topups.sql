@@ -6,7 +6,7 @@ create table if not exists public.driver_wallet_topups (
   driver_id uuid not null references public.driver_registrations (id) on delete cascade,
 
   amount_gbp numeric(12, 2) not null default 10.00,
-  currency text not null default 'GBP',
+  currency text not null default 'USD',
 
   payment_gateway text,
   payment_status text not null default 'pending',

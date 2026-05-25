@@ -8,7 +8,7 @@ create table if not exists public.shop_delivery_settings (
   delivery_fee numeric(12, 4) not null default 2.99
     constraint shop_delivery_fee_chk check (delivery_fee >= 0),
 
-  currency text not null default 'GBP',
+  currency text not null default 'USD',
   updated_at timestamptz not null default now(),
 
   constraint shop_delivery_currency_chk check (char_length(trim(currency)) > 0)
@@ -32,7 +32,7 @@ create policy "shop_delivery_settings_update_anon"
 on public.shop_delivery_settings for update to anon using (true) with check (true);
 
 insert into public.shop_delivery_settings (id, delivery_fee, currency)
-values (1, 2.99, 'GBP')
+values (1, 2.99, 'USD')
 on conflict (id) do nothing;
 
 -- Persist delivery fee on each shop order (historical snapshot).

@@ -164,7 +164,7 @@ export default function AdminShopWithdrawalsPage() {
                           {s?.email || r.shop_owner_id}
                         </div>
                       </td>
-                      <td style={{ fontWeight: 800 }}>Â£{Number(r.amount || 0).toFixed(2)}</td>
+                      <td style={{ fontWeight: 800 }}>Â${Number(r.amount || 0).toFixed(2)}</td>
                       <td>
                         <span className={statusClass(r.status)}>{String(r.status || 'pending')}</span>
                       </td>

@@ -1,5 +1,5 @@
 /**
- * Supabase Edge: **shop-order-placed-notify** — after checkout, email the customer (if email set)
+ * Supabase Edge: **shop-order-placed-notify** ??? after checkout, email the customer (if email set)
  * and each shop owner with lines for their shop.
  *
  * Deploy: supabase functions deploy shop-order-placed-notify --no-verify-jwt
@@ -36,10 +36,10 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function fmtGbp(n: unknown): string {
+function fmtUsd(n: unknown): string {
   const x = Number(n);
   const v = Number.isFinite(x) ? x : 0;
-  return `£${v.toFixed(2)}`;
+  return `$${v.toFixed(2)}`;
 }
 
 type OrderRow = {
@@ -184,7 +184,7 @@ serve(async (req) => {
     ? `<table style="border-collapse:collapse;width:100%;max-width:520px"><thead><tr><th align="left" style="padding:6px;border-bottom:1px solid #ddd">Item</th><th align="right" style="padding:6px;border-bottom:1px solid #ddd">Qty</th><th align="right" style="padding:6px;border-bottom:1px solid #ddd">Total</th></tr></thead><tbody>${lines
         .map(
           (l) =>
-            `<tr><td style="padding:6px;border-bottom:1px solid #eee">${escapeHtml(l.shop_name || 'Shop')} — ${escapeHtml(l.product_name)}</td><td align="right" style="padding:6px;border-bottom:1px solid #eee">${l.quantity}</td><td align="right" style="padding:6px;border-bottom:1px solid #eee">${fmtGbp(l.line_total)}</td></tr>`,
+            `<tr><td style="padding:6px;border-bottom:1px solid #eee">${escapeHtml(l.shop_name || 'Shop')} ??? ${escapeHtml(l.product_name)}</td><td align="right" style="padding:6px;border-bottom:1px solid #eee">${l.quantity}</td><td align="right" style="padding:6px;border-bottom:1px solid #eee">${fmtUsd(l.line_total)}</td></tr>`,
         )
         .join('')}</tbody></table>`
     : '<p>(No line items)</p>';
@@ -192,7 +192,7 @@ serve(async (req) => {
   const commonFooter = `
 <p style="margin-top:1rem;color:#666;font-size:0.9rem">Order reference: <strong>${escapeHtml(o.order_number)}</strong><br/>
 Placed: ${escapeHtml(o.placed_at || '')}</p>
-<p>— InGo</p>`.trim();
+<p>??? InGo</p>`.trim();
 
   const customerTo = String(o.customer_email || '').trim().toLowerCase();
   let attempted = 0;
@@ -204,14 +204,14 @@ Placed: ${escapeHtml(o.placed_at || '')}</p>
 <p>Hi ${escapeHtml(o.customer_full_name)},</p>
 <p>Thanks for your order. Here is a summary:</p>
 ${linesTableAll}
-<p><strong>Subtotal:</strong> ${fmtGbp(sub)}<br/>
-<strong>Delivery:</strong> ${fmtGbp(df)}<br/>
-<strong>Total:</strong> ${fmtGbp(grand)}</p>
+<p><strong>Subtotal:</strong> ${fmtUsd(sub)}<br/>
+<strong>Delivery:</strong> ${fmtUsd(df)}<br/>
+<strong>Total:</strong> ${fmtUsd(grand)}</p>
 <p><strong>Delivery address</strong><br/>${escapeHtml(o.customer_address).replace(/\n/g, '<br/>')}</p>
 ${o.customer_notes ? `<p><strong>Notes</strong><br/>${escapeHtml(o.customer_notes).replace(/\n/g, '<br/>')}</p>` : ''}
 ${commonFooter}`.trim();
 
-    const sent = await postResend(resendKey, from, customerTo, `InGo order confirmation — ${o.order_number}`, html);
+    const sent = await postResend(resendKey, from, customerTo, `InGo order confirmation ??? ${o.order_number}`, html);
     if (!sent.ok) failed += 1;
   }
 
@@ -230,22 +230,22 @@ ${commonFooter}`.trim();
     const table = `<table style="border-collapse:collapse;width:100%;max-width:520px"><thead><tr><th align="left" style="padding:6px;border-bottom:1px solid #ddd">Item</th><th align="right" style="padding:6px;border-bottom:1px solid #ddd">Qty</th><th align="right" style="padding:6px;border-bottom:1px solid #ddd">Total</th></tr></thead><tbody>${ownerLines
       .map(
         (l) =>
-          `<tr><td style="padding:6px;border-bottom:1px solid #eee">${escapeHtml(l.product_name)}</td><td align="right" style="padding:6px;border-bottom:1px solid #eee">${l.quantity}</td><td align="right" style="padding:6px;border-bottom:1px solid #eee">${fmtGbp(l.line_total)}</td></tr>`,
+          `<tr><td style="padding:6px;border-bottom:1px solid #eee">${escapeHtml(l.product_name)}</td><td align="right" style="padding:6px;border-bottom:1px solid #eee">${l.quantity}</td><td align="right" style="padding:6px;border-bottom:1px solid #eee">${fmtUsd(l.line_total)}</td></tr>`,
       )
       .join('')}</tbody></table>`;
 
     const ownerSub = ownerLines.reduce((s, l) => s + (Number(l.line_total) || 0), 0);
     const shareNote =
       ownerIds.length > 1
-        ? `<p style="color:#666;font-size:0.9rem">This order includes items from multiple shops. The amounts above are the lines for <strong>${escapeHtml(owner.business_name || 'your shop')}</strong> only. Full order subtotal: ${fmtGbp(sub)} (plus delivery ${fmtGbp(df)}).</p>`
-        : `<p><strong>Order subtotal:</strong> ${fmtGbp(sub)}<br/><strong>Delivery:</strong> ${fmtGbp(df)}<br/><strong>Customer total:</strong> ${fmtGbp(grand)}</p>`;
+        ? `<p style="color:#666;font-size:0.9rem">This order includes items from multiple shops. The amounts above are the lines for <strong>${escapeHtml(owner.business_name || 'your shop')}</strong> only. Full order subtotal: ${fmtUsd(sub)} (plus delivery ${fmtUsd(df)}).</p>`
+        : `<p><strong>Order subtotal:</strong> ${fmtUsd(sub)}<br/><strong>Delivery:</strong> ${fmtUsd(df)}<br/><strong>Customer total:</strong> ${fmtUsd(grand)}</p>`;
 
     const html = `
 <p>You have a new InGo shop order.</p>
 <p><strong>Shop:</strong> ${escapeHtml(owner.business_name || 'Your shop')}<br/>
 <strong>Order:</strong> ${escapeHtml(o.order_number)}</p>
 ${table}
-<p><strong>Lines total (your shop):</strong> ${fmtGbp(ownerSub)}</p>
+<p><strong>Lines total (your shop):</strong> ${fmtUsd(ownerSub)}</p>
 ${shareNote}
 <p><strong>Customer</strong><br/>
 ${escapeHtml(o.customer_full_name)}<br/>
@@ -259,7 +259,7 @@ ${commonFooter}`.trim();
       resendKey,
       from,
       owner.email.trim().toLowerCase(),
-      `New InGo order — ${o.order_number}`,
+      `New InGo order ??? ${o.order_number}`,
       html,
     );
     if (!sent.ok) failed += 1;

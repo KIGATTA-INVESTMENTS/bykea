@@ -15,7 +15,7 @@ create table if not exists public.shop_customer_orders (
   customer_notes text,
 
   subtotal numeric(12, 4) not null default 0,
-  currency text not null default 'GBP',
+  currency text not null default 'USD',
   status text not null default 'placed',
 
   placed_at timestamptz not null default now()

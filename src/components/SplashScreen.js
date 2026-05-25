@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import InGoLogo from './InGoLogo';
 import './SplashScreen.css';
 
 const AUTO_ADVANCE_MS = 2800;
@@ -12,7 +13,7 @@ export default function SplashScreen({ onComplete }) {
   return (
     <div className="splash" role="status" aria-label="InGo loading">
       <div className="splash__center">
-        <h1 className="splash__logo">InGo</h1>
+        <InGoLogo variant="splash" className="splash__logo" />
         <p className="splash__tagline">Deliver. Ride. Shop.</p>
       </div>
       <div className="splash__loader" aria-hidden>

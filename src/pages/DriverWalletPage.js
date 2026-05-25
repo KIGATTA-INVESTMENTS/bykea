@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   fetchCompletedDeliveriesForDriver,
   isCodDriverCompletedJob,
@@ -8,6 +9,7 @@ import { DRIVER_SECURITY_DEPOSIT_MIN_GBP } from '../lib/driverDepositGate';
 import { getDriverSession } from '../lib/driverSession';
 import { fetchPlatformCommissionSettings } from '../lib/platformCommissionSettings';
 import { postLocalPaynowInitiate, resolveShopPaynowLocalInitiateUrl } from '../lib/shopPaynowLocal';
+import { writePaynowReturnPath } from '../lib/paynowReturnSession';
 import {
   isStripePaymentsConfigured,
   setStripeHostedReturnContext,
@@ -15,6 +17,7 @@ import {
 } from '../lib/stripeEdge';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './driverEarningsWalletProfile.css';
+import './driverWalletPremium.css';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -25,8 +28,46 @@ const FILTERS = [
 function IcInfo() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="7.2" stroke="#F18631" strokeWidth="1.4" fill="none" />
-      <path d="M12 10.2V16M12 7.2v.1" stroke="#F18631" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="7.2" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <path d="M12 10.2V16M12 7.2v.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcHistory() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
+      <path
+        d="M12 8v5l3 2M21 12a9 9 0 1 1-2.64-6.36"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M3 4v5h5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IcWarning() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden className="dw-lowWarnIcon">
+      <path
+        d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IcTxEmpty() {
+  return (
+    <svg viewBox="0 0 24 24" width="40" height="40" fill="none" aria-hidden style={{ margin: '0 auto 0.65rem', display: 'block', color: '#9ca3af' }}>
+      <rect x="4" y="6" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 10h8M8 14h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -74,6 +115,7 @@ function driverDepositPaynowRef(topupId) {
 }
 
 export default function DriverWalletPage() {
+  const location = useLocation();
   const [filter, setFilter] = useState('all');
   const [amount, setAmount] = useState('');
   const [jobs, setJobs] = useState([]);
@@ -148,7 +190,21 @@ export default function DriverWalletPage() {
   }, [driverId]);
 
   useEffect(() => {
+    if (location.state?.paynowDepositReturn) {
+      setMsg('Deposit top-up received. Your balance will update shortly.');
+    }
+  }, [location.state?.paynowDepositReturn]);
+
+  useEffect(() => {
     refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [refresh]);
 
   useEffect(() => {
@@ -191,7 +247,7 @@ export default function DriverWalletPage() {
         out.push({
           id: `cod-${r.id}`,
           type: 'cod',
-          title: `Cash on delivery · ${r.ref}`,
+          title: `Cash on delivery � ${r.ref}`,
           date: when,
           amount: `-${formatGBP(amt)}`,
         });
@@ -207,7 +263,7 @@ export default function DriverWalletPage() {
     }
     for (const w of withdrawals) {
       const st = String(w.status || '').toLowerCase();
-      const suffix = st ? ` · ${st}` : '';
+      const suffix = st ? ` � ${st}` : '';
       out.push({
         id: `w-${w.id}`,
         type: 'w',
@@ -223,9 +279,9 @@ export default function DriverWalletPage() {
       out.push({
         id: `dep-${d.id}`,
         type: 'dep',
-        title: st === 'paid' ? `Deposit paid · ${ref}` : `Deposit · ${st}`,
+        title: st === 'paid' ? `Deposit paid � ${ref}` : `Deposit � ${st}`,
         date: d.payment_completed_at || d.payment_started_at || d.created_at,
-        amount: st === 'paid' ? `+${formatGBP(amt)}` : `${formatGBP(amt)} · pending`,
+        amount: st === 'paid' ? `+${formatGBP(amt)}` : `${formatGBP(amt)} � pending`,
       });
     }
     out.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
@@ -281,7 +337,7 @@ export default function DriverWalletPage() {
     const usePaynow = depositPayMethod === 'paynow';
     if (usePaynow && !paynowAvailable) {
       setDepositErr(
-        'Paynow is not configured. Default API: https://bykea-production.up.railway.app — or set REACT_APP_SHOP_PAYNOW_LOCAL_URL in .env.local. For local Paynow run `cd server && npm start` with Paynow env vars, then restart the app.',
+        'Paynow is not configured. Default API: https://bykea-production.up.railway.app � or set REACT_APP_SHOP_PAYNOW_LOCAL_URL in .env.local. For local Paynow run `cd server && npm start` with Paynow env vars, then restart the app.',
       );
       return;
     }
@@ -298,7 +354,7 @@ export default function DriverWalletPage() {
       .insert({
         driver_id: driverId,
         amount_gbp: DEPOSIT_TOPUP_GBP,
-        currency: 'GBP',
+        currency: 'USD',
         payment_status: 'pending',
       })
       .select('id')
@@ -308,7 +364,7 @@ export default function DriverWalletPage() {
       setDepositBusy(false);
       setDepositErr(
         insErr?.message?.includes('driver_wallet_topups')
-          ? `${insErr.message} — Run supabase/driver_wallet_topups.sql in the SQL editor.`
+          ? `${insErr.message} � Run supabase/driver_wallet_topups.sql in the SQL editor.`
           : insErr?.message || 'Could not start deposit.',
       );
       return;
@@ -337,6 +393,7 @@ export default function DriverWalletPage() {
         return;
       }
 
+      writePaynowReturnPath('/driver/wallet');
       window.location.href = payRes.redirectUrl;
       return;
     }
@@ -354,175 +411,142 @@ export default function DriverWalletPage() {
     setDepositBusy(false);
   };
 
+  const walletInfoText = (
+    <>
+      Wallet balance: card / online-paid jobs add here; cash-on-delivery amounts are deducted here. Each completed job
+      charges the platform commission percentage against your <strong>security deposit</strong> � when it falls below{' '}
+      {formatGBP(minDeposit)} you must top up before accepting new work.
+    </>
+  );
+
   return (
-    <div className="dvRoot" role="main">
+    <div className="dvRoot dvRoot--wallet-premium" role="main">
       <header className="dvH">
+        <span className="dv__heroSpacer" aria-hidden />
         <h1>My Wallet</h1>
-        <span style={{ width: 36 }} />
+        <span className="dw-historyBtn" aria-hidden>
+          <IcHistory />
+        </span>
       </header>
       <div className="dvSc">
-        <section className="dwb" aria-label="Wallet balance">
+        <section className="dw-walletHero" aria-label="Wallet balance">
           <p className="dwbL1">Wallet Balance</p>
           <p className="dwbMain">{balStr}</p>
           {codCollectedTotal > 0 ? (
             <p className="dwbCodNote" role="note">
-              Cash deliveries: {formatGBP(codCollectedTotal)} taken in cash — deducted from wallet balance.
+              Cash deliveries: {formatGBP(codCollectedTotal)} taken in cash � deducted from wallet balance.
             </p>
           ) : null}
-          <p className="dwbL2">Deposit balance</p>
+          <p className="dwbL2">Deposit Balance</p>
           <p className="dwbSubAmt">{formatGBP(deposit)}</p>
-          <p className="dwbL2" style={{ fontSize: '0.62rem', opacity: 0.88, marginBottom: '0.35rem' }}>
-            (commission deducted from this)
-          </p>
+          <p className="dwbCommNote">(commission deducted from this)</p>
+        </section>
+
+        {low ? (
+          <div className="dw-lowWarn" role="alert">
+            <IcWarning />
+            <div className="dw-lowWarnBody">
+              <span className="dw-lowBadge">LOW BALANCE</span>
+              <p className="dw-lowText">Your deposit is below the minimum. Top up to keep accepting orders.</p>
+              <p className="dw-lowMin">Minimum balance: {formatGBP(minDeposit)}</p>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="dw-infoCard" role="note">
+          <span className="dw-infoCardIcon" aria-hidden>
+            <IcInfo />
+          </span>
+          <p className="dw-infoCardText">{walletInfoText}</p>
+        </div>
+
+        <section className="dw-topUpCard" aria-label="Top up deposit">
+          <h2 className="dw-topUpTitle">Top Up Deposit</h2>
           {depositErr ? (
-            <p style={{ margin: '0 0 0.4rem', color: '#fff', fontSize: '0.72rem', fontWeight: 700, opacity: 0.95 }} role="alert">
+            <p className="dw-alert dw-alert--error" role="alert">
               {depositErr}
             </p>
           ) : null}
-          <div className="dwb2Stack">
-            {paynowAvailable || stripeAvailable ? (
-              <>
-                {paynowAvailable && stripeAvailable ? (
-                  <fieldset className="dwbPayFs dwbPayFs--lightOnDark">
-                    <legend className="dwbPayLeg">Payment method</legend>
-                    <label className="dwbPayOpt">
-                      <input
-                        type="radio"
-                        name="drvDepPay"
-                        checked={depositPayMethod === 'paynow'}
-                        onChange={() => setDepositPayMethod('paynow')}
-                      />
-                      <span>Pay now (Paynow — EcoCash, card, or other enabled methods)</span>
-                    </label>
-                    <label className="dwbPayOpt">
-                      <input
-                        type="radio"
-                        name="drvDepPay"
-                        checked={depositPayMethod === 'stripe'}
-                        onChange={() => setDepositPayMethod('stripe')}
-                      />
-                      <span>Card</span>
-                    </label>
-                  </fieldset>
-                ) : null}
-                <button type="button" className="dwbO" disabled={depositBusy} onClick={runDepositTopup}>
-                  {depositBusy ? 'Starting…' : `Top Up Deposit (${formatGBP(DEPOSIT_TOPUP_GBP)})`}
-                </button>
-              </>
-            ) : (
-              <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 600, opacity: 0.95 }}>
-                Configure Paynow (local server URL) or card payments to top up your deposit.
-              </p>
-            )}
-          </div>
+          {paynowAvailable || stripeAvailable ? (
+            <>
+              {paynowAvailable && stripeAvailable ? (
+                <fieldset className="dw-payMethods">
+                  <legend>Payment method</legend>
+                  <label className={`dw-payRow${depositPayMethod === 'paynow' ? ' dw-payRow--on' : ''}`}>
+                    <input
+                      type="radio"
+                      name="drvDepPay"
+                      checked={depositPayMethod === 'paynow'}
+                      onChange={() => setDepositPayMethod('paynow')}
+                    />
+                    <span>Pay now (Paynow � EcoCash, card, or other enabled methods)</span>
+                  </label>
+                  <label className={`dw-payRow${depositPayMethod === 'stripe' ? ' dw-payRow--on' : ''}`}>
+                    <input
+                      type="radio"
+                      name="drvDepPay"
+                      checked={depositPayMethod === 'stripe'}
+                      onChange={() => setDepositPayMethod('stripe')}
+                    />
+                    <span>Card</span>
+                  </label>
+                </fieldset>
+              ) : null}
+              <button type="button" className="dw-topUpBtn" disabled={depositBusy} onClick={runDepositTopup}>
+                {depositBusy ? 'Starting�' : `Top Up Deposit (${formatGBP(DEPOSIT_TOPUP_GBP)})`}
+              </button>
+            </>
+          ) : (
+            <p className="dw-topUpHint">
+              Configure Paynow (local server URL) or card payments to top up your deposit.
+            </p>
+          )}
         </section>
 
-        <div className="dwi" role="status">
-          <span style={{ lineHeight: 0, flexShrink: 0 }} aria-hidden>
-            <IcInfo />
-          </span>
-          <div>
-            <p style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.35 }}>
-              Your deposit balance is used to cover platform commissions.
-            </p>
-            <p className="dwiB">Minimum balance: {formatGBP(minDeposit)}</p>
-          </div>
-        </div>
-
-        <p
-          style={{
-            margin: '0.55rem 0.55rem 0.35rem',
-            fontSize: '0.72rem',
-            lineHeight: 1.4,
-            color: '#5c524c',
-          }}
-        >
-          Wallet balance: card / online-paid jobs add here; cash-on-delivery amounts are deducted here. Each completed job
-          charges the platform commission percentage against your <strong>security deposit</strong> below — when it falls
-          below {formatGBP(minDeposit)} you must top up before accepting new work.
-        </p>
-
-        {low && (
-          <div className="dwiLow" role="alert">
-            <span className="dwiBdg">Low balance</span>
-            <p>Your deposit is below the minimum. Top up to keep accepting orders.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', width: '100%', flex: '1 1 100%' }}>
-              {paynowAvailable || stripeAvailable ? (
-                <>
-                  {paynowAvailable && stripeAvailable ? (
-                    <fieldset className="dwbPayFs dwbPayFs--onLight">
-                      <legend className="dwbPayLeg">Payment method</legend>
-                      <label className="dwbPayOpt">
-                        <input
-                          type="radio"
-                          name="drvDepPayLow"
-                          checked={depositPayMethod === 'paynow'}
-                          onChange={() => setDepositPayMethod('paynow')}
-                        />
-                        <span>Pay now (Paynow)</span>
-                      </label>
-                      <label className="dwbPayOpt">
-                        <input
-                          type="radio"
-                          name="drvDepPayLow"
-                          checked={depositPayMethod === 'stripe'}
-                          onChange={() => setDepositPayMethod('stripe')}
-                        />
-                        <span>Card</span>
-                      </label>
-                    </fieldset>
-                  ) : null}
-                  <button type="button" disabled={depositBusy} onClick={runDepositTopup} style={{ width: '100%' }}>
-                    {depositBusy ? 'Starting…' : `Top Up Now (${formatGBP(DEPOSIT_TOPUP_GBP)})`}
-                  </button>
-                </>
-              ) : (
-                <button type="button" disabled style={{ width: '100%', opacity: 0.65 }}>
-                  Top-up unavailable (configure Paynow or card)
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        <section className="dww" aria-label="Withdraw funds">
-          <label htmlFor="wd-amt" className="dwwT" style={{ marginTop: '0.25rem' }}>
-            Amount
-          </label>
-          <input
-            id="wd-amt"
-            className="dv-inp2"
-            inputMode="decimal"
-            placeholder="£0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            autoComplete="off"
-          />
-          <div className="dvRowL">
-            <span />
+        <section className="dww dw-withdrawCard" aria-label="Withdraw funds">
+          <h2 className="dwwT">Withdraw Funds</h2>
+          <div className="dw-withdrawTop">
             <button
               type="button"
-              className="dwwC"
-              style={{ fontSize: '0.78rem' }}
+              className="dw-withdrawAll"
               onClick={() => setAmount(String(walletBalance.toFixed(2)))}
             >
               Withdraw All
             </button>
           </div>
-          <button type="button" className="dvBtn1" disabled={busy} onClick={submitWithdrawal}>
+          <div className="dw-withdrawField">
+            <span className="dw-withdrawPrefix" aria-hidden>
+              �$
+            </span>
+            <input
+              id="wd-amt"
+              className="dw-withdrawInput"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoComplete="off"
+              aria-label="Withdrawal amount"
+            />
+          </div>
+          <button type="button" className="dw-withdrawBtn" disabled={busy} onClick={submitWithdrawal}>
             {busy ? 'Sending...' : 'Withdraw Funds'}
           </button>
-          {msg ? <p style={{ margin: '0.4rem 0 0', color: '#0d5c2f', fontSize: '0.82rem', fontWeight: 700 }}>{msg}</p> : null}
-          {err ? <p style={{ margin: '0.4rem 0 0', color: '#b42318', fontSize: '0.82rem', fontWeight: 700 }}>{err}</p> : null}
-          <div style={{ marginTop: '0.35rem', fontSize: '0.72rem', color: '#666' }}>
-            Requested amount is excluded from available balance immediately.
-          </div>
+          {msg ? (
+            <p className="dw-alert dw-alert--success" role="status">
+              {msg}
+            </p>
+          ) : null}
+          {err ? (
+            <p className="dw-alert dw-alert--error" role="alert">
+              {err}
+            </p>
+          ) : null}
+          <p className="dw-withdrawNote">Requested amount is excluded from available balance immediately.</p>
         </section>
 
-        <h2 className="dvRsec" style={{ marginTop: '0.35rem' }}>
-          Transactions
-        </h2>
-        <div className="dvPills" role="tablist" aria-label="Transaction type">
+        <h2 className="dvRsec">Transactions</h2>
+        <div className="dvPills dw-txPills" role="tablist" aria-label="Transaction type">
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -536,31 +560,40 @@ export default function DriverWalletPage() {
             </button>
           ))}
         </div>
-        {list.map((t) => (
-          <div className="dvTxR" key={t.id}>
-            <div className="dvAr" aria-hidden>
-              {t.type === 'earn' && <ArEarning />}
-              {t.type === 'dep' && <ArEarning />}
-              {t.type === 'w' && <ArWithdraw />}
-              {t.type === 'cod' && <ArCashOut />}
-            </div>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="dvTxx">{t.title}</div>
-              <span className="dvTdt">{t.date ? new Date(t.date).toLocaleString() : '—'}</span>
-            </div>
-            <div
-              className={
-                t.type === 'earn' || t.type === 'dep'
-                  ? 'dvTamt dvTamtE'
-                  : t.type === 'cod'
-                    ? 'dvTamt dvTamtC'
-                    : 'dvTamt dvTamtW'
-              }
-            >
-              {t.amount}
-            </div>
+        {list.length === 0 ? (
+          <div className="dw-txEmpty" role="status">
+            <IcTxEmpty />
+            <p>No transactions yet.</p>
           </div>
-        ))}
+        ) : (
+          <div className="dw-txList">
+            {list.map((t) => (
+              <div className="dvTxR" key={t.id}>
+                <div className="dvAr" aria-hidden>
+                  {t.type === 'earn' && <ArEarning />}
+                  {t.type === 'dep' && <ArEarning />}
+                  {t.type === 'w' && <ArWithdraw />}
+                  {t.type === 'cod' && <ArCashOut />}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="dvTxx">{t.title}</div>
+                  <span className="dvTdt">{t.date ? new Date(t.date).toLocaleString() : '�'}</span>
+                </div>
+                <div
+                  className={
+                    t.type === 'earn' || t.type === 'dep'
+                      ? 'dvTamt dvTamtE'
+                      : t.type === 'cod'
+                        ? 'dvTamt dvTamtC'
+                        : 'dvTamt dvTamtW'
+                  }
+                >
+                  {t.amount}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -39,6 +39,7 @@ import AddressSuggestInput from '../components/AddressSuggestInput';
 import './requestFlow.css';
 import './taxiAndShop.css';
 import './pePayment.css';
+import './bookRide.css';
 
 const LONDON_CENTER = { lat: 51.5074, lng: -0.1278 };
 
@@ -155,7 +156,7 @@ function IconCashRide() {
         width="20"
         height="12"
         rx="1"
-        fill="#1fa23e"
+        fill="#0A58A6"
         transform="rotate(4 16 16)"
         opacity="0.95"
       />
@@ -211,6 +212,28 @@ function IconMinibus() {
 
 const ICONS = { bicycle: BikeIcon, tuktuk: IconTuk, car: IconCar, minibus: IconMinibus };
 
+function IconChevron() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9.5 7.5L14 12l-4.5 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconWalletOpt() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 8h14a2 2 0 0 1 2 2v1H6a2 2 0 0 1-2-2V8Zm2 9h12a2 2 0 0 0 2-2v-5H6v5a2 2 0 0 0 2 2Z"
+        stroke="currentColor"
+        strokeWidth="1.55"
+        strokeLinejoin="round"
+      />
+      <circle cx="16" cy="13" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** Relative fare vs car for same distance (straight-line + DB rates). */
 const TIER_MULT = { bicycle: 0.5, tuktuk: 0.88, car: 1, minibus: 1.32 };
 
@@ -248,7 +271,7 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
   const live = useLiveLocation({ mapThrottleMs: 4000 });
   const hasMapsKey = Boolean(getGoogleMapsApiKey());
   const [rideJsMapFailed, setRideJsMapFailed] = useState(false);
-  const [selected, setSelected] = useState(isTukOnly ? 'tuk' : 'car');
+  const [selected, setSelected] = useState(isTukOnly ? 'tuktuk' : 'car');
   const [pickup, setPickup] = useState('');
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsNotice, setGpsNotice] = useState('');
@@ -259,6 +282,8 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
   const showRidePaynow = useMemo(() => Boolean(resolveShopPaynowLocalInitiateUrl()), []);
   const showRideStripe = useMemo(() => isStripePaymentsConfigured(), []);
   const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [showFareDetails, setShowFareDetails] = useState(false);
+  const [showPaymentPanel, setShowPaymentPanel] = useState(false);
 
   const ridePaymentMethods = useMemo(() => {
     const rows = [{ id: 'cod', label: 'Cash on delivery', Icon: IconCashRide }];
@@ -499,7 +524,7 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
               estimated_distance_label: distanceLabel,
               estimated_duration_label: durationLabel,
               quoted_price: quote,
-              currency: 'GBP',
+              currency: 'USD',
               status: 'requested',
               payment_method: paymentMethod,
             }
@@ -512,7 +537,7 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
               estimated_distance_label: distanceLabel,
               estimated_duration_label: durationLabel,
               quoted_price: quote,
-              currency: 'GBP',
+              currency: 'USD',
               status: 'requested',
               payment_method: paymentMethod,
             };
@@ -637,254 +662,257 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
     });
   };
 
+  const activePayment = ridePaymentMethods.find((m) => m.id === paymentMethod);
+  const paymentSubtitle =
+    selectedQuote != null && activePayment
+      ? `${activePayment.label} (${FMT.format(selectedQuote)})`
+      : activePayment?.label ?? 'Select payment';
+
+  const pickupDisplay =
+    pickup.trim() || (live.hasFix && !pickup.trim() ? 'Current location' : '');
+
+  const rideTiers = isTukOnly ? [{ id: 'tuktuk', label: TUK_ONLY_META.label, passengers: TUK_ONLY_META.passengers }] : RIDE_TYPES;
+
   return (
-    <div className="flow-screen">
-      <div className="flow-topbar">
-        <Link to="/home" className="flow-back" aria-label="Back to home">
+    <form id="br-ride-form" className="br-page" onSubmit={onBook}>
+      <header className="br-nav">
+        <Link to="/home" className="br-nav__back" aria-label="Back to home">
           <BackArrow />
         </Link>
-        <h1 className="flow-topbar__title">{isTukOnly ? 'Book Tuk-Tuk' : 'Book a Ride'}</h1>
-        <span className="flow-topbar__spacer" aria-hidden />
-      </div>
+        <h1 className="br-nav__title">Ride</h1>
+        <span className="br-nav__spacer" aria-hidden />
+      </header>
 
-      <div
-        className={`flow-map${useRideInteractiveMap || rideMapSrc ? ' flow-map--gmap' : ''}`}
-        role="img"
-        aria-label="Map with pickup and destination route"
-      >
-        {useRideInteractiveMap ? (
-          <LiveUserGoogleMap
-            mapCenter={rideInteractiveMapCenter}
-            fallbackCenter={LONDON_CENTER}
-            hasFix={live.hasFix}
-            accurate={live.hasFix}
-            accuracyM={live.accuracy}
-            onLoadError={() => setRideJsMapFailed(true)}
-            zoomWithFix={15}
-            zoomFallback={12}
-            showUserLocationMarker={!hasPickupAndDestination}
-          />
-        ) : (
-          <>
-            <GoogleMapEmbed src={rideMapSrc} title="Ride route preview" />
-            <LiveUserMapPuck
-              headingDeg={live.headingDeg}
-              accurate={live.hasFix}
-              visible={
-                !hasPickupAndDestination && (live.hasFix || live.geoError !== 'denied')
-              }
-              className="live-puck--inMap"
-            />
-            <div className="flow-map__path" />
-            <div className="flow-map__pin flow-map__pin--a">
-              <MapPinA />
-            </div>
-            <div className="flow-map__pin flow-map__pin--b">
-              <MapPinB />
-            </div>
-          </>
-        )}
-      </div>
-
-      <LocationPermissionPrompt live={live} placement="flow" />
-
-      <form className="flow-sheet" onSubmit={onBook}>
-        <div className="flow-sheet--scroll">
-          <div className="flow-field flow-field--addrSuggest">
-            <div className="flow-label">
-              <span className="flow-dot flow-dot--g" />
-              Pickup Location
-            </div>
-            <AddressSuggestInput
-              id="taxi-pickup"
-              name="pickup"
-              value={pickup}
-              onChange={(v) => {
-                setGpsNotice('');
-                setPickup(v);
-              }}
-              placeholder="Enter pickup address"
-              autoComplete="street-address"
-              ariaLabel="Pickup address"
-              inline
-            />
-            <button
-              type="button"
-              className="flow-geo"
-              onClick={useGps}
-              disabled={gpsLoading}
-              aria-busy={gpsLoading}
-            >
-              <GpsIcon />
-              {gpsLoading ? 'Finding address…' : 'Use my current location'}
-            </button>
-            {gpsNotice ? (
-              <p className="flow-geo-notice" role="alert">
-                {gpsNotice}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flow-field flow-field--addrSuggest">
-            <div className="flow-label">
-              <span className="flow-dot flow-dot--r" />
-              Destination
-            </div>
-            <div className="flow-dropoff-row">
-              <div className="flow-field">
-                <AddressSuggestInput
-                  id="taxi-destination"
-                  name="destination"
-                  value={stops[0]?.value ?? ''}
-                  onChange={(v) => setDropoff(v)}
-                  placeholder="Enter destination address"
-                  autoComplete="off"
-                  ariaLabel="Destination address"
-                  inline
-                />
-              </div>
-            </div>
-          </div>
-
-          {isTukOnly ? (
-            <section className="taxi__ridePick" aria-label="Vehicle">
-              <h2 className="taxi__rideT">Tuk-Tuk</h2>
-              <div className="taxi__rideRow taxi__rideRow--single" role="presentation">
-                <div className="taxi__rideCard taxi__rideCard--on taxi__rideCard--static">
-                  <span className="taxi__rideIconWrap" aria-hidden>
-                    <span className="taxi__rideIcon">
-                      <IconTuk />
-                    </span>
+      <div className="br-scroll">
+        <section className="br-tiers" aria-label="Ride type">
+          <div className="br-tiers__row" role="radiogroup" aria-label="Ride type">
+            {rideTiers.map((tier) => {
+              const isOn = selected === tier.id;
+              const Ic = ICONS[tier.id];
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  className={isOn ? 'br-tier br-tier--active' : 'br-tier'}
+                  onClick={() => setSelected(tier.id)}
+                  role="radio"
+                  aria-checked={isOn}
+                >
+                  <span className="br-tier__icon">
+                    {Ic ? <Ic /> : isTukOnly ? <IconTuk /> : null}
                   </span>
-                  <p className="taxi__rideName">{TUK_ONLY_META.label}</p>
-                  <p className="taxi__rideSub">{TUK_ONLY_META.passengers}</p>
-                  <div className="taxi__rideRowP">
-                    <span className="taxi__ridePr">
-                      {selectedQuote != null ? FMT.format(selectedQuote) : estimateLoading ? '…' : '—'}
-                    </span>
-                    <span className="taxi__rideEt">{durationLabel === '—' ? 'Trip time' : `~${durationLabel}`}</span>
-                  </div>
+                  <span className="br-tier__label">{tier.label}</span>
+                  {tier.passengers ? (
+                    <span className="br-tier__sub">{tier.passengers}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className="br-map-wrap">
+          <div
+            className={`br-map${useRideInteractiveMap || rideMapSrc ? ' br-map--gmap' : ''}`}
+            role="img"
+            aria-label="Map with pickup and destination route"
+          >
+            {useRideInteractiveMap ? (
+              <LiveUserGoogleMap
+                mapCenter={rideInteractiveMapCenter}
+                fallbackCenter={LONDON_CENTER}
+                hasFix={live.hasFix}
+                accurate={live.hasFix}
+                accuracyM={live.accuracy}
+                onLoadError={() => setRideJsMapFailed(true)}
+                zoomWithFix={15}
+                zoomFallback={12}
+                showUserLocationMarker={!hasPickupAndDestination}
+              />
+            ) : (
+              <>
+                <GoogleMapEmbed src={rideMapSrc} title="Ride route preview" />
+                <LiveUserMapPuck
+                  headingDeg={live.headingDeg}
+                  accurate={live.hasFix}
+                  visible={
+                    !hasPickupAndDestination && (live.hasFix || live.geoError !== 'denied')
+                  }
+                  className="live-puck--inMap"
+                />
+              </>
+            )}
+          </div>
+        </div>
+
+        <LocationPermissionPrompt live={live} placement="flow" />
+
+        <div className="br-loc-card">
+          <div className="br-loc-list">
+            <div className="br-loc-row flow-field--addrSuggest">
+              <span className="br-loc-row__dot br-loc-row__dot--pickup" aria-hidden />
+              <div className="br-loc-row__main">
+                <span className="br-loc-row__label">Pickup location</span>
+                <div className="br-loc-row__input">
+                  <AddressSuggestInput
+                    id="taxi-pickup"
+                    name="pickup"
+                    value={pickup}
+                    onChange={(v) => {
+                      setGpsNotice('');
+                      setPickup(v);
+                    }}
+                    placeholder={pickupDisplay || 'Current location'}
+                    autoComplete="street-address"
+                    ariaLabel="Pickup address"
+                    inline
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="br-loc-gps"
+                  onClick={useGps}
+                  disabled={gpsLoading}
+                  aria-busy={gpsLoading}
+                >
+                  <GpsIcon />
+                  {gpsLoading ? 'Finding address…' : 'Use current location'}
+                </button>
+                {gpsNotice ? (
+                  <p className="br-geo-notice" role="alert">
+                    {gpsNotice}
+                  </p>
+                ) : null}
+              </div>
+              <span className="br-loc-row__chev" aria-hidden>
+                <IconChevron />
+              </span>
+            </div>
+
+            <div className="br-loc-row flow-field--addrSuggest">
+              <span className="br-loc-row__dot br-loc-row__dot--drop" aria-hidden />
+              <div className="br-loc-row__main">
+                <span className="br-loc-row__label">Drop-off location</span>
+                <div className="br-loc-row__input">
+                  <AddressSuggestInput
+                    id="taxi-destination"
+                    name="destination"
+                    value={stops[0]?.value ?? ''}
+                    onChange={(v) => setDropoff(v)}
+                    placeholder="Enter drop-off location"
+                    autoComplete="off"
+                    ariaLabel="Destination address"
+                    inline
+                  />
                 </div>
               </div>
-            </section>
-          ) : (
-            <section className="taxi__ridePick" aria-label="Choose ride type">
-              <h2 className="taxi__rideT">Ride Type</h2>
-              <div className="taxi__rideRow" role="radiogroup" aria-label="Ride type">
-                {RIDE_TYPES.map((r) => {
-                  const Ic = ICONS[r.id];
-                  const isOn = selected === r.id;
-                  const q = computeRideQuote(roadKm, rates, r.id, isTukOnly);
-                  return (
-                    <button
-                      key={r.id}
-                      type="button"
-                      className={isOn ? 'taxi__rideCard taxi__rideCard--on' : 'taxi__rideCard'}
-                      onClick={() => setSelected(r.id)}
-                      role="radio"
-                      aria-checked={isOn}
-                    >
-                      {isOn ? (
-                        <span className="taxi__rideCheck" aria-hidden>
-                          <svg viewBox="0 0 16 16" width="10" height="10" fill="none" aria-hidden>
-                            <path
-                              d="M3.5 8.2 6.4 11 12.5 4.8"
-                              stroke="currentColor"
-                              strokeWidth="2.2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </span>
-                      ) : null}
-                      <span className="taxi__rideIconWrap" aria-hidden>
-                        <span className="taxi__rideIcon">{Ic ? <Ic /> : null}</span>
-                      </span>
-                      <p className="taxi__rideName">{r.label}</p>
-                      <p className="taxi__rideSub">{r.passengers}</p>
-                      <div className="taxi__rideRowP">
-                        <span className="taxi__ridePr">
-                          {q != null ? FMT.format(q) : estimateLoading ? '…' : '—'}
-                        </span>
-                        <span className="taxi__rideEt">{durationLabel === '—' ? 'Trip' : `~${durationLabel}`}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          <div className="taxi__est" aria-label="Fare estimate">
-            <div className="taxi__estCell">
-              <span className="taxi__estLab">Distance</span>
-              <span className="taxi__estVal">{distanceLabel}</span>
-            </div>
-            <div className="taxi__estCell">
-              <span className="taxi__estLab">Duration</span>
-              <span className="taxi__estVal">{durationLabel}</span>
-            </div>
-            <div className="taxi__estCell taxi__estCell--price">
-              <span className="taxi__estLab">Price</span>
-              <span className="taxi__estP">
-                {selectedQuote != null ? FMT.format(selectedQuote) : estimateLoading ? '…' : '—'}
+              <span className="br-loc-row__chev" aria-hidden>
+                <IconChevron />
               </span>
             </div>
           </div>
+        </div>
 
-          <section className="taxi__ridePick taxi__ridePick--pay" aria-label="Payment method">
-            <h2 className="taxi__rideT">Payment method</h2>
-            <p className="taxi__ridePayHint">
-              Pay with Paynow, pay by card, or choose cash on delivery and pay your driver in person.
-            </p>
-            <div className="pay-list" role="radiogroup" aria-label="Choose payment method">
-              {ridePaymentMethods.map((m) => {
-                const isOn = paymentMethod === m.id;
-                const I = m.Icon;
-                return (
-                  <label
-                    key={m.id}
-                    className={`pay-row${isOn ? ' pay-row--on' : ''}`}
-                    htmlFor={`ride-pay-${m.id}`}
-                  >
-                    <span className="pay-row__icon" aria-hidden>
-                      <I />
-                    </span>
-                    <span className="pay-row__body">
-                      <span className="pay-row__label">{m.label}</span>
-                    </span>
-                    <input
-                      type="radio"
-                      id={`ride-pay-${m.id}`}
-                      name="ride-payment"
-                      className="pay-row__radio"
-                      checked={isOn}
-                      onChange={() => setPaymentMethod(m.id)}
-                      disabled={bookingSubmitting}
-                    />
-                  </label>
-                );
-              })}
+        <div className="br-options">
+          <button
+            type="button"
+            className="br-opt"
+            aria-expanded={showPaymentPanel}
+            onClick={() => setShowPaymentPanel((s) => !s)}
+          >
+            <span className="br-opt__icon" aria-hidden>
+              <IconWalletOpt />
+            </span>
+            <span className="br-opt__body">
+              <span className="br-opt__label">Payment method</span>
+              <span className="br-opt__sub">{paymentSubtitle}</span>
+            </span>
+            <span className="br-opt__chev" aria-hidden>
+              <IconChevron />
+            </span>
+          </button>
+          {showPaymentPanel ? (
+            <div className="br-pay-panel">
+              <div className="pay-list" role="radiogroup" aria-label="Choose payment method">
+                {ridePaymentMethods.map((m) => {
+                  const isOn = paymentMethod === m.id;
+                  const I = m.Icon;
+                  return (
+                    <label
+                      key={m.id}
+                      className={`pay-row${isOn ? ' pay-row--on' : ''}`}
+                      htmlFor={`ride-pay-${m.id}`}
+                    >
+                      <span className="pay-row__icon" aria-hidden>
+                        <I />
+                      </span>
+                      <span className="pay-row__body">
+                        <span className="pay-row__label">{m.label}</span>
+                      </span>
+                      <input
+                        type="radio"
+                        id={`ride-pay-${m.id}`}
+                        name="ride-payment"
+                        className="pay-row__radio"
+                        checked={isOn}
+                        onChange={() => setPaymentMethod(m.id)}
+                        disabled={bookingSubmitting}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
             </div>
-          </section>
-
-          {bookError ? (
-            <p role="alert" style={{ margin: '0.35rem 0 0', color: '#b42318', fontSize: '0.88rem' }}>
-              {bookError}
-            </p>
           ) : null}
         </div>
-        <div
-          style={{
-            padding: '0.25rem 1.15rem 0.85rem',
-            paddingBottom: 'max(0.85rem, env(safe-area-inset-bottom, 0))',
-          }}
-        >
-          <button type="submit" className="flow-btn" disabled={bookingSubmitting}>
-            {bookingSubmitting ? 'Saving…' : isTukOnly ? 'Book Tuk-Tuk' : 'Book Ride'}
+
+        <section className="br-fare" aria-label="Estimated fare">
+          <div className="br-fare__top">
+            <span className="br-fare__lab">Estimated fare</span>
+            <span className="br-fare__amt">
+              {selectedQuote != null ? FMT.format(selectedQuote) : estimateLoading ? '…' : '—'}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="br-fare__details-btn"
+            aria-expanded={showFareDetails}
+            onClick={() => setShowFareDetails((s) => !s)}
+          >
+            View details {showFareDetails ? '∧' : '∨'}
           </button>
-        </div>
-      </form>
-    </div>
+          {showFareDetails ? (
+            <div className="br-fare__meta">
+              <div className="br-fare__meta-cell">
+                <span className="br-fare__meta-lab">Distance</span>
+                <span className="br-fare__meta-val">{distanceLabel}</span>
+              </div>
+              <div className="br-fare__meta-cell">
+                <span className="br-fare__meta-lab">Duration</span>
+                <span className="br-fare__meta-val">{durationLabel}</span>
+              </div>
+              <div className="br-fare__meta-cell">
+                <span className="br-fare__meta-lab">Vehicle</span>
+                <span className="br-fare__meta-val">
+                  {rideTiers.find((t) => t.id === selected)?.label ?? '—'}
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        {bookError ? (
+          <p className="br-error" role="alert">
+            {bookError}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="br-footer">
+        <button type="submit" className="br-confirm" disabled={bookingSubmitting}>
+          {bookingSubmitting ? 'Saving…' : 'Confirm Ride'}
+        </button>
+      </div>
+    </form>
   );
 }

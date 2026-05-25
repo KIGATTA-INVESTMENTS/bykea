@@ -210,7 +210,7 @@ export default function DriverNavigationPage() {
             <path
               d="M 40 400 Q 100 200 180 80 T 300 20"
               fill="none"
-              stroke="#1fa23e"
+              stroke="#0A58A6"
               strokeWidth="8"
               strokeLinecap="round"
               strokeLinejoin="round"

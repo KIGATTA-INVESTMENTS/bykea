@@ -1,0 +1,65 @@
+.ingo-logo {
+  display: block;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.ingo-logo--splash {
+  width: min(220px, 72vw);
+  max-height: 7.5rem;
+  margin: 0 auto;
+}
+
+.ingo-logo--hero {
+  width: min(200px, 58vw);
+  max-height: 6.25rem;
+  margin: 0 auto;
+}
+
+.ingo-logo--nav {
+  width: min(12.5rem, 56vw);
+  max-height: 5rem;
+  margin: 0 auto;
+}
+
+.ingo-logo--auth {
+  width: 8.5rem;
+  max-height: 3.75rem;
+  margin: 0 auto 1.25rem;
+}
+
+.ingo-logo--admin {
+  width: 7.5rem;
+  max-height: 3rem;
+}
+
+.ingo-logo--adminSidebar {
+  width: 5.75rem;
+  max-height: 2.35rem;
+}
+
+.ingo-logo--driver {
+  width: 7.5rem;
+  max-height: 3.25rem;
+  margin: 0.5rem auto 0.1rem;
+}
+
+.ingo-logo--shop {
+  width: 6.75rem;
+  max-height: 2.75rem;
+  margin: 0 auto 0.5rem;
+}
+
+.ingo-logo--shopSidebar {
+  width: min(10.5rem, 72vw);
+  max-height: 4.5rem;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.ingo-logo--driverBrand {
+  width: 5.5rem;
+  max-height: 2.25rem;
+  vertical-align: middle;
+}

@@ -46,7 +46,7 @@ export default function AdminSystemHealthPage() {
               <span className={dotClass(service.status)} />
             </div>
             <p className="admDim" style={{ margin: '0.15rem 0' }}>{service.status}</p>
-            <p style={{ margin: '0.15rem 0', color: '#2DB84B', fontWeight: 700 }}>Uptime: {service.uptime}</p>
+            <p style={{ margin: '0.15rem 0', color: '#0A58A6', fontWeight: 700 }}>Uptime: {service.uptime}</p>
             <p className="admDim" style={{ margin: '0.15rem 0' }}>Response: {service.response}</p>
             <small className="admDim">{service.incident}</small>
           </article>

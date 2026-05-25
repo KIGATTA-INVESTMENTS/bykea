@@ -15,7 +15,7 @@ create table if not exists public.platform_commission_settings (
       shop_commission_percent >= 0 and shop_commission_percent <= 100
     ),
 
-  currency text not null default 'GBP',
+  currency text not null default 'USD',
   updated_at timestamptz not null default now(),
 
   constraint platform_commission_currency_chk check (char_length(trim(currency)) > 0)
@@ -40,5 +40,5 @@ create policy "platform_commission_settings_update_anon"
 on public.platform_commission_settings for update to anon using (true) with check (true);
 
 insert into public.platform_commission_settings (id, driver_commission_percent, shop_commission_percent, currency)
-values (1, 10, 12, 'GBP')
+values (1, 10, 12, 'USD')
 on conflict (id) do nothing;

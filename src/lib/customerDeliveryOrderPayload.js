@@ -61,7 +61,7 @@ export function buildCustomerDeliveryOrderRow(order, paymentMethod) {
     distance_fee_amount: Number.isFinite(distFee) ? distFee : 0,
     service_fee_amount: Number.isFinite(svcFee) ? svcFee : 0,
     total_amount: total,
-    currency: 'GBP',
+    currency: 'USD',
     payment_method: paymentMethod,
     delivery_title: order.deliveryTitle ?? null,
     eta_text: order.eta ?? null,

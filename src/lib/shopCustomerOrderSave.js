@@ -39,7 +39,7 @@ export async function saveShopCustomerOrder({ items, customer, subtotal, deliver
         customer_notes: customer.notes?.trim() || null,
         subtotal,
         delivery_fee: Math.max(0, Number(deliveryFee) || 0),
-        currency: 'GBP',
+        currency: 'USD',
         status: 'placed',
       })
       .select('id, order_number, placed_at')

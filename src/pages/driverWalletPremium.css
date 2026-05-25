@@ -1,0 +1,540 @@
+/* Driver Wallet — premium layout */
+.dvRoot--wallet-premium {
+  --dw-blue: #07408f;
+  --dw-orange: #ec6c23;
+  --dw-orange-dark: #d45a10;
+  --dw-page-bg: #f0f2f5;
+  --dw-grey-soft: #6b7280;
+  --dw-orange-soft: #fff5ee;
+  --dw-info-bg: #e8f0fb;
+  background: var(--dw-page-bg) !important;
+  padding: 0;
+}
+
+.dvRoot--wallet-premium .dvH {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  padding: calc(0.6rem + env(safe-area-inset-top, 0)) 1rem 0.65rem;
+  background: var(--dw-blue);
+  border-bottom: none;
+}
+
+.dvRoot--wallet-premium .dvH h1 {
+  grid-column: 2;
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+}
+
+.dvRoot--wallet-premium .dw-historyBtn {
+  grid-column: 3;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dvRoot--wallet-premium .dw-historyBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dvRoot--wallet-premium .dv__heroSpacer {
+  grid-column: 1;
+}
+
+.dvRoot--wallet-premium .dvSc {
+  padding: 1rem 1rem 0.5rem;
+  padding-bottom: calc(1rem + var(--dp-bnav-total, 4rem));
+}
+
+/* Balance hero */
+.dvRoot--wallet-premium .dw-walletHero {
+  margin: 0 0 0.85rem;
+  padding: 1.15rem 1.1rem 1rem;
+  background: var(--dw-blue);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(7, 64, 143, 0.22);
+  color: #fff;
+  text-align: left;
+}
+
+.dvRoot--wallet-premium .dw-walletHero .dwbL1 {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.dvRoot--wallet-premium .dw-walletHero .dwbMain {
+  margin: 0.35rem 0 0.85rem;
+  font-size: clamp(2.5rem, 9vw, 3.25rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.dvRoot--wallet-premium .dw-walletHero .dwbCodNote {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.4;
+  opacity: 1;
+  max-width: none;
+}
+
+.dvRoot--wallet-premium .dw-walletHero .dwbL2 {
+  margin: 0 0 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  opacity: 1;
+}
+
+.dvRoot--wallet-premium .dw-walletHero .dwbSubAmt {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.dvRoot--wallet-premium .dw-walletHero .dwbCommNote {
+  margin: 0;
+  font-size: 0.68rem;
+  font-style: italic;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.35;
+}
+
+/* Low balance */
+.dvRoot--wallet-premium .dw-lowWarn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0 0 0.85rem;
+  padding: 1rem;
+  background: var(--dw-orange-soft);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.dvRoot--wallet-premium .dw-lowWarnIcon {
+  flex-shrink: 0;
+  color: var(--dw-orange);
+  margin-top: 0.1rem;
+}
+
+.dvRoot--wallet-premium .dw-lowWarnBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.dvRoot--wallet-premium .dw-lowBadge {
+  display: inline-block;
+  margin: 0 0 0.45rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #dc2626;
+  border-radius: 50rem;
+}
+
+.dvRoot--wallet-premium .dw-lowText {
+  margin: 0 0 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #374151;
+}
+
+.dvRoot--wallet-premium .dw-lowMin {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--dw-orange);
+}
+
+/* Info card */
+.dvRoot--wallet-premium .dw-infoCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0 0 0.85rem;
+  padding: 0.9rem 1rem;
+  background: var(--dw-info-bg);
+  border-radius: 12px;
+}
+
+.dvRoot--wallet-premium .dw-infoCardIcon {
+  flex-shrink: 0;
+  color: var(--dw-blue);
+  margin-top: 0.05rem;
+}
+
+.dvRoot--wallet-premium .dw-infoCardText {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--dw-blue);
+  font-weight: 500;
+}
+
+.dvRoot--wallet-premium .dw-infoCardText strong {
+  font-weight: 700;
+}
+
+/* Top up card */
+.dvRoot--wallet-premium .dw-topUpCard {
+  margin: 0 0 0.85rem;
+  padding: 1.1rem 1rem 1rem;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dvRoot--wallet-premium .dw-topUpTitle {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--dw-blue);
+}
+
+.dvRoot--wallet-premium .dw-payMethods {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: none;
+}
+
+.dvRoot--wallet-premium .dw-payMethods legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dvRoot--wallet-premium .dw-payRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #374151;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dvRoot--wallet-premium .dw-payRow--on {
+  background: var(--dw-orange-soft);
+  border-color: rgba(236, 108, 35, 0.35);
+}
+
+.dvRoot--wallet-premium .dw-payRow input {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.15rem;
+  accent-color: var(--dw-orange);
+  cursor: pointer;
+}
+
+.dvRoot--wallet-premium .dw-topUpBtn {
+  display: block;
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 10px;
+  background: var(--dw-blue);
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter 0.15s ease;
+}
+
+.dvRoot--wallet-premium .dw-topUpBtn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.dvRoot--wallet-premium .dw-topUpBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dvRoot--wallet-premium .dw-topUpHint {
+  margin: 0.75rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--dw-grey-soft);
+  font-weight: 500;
+}
+
+.dvRoot--wallet-premium .dw-alert {
+  margin: 0 0 0.65rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.4;
+  border-radius: 10px;
+}
+
+.dvRoot--wallet-premium .dw-alert--error {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.dvRoot--wallet-premium .dw-alert--success {
+  color: #0d5c2f;
+  background: #e8f7ee;
+}
+
+/* Withdraw card */
+.dvRoot--wallet-premium .dw-withdrawCard {
+  margin: 0 0 1rem;
+  padding: 1.1rem 1rem 1rem;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: none;
+}
+
+.dvRoot--wallet-premium .dw-withdrawCard .dwwT {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--dw-blue);
+}
+
+.dvRoot--wallet-premium .dw-withdrawTop {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.45rem;
+}
+
+.dvRoot--wallet-premium .dw-withdrawAll {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--dw-orange);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+}
+
+.dvRoot--wallet-premium .dw-withdrawAll:hover {
+  text-decoration: underline;
+}
+
+.dvRoot--wallet-premium .dw-withdrawField {
+  display: flex;
+  align-items: stretch;
+  min-height: 52px;
+  margin-bottom: 0.85rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid var(--dw-orange);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.dvRoot--wallet-premium .dw-withdrawField:focus-within {
+  border-color: #cbd5e1;
+  border-left-color: var(--dw-orange);
+  box-shadow: 0 0 0 3px rgba(236, 108, 35, 0.12);
+}
+
+.dvRoot--wallet-premium .dw-withdrawPrefix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--dw-blue);
+  background: #f9fafb;
+  border-right: 1px solid #e2e8f0;
+}
+
+.dvRoot--wallet-premium .dw-withdrawInput {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border: none;
+  background: #fff;
+  font-size: 1rem;
+  font-family: inherit;
+  padding: 0 0.85rem;
+  color: #1a1a1a;
+}
+
+.dvRoot--wallet-premium .dw-withdrawInput:focus {
+  outline: none;
+}
+
+.dvRoot--wallet-premium .dw-withdrawBtn {
+  display: block;
+  width: 100%;
+  height: 54px;
+  margin: 0;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--dw-orange) 0%, var(--dw-orange-dark) 100%);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(236, 108, 35, 0.4);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+.dvRoot--wallet-premium .dw-withdrawBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--dw-orange-dark) 0%, var(--dw-orange) 100%);
+  box-shadow: 0 6px 18px rgba(236, 108, 35, 0.48);
+}
+
+.dvRoot--wallet-premium .dw-withdrawBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.dvRoot--wallet-premium .dw-withdrawBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dvRoot--wallet-premium .dw-withdrawNote {
+  margin: 0.65rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--dw-grey-soft);
+  font-weight: 500;
+}
+
+/* Transactions */
+.dvRoot--wallet-premium .dvRsec {
+  margin: 0 0 0.55rem;
+  padding: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--dw-blue);
+  background: none;
+  border: none;
+}
+
+.dvRoot--wallet-premium .dw-txPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  overflow: visible;
+}
+
+.dvRoot--wallet-premium .dw-txPills .dvPil {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--dw-grey-soft);
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 50rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dvRoot--wallet-premium .dw-txPills .dvPil--on {
+  color: #fff;
+  background: var(--dw-orange);
+  border-color: var(--dw-orange);
+  box-shadow: 0 2px 8px rgba(236, 108, 35, 0.3);
+}
+
+.dvRoot--wallet-premium .dw-txEmpty {
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dvRoot--wallet-premium .dw-txEmpty p {
+  margin: 0;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--dw-grey-soft);
+  line-height: 1.5;
+}
+
+.dvRoot--wallet-premium .dw-txList {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  padding: 0.2rem 0;
+}
+
+.dvRoot--wallet-premium .dw-txList .dvTxR {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.dvRoot--wallet-premium .dw-txList .dvTxR:last-child {
+  border-bottom: none;
+}
+
+.dvRoot--wallet-premium .dvTxx {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.dvRoot--wallet-premium .dvTamtE {
+  color: #16a34a;
+}
+
+.dvRoot--wallet-premium .dvTamtW,
+.dvRoot--wallet-premium .dvTamtC {
+  color: var(--dw-blue);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dvRoot--wallet-premium .dw-topUpBtn,
+  .dvRoot--wallet-premium .dw-withdrawBtn,
+  .dvRoot--wallet-premium .dw-payRow {
+    transition: none;
+  }
+}

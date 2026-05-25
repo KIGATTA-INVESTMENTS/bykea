@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { formatGBP } from '../lib/currency';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './shopOwnerPortal.css';
+import './shopOwnerDashboardPremium.css';
 
 function displayStatus(raw) {
   const s = String(raw || 'placed').toLowerCase().replace(/_/g, ' ');
@@ -26,96 +26,113 @@ function isSameDay(a, b) {
 }
 
 function badgeClass(s) {
-  if (s === 'Delivered') return 'sopBdg sopBdg--d';
-  if (s === 'In transit') return 'sopBdg sopBdg--t';
-  if (s === 'Picked up') return 'sopBdg sopBdg--u';
-  if (s === 'Ready for delivery') return 'sopBdg sopBdg--r';
-  if (s === 'Processing') return 'sopBdg sopBdg--p';
-  return 'sopBdg sopBdg--x';
+  if (s === 'Delivered') return 'sod-badge sod-badge--delivered';
+  if (s === 'Cancelled') return 'sod-badge sod-badge--cancelled';
+  if (s === 'Pending' || s === 'Processing') return 'sod-badge sod-badge--pending';
+  return 'sod-badge sod-badge--default';
 }
 
-function IcBox() {
+function IcOrders() {
   return (
-    <span className="sopCico sopCico--g" aria-hidden>
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
-        <rect x="4" y="5" width="16" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none" />
-        <path d="M4 9.5h16" stroke="currentColor" strokeWidth="1" />
-      </svg>
-    </span>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <rect x="4" y="5" width="16" height="14" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M4 9.5h16" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
   );
 }
-function IcDollar() {
+
+function IcPound() {
   return (
-    <span className="sopCico sopCico--g" aria-hidden>
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
-        <path
-          d="M12 3v18M15.5 6.5a3.5 3.5 0 0 0-7 0c0 2 2 2.5 3.5 3.2s3.5 1.2 3.5 3.3a3.5 3.5 0 0 1-7 0"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-      </svg>
-    </span>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path
+        d="M8 21h8M10 3v18M14 7.5a4 4 0 0 0-8 0"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
+
 function IcClock() {
   return (
-    <span className="sopCico sopCico--o" aria-hidden>
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
-        <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.2" fill="none" />
-        <path d="M12 8.5V12l2.2 1.2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-      </svg>
-    </span>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M12 8.5V12l2.2 1.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
   );
 }
-function IcTruck() {
+
+function IcDelivery() {
   return (
-    <span className="sopCico sopCico--g" aria-hidden>
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
-        <path
-          d="M2 10h9v5H2V10Z M12 12h2.2l1.5 1.2 2.1.1H20v-2.5M6 16.2a1.1 1.1 0 0 0 0 .1M15 16.2a1.1 1.1 0 0 0 0 .1"
-          stroke="currentColor"
-          strokeWidth="1.1"
-          fill="none"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path
+        d="M2 10h9v5H2V10ZM12 12h2.2l1.5 1.2 2.1.1H20v-2.5M6 16.2a1.1 1.1 0 0 0 0 .1M15 16.2a1.1 1.1 0 0 0 0 .1"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IcProductEmpty() {
+  return (
+    <svg viewBox="0 0 24 24" width="40" height="40" fill="none" aria-hidden>
+      <path
+        d="M6 8h12l-1 10H7L6 8ZM9 8V6a3 3 0 0 1 6 0v2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
 function WeekChart({ week }) {
-  const w = 280;
-  const h = 120;
-  const pad = 24;
+  const w = 300;
+  const h = 130;
+  const padL = 28;
+  const padR = 12;
+  const padT = 14;
+  const padB = 22;
   const max = Math.max(...week.map((x) => x.v), 1);
   const min = 0;
   const coords = week.map((d, i) => {
-    const x = pad + (i * (w - 2 * pad)) / (week.length - 1);
-    const y = pad + (1 - (d.v - min) / (max - min)) * (h - 2 * pad);
-    return { x, y, d: d.d };
+    const x = padL + (i * (w - padL - padR)) / (week.length - 1);
+    const y = padT + (1 - (d.v - min) / (max - min)) * (h - padT - padB);
+    return { x, y, d: d.d, v: d.v };
   });
-  const dPath = coords.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  const linePath = coords.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  const baselineY = h - padB;
+  const areaPath = `${linePath} L${coords[coords.length - 1].x},${baselineY} L${coords[0].x},${baselineY} Z`;
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', maxWidth: 420, height: 'auto', display: 'block' }} role="img" aria-label="Revenue this week">
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="sod-chart-svg"
+      style={{ width: '100%', maxWidth: 440, height: 'auto', display: 'block' }}
+      role="img"
+      aria-label="Revenue this week"
+    >
       {[0, 1, 2, 3].map((g) => {
-        const y = pad + (g * (h - 2 * pad)) / 3;
-        return (
-          <line key={g} x1={pad} y1={y} x2={w - pad} y2={y} stroke="#eee" strokeWidth="1" />
-        );
+        const y = padT + (g * (h - padT - padB)) / 3;
+        return <line key={g} x1={padL} y1={y} x2={w - padR} y2={y} stroke="#e5e7eb" strokeWidth="1" />;
       })}
-      <path d={dPath} fill="none" stroke="#F18631" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <text x="6" y={padT + 4} fontSize="7" fill="#9ca3af" fontWeight="600">
+        �$
+      </text>
+      <path d={areaPath} fill="rgba(7, 64, 143, 0.08)" stroke="none" />
+      <path d={linePath} fill="none" stroke="#07408F" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
       {coords.map((p) => (
-        <circle key={p.d} cx={p.x} cy={p.y} r="2.5" fill="#F18631" />
+        <circle key={p.d} cx={p.x} cy={p.y} r="3.5" fill="#EC6C23" stroke="#fff" strokeWidth="1.5" />
       ))}
       {coords.map((p) => (
-        <text key={p.d} x={p.x} y={h - 6} textAnchor="middle" fontSize="6" fill="#6b6b6b" fontWeight="600">
+        <text key={`${p.d}-lbl`} x={p.x} y={h - 5} textAnchor="middle" fontSize="7" fill="#9ca3af" fontWeight="600">
           {p.d}
         </text>
       ))}
-      <text x="4" y="14" fontSize="5.5" fill="#888" fontWeight="600">
-        £
-      </text>
     </svg>
   );
 }
@@ -285,116 +302,139 @@ export default function ShopOwnerDashboardPage() {
   }, [week]);
 
   return (
-    <div>
-      {loadError ? (
-        <div className="sopCard" style={{ borderColor: '#f0c7c7', marginBottom: '0.65rem', padding: '0.65rem 0.85rem' }}>
-          <p style={{ margin: 0, color: '#b42318', fontSize: '0.88rem' }}>{loadError}</p>
-        </div>
-      ) : null}
-      <div className="sopGrid4" aria-label="Key metrics">
-        <div className="sopCard">
-          <IcBox />
-          <p className="sopClab">Total orders today</p>
-          <p className="sopCval">{todayOrders}</p>
-          <p className="sopCsub sopCsub--g">{loading ? 'Loading…' : 'From today only'}</p>
-        </div>
-        <div className="sopCard">
-          <IcDollar />
-          <p className="sopClab">Today&apos;s revenue</p>
-          <p className="sopCval sopCval--g">{formatGBP(todayRevenue)}</p>
-          <p className="sopCsub sopCsub--g">{loading ? 'Loading…' : weekGrowthText}</p>
-        </div>
-        <div className="sopCard">
-          <IcClock />
-          <p className="sopClab">Pending orders</p>
-          <p className="sopCval sopCval--o">{pendingOrders}</p>
-          <p className="sopCsub sopCsub--o">Needs attention</p>
-        </div>
-        <div className="sopCard">
-          <IcTruck />
-          <p className="sopClab">Active deliveries</p>
-          <p className="sopCval">{activeDeliveries}</p>
-          <p className="sopCsub sopCsub--l">In transit now</p>
-        </div>
+    <div className="sod-dash">
+      <div className="sod-welcome">
+        <h2>Good Morning 👋</h2>
+        <p>Here&apos;s your shop overview today</p>
       </div>
-      <div className="sopSecH">
-        <h2>Recent orders</h2>
-        <Link to="/shop-owner/orders" className="sopLink2" style={{ fontSize: '0.82rem' }}>
-          View all
-        </Link>
-      </div>
-      <div className="sopTwrap">
-        <table className="sopTable" aria-label="Recent orders">
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="admDim" style={{ padding: '1rem' }}>
-                  Loading recent orders…
-                </td>
-              </tr>
-            ) : recent.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="admDim" style={{ padding: '1rem' }}>
-                  No orders yet. Orders appear here when customers buy your products.
-                </td>
-              </tr>
-            ) : (
-              recent.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.id}</td>
-                  <td>{r.customer}</td>
-                  <td>{r.items}</td>
-                  <td>{r.amount}</td>
-                  <td>
-                    <span className={badgeClass(r.status)}>{r.status}</span>
-                  </td>
-                  <td>
-                    <Link to="/shop-owner/orders" className="sopBsm">
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="sopRow2" style={{ alignItems: 'stretch' }}>
-        <div className="sopChartC">
-          <h3>Revenue this week</h3>
+
+      <div className="sod-body">
+        {loadError ? (
+          <div className="sod-error" role="alert">
+            <p>{loadError}</p>
+          </div>
+        ) : null}
+
+        <div className="sod-stats" aria-label="Key metrics">
+          <article className="sod-stat">
+            <span className="sod-stat-icon sod-stat-icon--blue" aria-hidden>
+              <IcOrders />
+            </span>
+            <p className="sod-stat-label">Total orders today</p>
+            <p className="sod-stat-value">{todayOrders}</p>
+            <p className="sod-stat-foot">{loading ? 'Loading…' : 'From today only'}</p>
+          </article>
+          <article className="sod-stat">
+            <span className="sod-stat-icon sod-stat-icon--green" aria-hidden>
+              <IcPound />
+            </span>
+            <p className="sod-stat-label">Today&apos;s revenue</p>
+            <p className="sod-stat-value sod-stat-value--blue">{formatGBP(todayRevenue)}</p>
+            <p className="sod-stat-foot">{loading ? 'Loading…' : weekGrowthText}</p>
+          </article>
+          <article className="sod-stat">
+            <span className="sod-stat-icon sod-stat-icon--orange" aria-hidden>
+              <IcClock />
+            </span>
+            <p className="sod-stat-label">Pending orders</p>
+            <p className="sod-stat-value sod-stat-value--orange">{pendingOrders}</p>
+            <p className="sod-stat-foot sod-stat-foot--orange">Needs attention</p>
+          </article>
+          <article className="sod-stat">
+            <span className="sod-stat-icon sod-stat-icon--purple" aria-hidden>
+              <IcDelivery />
+            </span>
+            <p className="sod-stat-label">Active deliveries</p>
+            <p className="sod-stat-value">{activeDeliveries}</p>
+            <p className="sod-stat-foot">In transit now</p>
+          </article>
+        </div>
+
+        <section className="sod-chart-card" aria-labelledby="sod-rev-title">
+          <div className="sod-chart-head">
+            <h3 id="sod-rev-title">Revenue This Week</h3>
+            <span className="sod-period-pill">This Week</span>
+          </div>
           <WeekChart week={week} />
-        </div>
-        <div className="sopCard" style={{ margin: 0 }}>
-          <h2 className="sopSecH" style={{ margin: 0, marginBottom: 8 }}>
-            Best selling today
-          </h2>
-          <ul className="sopListP">
-            {loading ? (
-              <li className="admDim">Loading products…</li>
-            ) : products.length === 0 ? (
-              <li className="admDim">No product sales data yet.</li>
-            ) : (
-              products.map((p) => (
+        </section>
+
+        <section className="sod-best-card" aria-labelledby="sod-best-title">
+          <h3 id="sod-best-title">Best Selling Today</h3>
+          {loading ? (
+            <p className="sod-best-empty">
+              <span>Loading products…</span>
+            </p>
+          ) : products.length === 0 ? (
+            <div className="sod-best-empty">
+              <IcProductEmpty />
+              <p>No product sales data yet.</p>
+            </div>
+          ) : (
+            <ul className="sod-best-list">
+              {products.map((p) => (
                 <li key={p.name}>
                   <span>
-                    <div className="sopPnm">{p.name}</div>
-                    <div className="sopPun">{p.units} units</div>
+                    <div className="sod-best-name">{p.name}</div>
+                    <div className="sod-best-units">{p.units} units</div>
                   </span>
-                  <span className="sopP$">{p.rev}</span>
+                  <span className="sod-best-rev">{p.rev}</span>
                 </li>
-              ))
-            )}
-          </ul>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <div className="sod-sec-head">
+          <h2>Recent Orders</h2>
+          <Link to="/shop-owner/orders" className="sod-view-all">
+            View all
+          </Link>
+        </div>
+        <div className="sod-table-wrap">
+          <table className="sod-table" aria-label="Recent orders">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Customer</th>
+                <th>Items</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="sod-table-empty">
+                    Loading recent orders…
+                  </td>
+                </tr>
+              ) : recent.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="sod-table-empty">
+                    No orders yet. Orders appear here when customers buy your products.
+                  </td>
+                </tr>
+              ) : (
+                recent.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.id}</td>
+                    <td>{r.customer}</td>
+                    <td>{r.items}</td>
+                    <td>{r.amount}</td>
+                    <td>
+                      <span className={badgeClass(r.status)}>{r.status}</span>
+                    </td>
+                    <td>
+                      <Link to="/shop-owner/orders" className="sod-action-btn">
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

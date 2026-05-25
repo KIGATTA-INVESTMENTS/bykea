@@ -142,18 +142,18 @@ export default function AdminDisputesSupportPage() {
             Being investigated
           </p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2e7bff' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Resolved Today</h4>
-          <p className="v" style={{ color: '#2e7bff' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             8
           </p>
-          <p className="s" style={{ color: '#2e7bff' }}>
+          <p className="s" style={{ color: '#0A58A6' }}>
             Successfully closed
           </p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2DB84B' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Avg Resolution Time</h4>
-          <p className="v" style={{ color: '#2DB84B' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             4.2 hrs
           </p>
           <p className="s admDim">Last 30 days</p>
@@ -259,7 +259,7 @@ export default function AdminDisputesSupportPage() {
                       <button type="button" aria-label="View">
                         👁
                       </button>
-                      <button type="button" aria-label="Resolve" style={{ color: '#2DB84B' }}>
+                      <button type="button" aria-label="Resolve" style={{ color: '#0A58A6' }}>
                         ✓
                       </button>
                       <button type="button" aria-label="Close" style={{ color: '#d34444' }}>
@@ -328,7 +328,7 @@ export default function AdminDisputesSupportPage() {
                   </button>
                 </p>
                 <p className="admDim">Route: Stratford, London E15 → Kings Cross, London N1C</p>
-                <p className="admDim">Amount £12.40 - 25 Apr 2026</p>
+                <p className="admDim">Amount �$12.40 - 25 Apr 2026</p>
                 <button className="admBtnSmall" type="button">
                   View Order
                 </button>
@@ -391,7 +391,7 @@ export default function AdminDisputesSupportPage() {
                 </div>
                 <div className="admField">
                   <label htmlFor="resolution-amount">Resolution amount</label>
-                  <input id="resolution-amount" className="admInput" placeholder="£0.00" />
+                  <input id="resolution-amount" className="admInput" placeholder="�$0.00" />
                 </div>
                 <textarea className="admTextarea" placeholder="Resolution notes" />
                 <div className="admPanelActions admActions2">

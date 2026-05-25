@@ -6,6 +6,8 @@ import { mapShopProductRow } from '../lib/shopProductMap';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
+import './shopOwnerDashboardPremium.css';
+import './shopOwnerProductsPremium.css';
 
 const CATS = ['All', 'Dairy', 'Bakery', 'Produce', 'Pantry', 'Beverages'];
 const STOCK_FILT = [
@@ -41,6 +43,37 @@ function IcTrash() {
         strokeLinejoin="round"
         strokeLinecap="round"
       />
+    </svg>
+  );
+}
+
+function IcSearch() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden className="soprd-search-icon">
+      <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M16 16l4.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcCamera() {
+  return (
+    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden>
+      <path
+        d="M4 8h3l1.5-2h7L16 8h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13" r="3" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function IcChevronDown() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden>
+      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -354,116 +387,149 @@ export default function ShopOwnerProductsPage() {
   }, [list, q, cat, stockF, sort]);
 
   return (
-    <div className="sop" style={{ position: 'relative' }}>
-      <div className="sopPageH">
-        <h1>My products</h1>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <button type="button" className="sopBtnO" onClick={() => loadProducts()} disabled={loading}>
+    <div className="soprd-page">
+      <div className="soprd-head">
+        <h1>My Products</h1>
+        <div className="soprd-head-actions">
+          <button type="button" className="soprd-btn-refresh" onClick={() => loadProducts()} disabled={loading}>
             Refresh
           </button>
-          <button type="button" className="sopBtnAdd" onClick={() => navigate('/shop-owner/products/new')} aria-label="Add product">
-            <IcPlus /> Add product
+          <button
+            type="button"
+            className="soprd-btn-add"
+            onClick={() => navigate('/shop-owner/products/new')}
+            aria-label="Add product"
+          >
+            <IcPlus /> Add Product
           </button>
         </div>
       </div>
+
       {loadError ? (
-        <div className="sopCard" style={{ borderColor: '#f0c7c7', marginBottom: '0.65rem', padding: '0.65rem 0.85rem' }}>
-          <p style={{ margin: 0, color: '#b42318', fontSize: '0.88rem' }}>{loadError}</p>
+        <div className="soprd-error" role="alert">
+          <p>{loadError}</p>
         </div>
       ) : null}
-      <div className="sopFilBar">
-        <input
-          className="sopSrch"
-          placeholder="Search products…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ marginBottom: 0 }}
-        />
-        <select className="sopSelS" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
-          {CATS.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <select className="sopSelS" value={stockF} onChange={(e) => setStockF(e.target.value)} aria-label="Stock">
-          {STOCK_FILT.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <select className="sopSelS" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort by">
-          {SORTS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+
+      <div className="soprd-filters">
+        <div className="soprd-search-wrap">
+          <IcSearch />
+          <input
+            className="soprd-search"
+            placeholder="Search products..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Search products"
+          />
+        </div>
+        <div className="soprd-select-wrap">
+          <select className="soprd-select" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
+            {CATS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <span className="soprd-select-arrow" aria-hidden>
+            <IcChevronDown />
+          </span>
+        </div>
+        <div className="soprd-select-wrap">
+          <select className="soprd-select" value={stockF} onChange={(e) => setStockF(e.target.value)} aria-label="Stock status">
+            {STOCK_FILT.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <span className="soprd-select-arrow" aria-hidden>
+            <IcChevronDown />
+          </span>
+        </div>
       </div>
-      <div className="sopGrid3">
+
+      <div className="soprd-sort-row">
+        <div className="soprd-sort-wrap">
+          <select className="soprd-sort" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort by">
+            {SORTS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <span className="soprd-select-arrow" aria-hidden>
+            <IcChevronDown />
+          </span>
+        </div>
+      </div>
+
+      <div className="soprd-list">
         {loading ? (
-          <p className="admDim" style={{ gridColumn: '1 / -1', padding: '1rem' }}>
-            Loading products…
-          </p>
+          <p className="soprd-loading">Loading products…</p>
         ) : null}
         {!loading && filtered.length === 0 ? (
-          <p className="admDim" style={{ gridColumn: '1 / -1', padding: '1rem', margin: 0 }}>
-            No products yet. Use <strong>Add product</strong> to create your first item (saved to Supabase when configured).
+          <p className="soprd-empty">
+            No products yet. Use <strong>Add Product</strong> to create your first item (saved to Supabase when
+            configured).
           </p>
         ) : null}
         {!loading &&
           filtered.map((p) => {
-          const oos = p.stock === 0;
-          const low = p.stock > 0 && p.stock < 5;
-          return (
-            <div key={p.id} className={oos ? 'sopPcard sopPcard--oos' : 'sopPcard'}>
-              <div
-                className="soPimg"
-                style={p.primaryImageUrl ? { padding: 0, overflow: 'hidden' } : undefined}
-              >
-                {p.primaryImageUrl ? (
-                  <img src={p.primaryImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                ) : (
-                  'Image placeholder'
-                )}
-              </div>
-              <div className="sopPbody">
-                <h2 className="sopPname">{p.name}</h2>
-                <div className="sopPpill">{p.category}</div>
-                <p className="soPpr">{formatGBP(p.price)}</p>
-                <p className="soPst">{p.stock} in stock</p>
-                {low && <span className="sopBdgL sopBdgL--o">Low stock</span>}
-                {oos && <span className="sopBdgL sopBdgL--r">Out of stock</span>}
-                <div className="sopProw">
-                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            const oos = p.stock === 0;
+            const low = p.stock > 0 && p.stock < 5;
+            return (
+              <article key={p.id} className="soprd-card">
+                <div className="soprd-card-top">
+                  <div className="soprd-thumb">
+                    {p.primaryImageUrl ? (
+                      <img src={p.primaryImageUrl} alt="" />
+                    ) : (
+                      <IcCamera />
+                    )}
+                  </div>
+                  <div className="soprd-info">
+                    <h2 className="soprd-name">{p.name}</h2>
+                    <span className="soprd-cat">{p.category}</span>
+                    <p className="soprd-price">{formatGBP(p.price)}</p>
+                    <p className={`soprd-stock${oos ? ' soprd-stock--out' : ' soprd-stock--in'}`}>
+                      {oos ? 'Out of stock' : `${p.stock} in stock`}
+                    </p>
+                    {low ? <span className="soprd-badge-low">Low stock</span> : null}
+                  </div>
+                </div>
+                <div className="soprd-card-foot">
+                  <div className="soprd-icon-btns">
                     <button
                       type="button"
-                      className="sopPicon sopPicon--g"
+                      className="soprd-icon-btn soprd-icon-btn--edit"
                       aria-label="Edit"
                       onClick={() => openEdit(p)}
                     >
                       <IcEdit />
                     </button>
-                    <button type="button" className="sopPicon sopPicon--d" aria-label="Delete" onClick={() => openDeletePrompt(p)}>
+                    <button
+                      type="button"
+                      className="soprd-icon-btn soprd-icon-btn--delete"
+                      aria-label="Delete"
+                      onClick={() => openDeletePrompt(p)}
+                    >
                       <IcTrash />
                     </button>
                   </div>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: '0.6rem', color: '#6b6b6b' }}>Active</span>
+                  <div className="soprd-active-wrap">
+                    <span className="soprd-active-label">Active</span>
                     <button
                       type="button"
-                      className={p.active ? 'sopTgl2 sopTgl2--on' : 'sopTgl2'}
+                      className={p.active ? 'soprd-toggle soprd-toggle--on' : 'soprd-toggle'}
                       aria-pressed={p.active}
                       aria-label={p.active ? 'Deactivate' : 'Activate'}
                       onClick={() => toggleA(p.id)}
                     />
                   </div>
                 </div>
-              </div>
-            </div>
-          );
-        })}
+              </article>
+            );
+          })}
       </div>
       {editId && (
         <div className="sopOvl sopOvl--on" onClick={closeP} style={{ zIndex: 250 }} role="presentation" />
@@ -607,7 +673,7 @@ export default function ShopOwnerProductsPage() {
                 onChange={(e) => setF((x) => ({ ...x, description: e.target.value }))}
                 placeholder="Describe the product"
               />
-              <label className="sopL" htmlFor="p-price">Price (GBP)</label>
+              <label className="sopL" htmlFor="p-price">Price (USD)</label>
               <input
                 className="sopI"
                 id="p-price"

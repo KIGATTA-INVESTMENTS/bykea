@@ -46,7 +46,7 @@ on conflict (service_type) do nothing;
 
 insert into public.service_pricing (service_type, price_per_km, base_fare, service_fee, currency)
 values
-  ('delivery_motorbike', 0.50, 1.50, 0.20, 'GBP'),
-  ('delivery_tuk_tuk', 0.55, 1.65, 0.22, 'GBP'),
-  ('delivery_car', 0.60, 1.80, 0.24, 'GBP')
+  ('delivery_motorbike', 0.50, 1.50, 0.20, 'USD'),
+  ('delivery_tuk_tuk', 0.55, 1.65, 0.22, 'USD'),
+  ('delivery_car', 0.60, 1.80, 0.24, 'USD')
 on conflict (service_type) do nothing;

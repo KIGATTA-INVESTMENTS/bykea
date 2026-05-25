@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './adminPortal.css';
 
 const PERIOD_DAYS = 28;
 
@@ -105,8 +105,8 @@ export default function AdminAnalyticsPage() {
 
   const [weekly, setWeekly] = useState(() => buildLast7DayBuckets().map((b) => ({ day: b.day, orders: 0, revenue: 0 })));
   const [serviceMix, setServiceMix] = useState([
-    { label: 'Delivery', value: 0, color: '#2DB84B' },
-    { label: 'Taxi', value: 0, color: '#2e7bff' },
+    { label: 'Delivery', value: 0, color: '#0A58A6' },
+    { label: 'Taxi', value: 0, color: '#0A58A6' },
     { label: 'Tuk-Tuk', value: 0, color: '#0d9488' },
     { label: 'Shop', value: 0, color: '#7a43d6' },
   ]);
@@ -319,8 +319,8 @@ export default function AdminAnalyticsPage() {
 
       const mixTotal = mixDelC + mixTxC + mixTkC + mixShopC || 1;
       setServiceMix([
-        { label: 'Delivery', value: Math.round((1000 * mixDelC) / mixTotal) / 10, color: '#2DB84B' },
-        { label: 'Taxi', value: Math.round((1000 * mixTxC) / mixTotal) / 10, color: '#2e7bff' },
+        { label: 'Delivery', value: Math.round((1000 * mixDelC) / mixTotal) / 10, color: '#0A58A6' },
+        { label: 'Taxi', value: Math.round((1000 * mixTxC) / mixTotal) / 10, color: '#0A58A6' },
         { label: 'Tuk-Tuk', value: Math.round((1000 * mixTkC) / mixTotal) / 10, color: '#0d9488' },
         { label: 'Shop', value: Math.round((1000 * mixShopC) / mixTotal) / 10, color: '#7a43d6' },
       ]);
@@ -359,20 +359,19 @@ export default function AdminAnalyticsPage() {
   const subtitleAccounts = useMemo(() => pctVersusPrev(newAccountsCurr, newAccountsPrev), [newAccountsCurr, newAccountsPrev]);
   const subtitleCompletion = useMemo(() => formatRateDelta(completionCurr, completionPrev), [completionCurr, completionPrev]);
 
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
       <div className="admToolbar">
-        <div>
-          <h2 style={{ margin: 0 }}>Analytics</h2>
-          <p className="admDim" style={{ margin: '0.2rem 0 0', fontSize: '0.82rem' }}>
-            Recent {PERIOD_DAYS}-day slice · {loading ? 'Loading…' : lastLoadedAt ? `Updated ${lastLoadedAt.toLocaleTimeString()}` : rangeLabel || '—'}
-          </p>
-        </div>
+        <p className="admDim" style={{ margin: 0, fontSize: '0.82rem' }}>
+          Recent {PERIOD_DAYS}-day slice · {loading ? 'Loading…' : lastLoadedAt ? `Updated ${lastLoadedAt.toLocaleTimeString()}` : rangeLabel || '—'}
+        </p>
         <div className="admFilters">
           <input className="admInput admDateInput" readOnly value={rangeLabel || '—'} title="Rolling comparison window" />
-          <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-            Refresh
-          </button>
         </div>
       </div>
 
@@ -390,7 +389,7 @@ export default function AdminAnalyticsPage() {
         </article>
         <article className="admCard admSmallCard">
           <p className="k">Revenue</p>
-          <p className="v" style={{ color: '#2DB84B' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : formatGBP(revenueCurr)}
           </p>
           <p className="admDim">{loading ? '…' : subtitleRevenue}</p>
@@ -408,7 +407,7 @@ export default function AdminAnalyticsPage() {
         </article>
         <article className="admCard admSmallCard">
           <p className="k">Completion rate</p>
-          <p className="v" style={{ color: '#2e7bff' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : `${completionCurr}%`}
           </p>
           <p className="admDim">{loading ? '…' : subtitleCompletion}</p>
@@ -479,7 +478,7 @@ export default function AdminAnalyticsPage() {
                     <td>{item.orders}</td>
                     <td
                       style={{
-                        color: item.growth === '—' ? undefined : item.growth.startsWith('-') ? '#c62828' : '#2DB84B',
+                        color: item.growth === '—' ? undefined : item.growth.startsWith('-') ? '#c62828' : '#0A58A6',
                       }}
                     >
                       {item.growth}
@@ -513,7 +512,7 @@ export default function AdminAnalyticsPage() {
                 <tr key={`${item.day}-${idx}`}>
                   <td>{item.day}</td>
                   <td>{loading ? '…' : item.orders}</td>
-                  <td style={{ color: '#2DB84B' }}>{loading ? '…' : formatGBP(item.revenue)}</td>
+                  <td style={{ color: '#0A58A6' }}>{loading ? '…' : formatGBP(item.revenue)}</td>
                 </tr>
               ))}
             </tbody>

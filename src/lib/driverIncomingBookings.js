@@ -1,3 +1,4 @@
+import { assertDriverCanWork } from './driverApproval';
 import { normalizeParcelVehicleKey as normalizeVehicleKey } from './deliveryVehicleTypes';
 import {
   DRIVER_SECURITY_DEPOSIT_MIN_GBP,
@@ -872,6 +873,9 @@ export async function driverRejectOffer(supabase, offer, driverId) {
 export async function driverAcceptOffer(supabase, offer, driverId, driverVehicleType) {
   if (!supabase || !driverId || !offer?.id || !offer.table) return { ok: false, error: 'Missing data.' };
 
+  const approval = await assertDriverCanWork(supabase, driverId);
+  if (!approval.ok) return { ok: false, error: approval.error };
+
   const dep = await fetchDriverDepositBalance(supabase, driverId);
   if (dep.missingColumn) {
     return {
@@ -884,7 +888,7 @@ export async function driverAcceptOffer(supabase, offer, driverId, driverVehicle
   if ((dep.balance ?? 0) < DRIVER_SECURITY_DEPOSIT_MIN_GBP) {
     return {
       ok: false,
-      error: `You need at least £${DRIVER_SECURITY_DEPOSIT_MIN_GBP.toFixed(2)} in your security deposit (Wallet) before accepting jobs.`,
+      error: `You need at least $${DRIVER_SECURITY_DEPOSIT_MIN_GBP.toFixed(2)} in your security deposit (Wallet) before accepting jobs.`,
     };
   }
 

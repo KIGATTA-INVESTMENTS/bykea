@@ -11,7 +11,7 @@ create table if not exists public.tuk_tuk_bookings (
   estimated_distance_label text,
   estimated_duration_label text,
   quoted_price numeric(12, 4),
-  currency text not null default 'GBP',
+  currency text not null default 'USD',
 
   status text not null default 'requested',
 

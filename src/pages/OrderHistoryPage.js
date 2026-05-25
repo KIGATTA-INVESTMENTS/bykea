@@ -12,12 +12,15 @@ const FILTERS = [
   { id: 'cancelled', label: 'Cancelled' },
 ];
 
-function badgeClass(status) {
-  if (status === 'delivered') return 'oh-badg oh-badg--d';
-  if (status === 'transit') return 'oh-badg oh-badg--t';
-  if (status === 'cancelled') return 'oh-badg oh-badg--c';
-  if (status === 'active') return 'oh-badg oh-badg--a';
-  return 'oh-badg oh-badg--a';
+function badgeClass(status, statusText) {
+  const text = String(statusText ?? statusLabel(status)).toLowerCase();
+  if (status === 'cancelled' || text.includes('cancel')) return 'oh-badg oh-badg--cancelled';
+  if (status === 'delivered' || text.includes('delivered')) return 'oh-badg oh-badg--delivered';
+  if (text.includes('placed') || text.includes('pending') || text.includes('awaiting')) {
+    return 'oh-badg oh-badg--placed';
+  }
+  if (status === 'transit' || status === 'active') return 'oh-badg oh-badg--active';
+  return 'oh-badg oh-badg--active';
 }
 
 function RefreshIcon() {
@@ -77,17 +80,24 @@ export default function OrderHistoryPage() {
   );
 
   return (
-    <div className="cust cust--scroll">
-      <div className="cust__scroll">
-        <header className="oh-top">
-          <h1>My Orders</h1>
-          <button type="button" className="oh-filter-btn" aria-label="Refresh orders" title="Refresh" onClick={() => load()} disabled={loading}>
-            <RefreshIcon />
-          </button>
-        </header>
+    <div className="cust cust--orders">
+      <header className="oh-nav">
+        <h1 className="oh-nav__title">My Orders</h1>
+        <button
+          type="button"
+          className="oh-nav__refresh"
+          aria-label="Refresh orders"
+          title="Refresh"
+          onClick={() => load()}
+          disabled={loading}
+        >
+          <RefreshIcon />
+        </button>
+      </header>
 
+      <div className="oh-main">
         {loadError ? (
-          <p className="oh-empty" role="alert" style={{ color: '#b42318', fontWeight: 600 }}>
+          <p className="oh-empty oh-empty--error" role="alert">
             {loadError}
           </p>
         ) : null}
@@ -133,49 +143,37 @@ export default function OrderHistoryPage() {
               >
                 <div className="oh-card__top">
                   <h2 className="oh-card__id">{o.id}</h2>
-                  <span className={badgeClass(o.status)}>{o.statusText ?? statusLabel(o.status)}</span>
+                  <span className={badgeClass(o.status, o.statusText)}>
+                    {o.statusText ?? statusLabel(o.status)}
+                  </span>
                 </div>
-                {o.subtitle ? (
-                  <p style={{ margin: '0.15rem 0 0.25rem', fontSize: '0.72rem', color: '#888', fontWeight: 600 }}>{o.subtitle}</p>
-                ) : null}
-                <div className="oh-addr">
-                  <span className="oh-addr--line" aria-hidden />
-                  <span className="oh-dot oh-dot--g" aria-hidden />
-                  {o.from}
-                </div>
-                <div className="oh-addr" style={{ marginTop: 2 }}>
-                  <span className="oh-dot oh-dot--r" aria-hidden />
-                  {o.to}
+                {o.subtitle ? <p className="oh-card__sub">{o.subtitle}</p> : null}
+                <div className="oh-locs">
+                  <span className="oh-locs__line" aria-hidden />
+                  <div className="oh-addr">
+                    <span className="oh-dot oh-dot--pickup" aria-hidden />
+                    <span className="oh-addr__text">{o.from}</span>
+                  </div>
+                  <div className="oh-addr oh-addr--drop">
+                    <span className="oh-dot oh-dot--drop" aria-hidden />
+                    <span className="oh-addr__text">{o.to}</span>
+                  </div>
                 </div>
                 {o.driver ? (
-                  <div
-                    className="oh-driver"
-                    style={{
-                      marginTop: '0.45rem',
-                      padding: '0.5rem 0.55rem',
-                      background: 'linear-gradient(135deg, #f0fdf4, #fff8f0)',
-                      borderRadius: 10,
-                      border: '1px solid #e8efe9',
-                    }}
-                  >
-                    <p style={{ margin: 0, fontSize: '0.62rem', fontWeight: 800, color: '#166534', letterSpacing: '0.04em' }}>
-                      YOUR DRIVER
-                    </p>
-                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.88rem', fontWeight: 800 }}>{o.driver.name}</p>
-                    <p style={{ margin: '0.08rem 0 0', fontSize: '0.78rem', color: '#444' }}>{o.driver.phone}</p>
-                    <p style={{ margin: '0.12rem 0 0', fontSize: '0.72rem', color: '#555' }}>
-                      {o.driver.vehicle} · {o.driver.plate}
+                  <div className="oh-driver">
+                    <p className="oh-driver__label">Your driver</p>
+                    <p className="oh-driver__name">{o.driver.name}</p>
+                    <p className="oh-driver__meta">
+                      {o.driver.phone} · {o.driver.vehicle} · {o.driver.plate}
                     </p>
                   </div>
                 ) : null}
                 <div className="oh-btm">
                   <span className="oh-date">{o.date}</span>
-                  <div className="oh-btmR">
-                    <span className="oh-pr">{o.price}</span>
-                    <button type="button" className="oh-reorder" onClick={(e) => onReorder(e, o.kind)}>
-                      Book again
-                    </button>
-                  </div>
+                  <span className="oh-pr">{o.price}</span>
+                  <button type="button" className="oh-reorder" onClick={(e) => onReorder(e, o.kind)}>
+                    Book again
+                  </button>
                 </div>
               </div>
             ))

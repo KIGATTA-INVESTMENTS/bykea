@@ -8,7 +8,13 @@ import {
   saveCustomerSession,
 } from '../lib/customerSession';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './customerAccount.css';
+import './profilePremium.css';
+
+const TABS = [
+  { id: 'account', label: 'Account' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'help', label: 'Help' },
+];
 
 function formatPhoneDisplay(phone) {
   const p = String(phone || '').trim();
@@ -24,14 +30,14 @@ function initialsFromName(name) {
   return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
 }
 
-function RowArrow() {
+function RowChevron() {
   return (
-    <span className="pf-item__arrow" aria-hidden>
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" style={{ display: 'block' }}>
+    <span className="prf-row__chev" aria-hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
         <path
           d="M9.5 7.5L14 12l-4.5 4.5"
           stroke="currentColor"
-          strokeWidth="1.4"
+          strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -40,66 +46,76 @@ function RowArrow() {
   );
 }
 
-function IcPencil() {
+function IconGear() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
       <path
-        d="M4 19.2L4.3 16l7.8-7.8a1.1 1.1 0 0 0 0-1.5L12 5.5a1.1 1.1 0 0 0-1.5 0L2.5 14.1 2.2 18.5 4.5 20l-0.4-0.3Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  );
-}
-
-function IcChatSupport() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
-      <path
-        d="M20 13.5v-5a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v5l-2 2.5v.5h6.2l1.18 2.06a2 2 0 0 0 3.48 0L16.06 21H21v-.5l-2-2.5"
-        stroke="currentColor"
-        strokeWidth="1.25"
+        d="M12 1.5v2.8M12 19.7v2.8M4.2 4.2l2 2M17.8 17.8l2 2M1.5 12h2.8M19.7 12h2.8M4.2 19.8l2-2M17.8 6.2l2-2"
         strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <circle cx="9.5" cy="11" r=".75" fill="currentColor" />
-      <circle cx="12" cy="11" r=".75" fill="currentColor" />
-      <circle cx="14.5" cy="11" r=".75" fill="currentColor" />
-    </svg>
-  );
-}
-
-function IcHelp() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="7.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
-      <path
-        d="M9.2 9.2a2.8 2.8 0 0 1 3.1-.7 2 2 0 0 1 .2 3.1c-.4.3-.5.4-.5 1.1V13"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-        fill="none"
       />
     </svg>
   );
 }
 
-function IcDoc() {
+function IconPerson() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
-      <rect x="6" y="4" width="10" height="15" rx="1.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M5 20c.6-3.2 3-5 7-5s6.4 1.8 7 5" strokeLinecap="round" />
     </svg>
   );
 }
 
-function IcLock() {
+function IconOrders() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
-      <rect x="5" y="9.5" width="12" height="8.5" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none" />
-      <path d="M8.5 9.5V7.5A3.5 3.5 0 0 1 12 4v0a3.5 3.5 0 0 1 3.5 3.5V9.5" stroke="currentColor" strokeWidth="1.2" />
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconBell() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M12 4.5a4 4 0 0 0-4 4v2.5L6 14.5h12l-2-3.5V8.5a4 4 0 0 0-4-4Z" strokeLinejoin="round" />
+      <path d="M10 18.5h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconHelp() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 4.2 1.8c-.8.6-1.2 1.2-1.2 2.2V15" strokeLinecap="round" />
+      <circle cx="12" cy="17.5" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconChat() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M5 6.5h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H10l-4 3v-3H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconDoc() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M8 4h8l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" strokeLinejoin="round" />
+      <path d="M16 4v4h4M9 12h6M9 16h6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconLogout() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M10 7V5.5A1.5 1.5 0 0 1 11.5 4h7A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 10 18.5V17" strokeLinejoin="round" />
+      <path d="M4 12h10M7.5 8.5 4 12l3.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -113,8 +129,81 @@ function CameraIcon() {
   );
 }
 
+function MenuRow({ icon, label, meta, onClick }) {
+  return (
+    <button type="button" className="prf-row" onClick={onClick}>
+      <span className="prf-row__icon">{icon}</span>
+      <span className="prf-row__label">{label}</span>
+      {meta ? <span className="prf-row__meta">{meta}</span> : null}
+      <RowChevron />
+    </button>
+  );
+}
+
+const TAB_PANELS = {
+  account: [
+    {
+      key: 'edit',
+      icon: <IconPerson />,
+      label: 'Personal information',
+      meta: 'Name, phone, email',
+      to: '/profile/edit',
+    },
+    {
+      key: 'privacy',
+      icon: <IconDoc />,
+      label: 'Privacy policy',
+      to: '/privacy-policy',
+    },
+    {
+      key: 'terms',
+      icon: <IconDoc />,
+      label: 'Terms of service',
+      to: '/terms',
+    },
+  ],
+  activity: [
+    {
+      key: 'orders',
+      icon: <IconOrders />,
+      label: 'Order history',
+      meta: 'Deliveries, rides & shops',
+      to: '/orders',
+    },
+    {
+      key: 'notifications',
+      icon: <IconBell />,
+      label: 'Notifications',
+      meta: 'Updates on your trips',
+      to: '/notifications',
+    },
+  ],
+  help: [
+    {
+      key: 'support',
+      icon: <IconHelp />,
+      label: 'Help & support',
+      to: '/help-support',
+    },
+    {
+      key: 'faqs',
+      icon: <IconHelp />,
+      label: 'FAQs',
+      to: '/faqs',
+    },
+    {
+      key: 'chat',
+      icon: <IconChat />,
+      label: 'Chat with support',
+      meta: 'Live help',
+      to: '/chat/support',
+    },
+  ],
+};
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState(() => getCustomerSession());
+  const [activeTab, setActiveTab] = useState('account');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -125,7 +214,7 @@ export default function ProfilePage() {
     async function loadFromSupabase() {
       if (!isSupabaseConfigured || !supabase) return;
 
-      const selectCols = 'id, full_name, phone, email';
+      const selectCols = 'id, full_name, phone, email, profile_photo_url';
       let row = null;
 
       if (cached?.id) {
@@ -134,7 +223,14 @@ export default function ProfilePage() {
           .select(selectCols)
           .eq('id', cached.id)
           .maybeSingle();
-        if (!cancelled && !error && data) row = data;
+        if (!cancelled && !error) {
+          if (data) row = data;
+          else if (cached?.id) {
+            clearCustomerSession();
+            setProfile(null);
+            return;
+          }
+        }
       }
 
       if (!row && isCustomerMarkedSignedIn()) {
@@ -145,7 +241,14 @@ export default function ProfilePage() {
             .select(selectCols)
             .eq('email', email)
             .maybeSingle();
-          if (!cancelled && !error && data) row = data;
+          if (!cancelled && !error) {
+            if (data) row = data;
+            else {
+              clearCustomerSession();
+              setProfile(null);
+              return;
+            }
+          }
         }
       }
 
@@ -166,8 +269,9 @@ export default function ProfilePage() {
     return {
       name: name || 'Guest',
       phone: formatPhoneDisplay(profile?.phone),
-      email,
+      email: email || '—',
       initials: initialsFromName(name),
+      photoUrl: profile?.profile_photo_url?.trim() || null,
     };
   }, [profile]);
 
@@ -175,112 +279,109 @@ export default function ProfilePage() {
     return isCustomerMarkedSignedIn() && !profile?.id && !getSessionEmail();
   }, [profile]);
 
+  const panelRows = TAB_PANELS[activeTab] || [];
+
   const logout = () => {
     clearCustomerSession();
     navigate('/login', { replace: true });
   };
 
   return (
-    <div className="cust pf-page" style={{ background: 'transparent' }}>
-      <div className="pf-hero">
-        <div className="pf-hero__h" />
-        <div className="pf-ava" aria-label="Profile photo">
-          <span style={{ lineHeight: '5.2rem', fontSize: '2.2rem', userSelect: 'none' }} aria-hidden>
-            {display.initials}
-          </span>
+    <div className="prf-page" role="main" aria-label="Profile">
+      <header className="prf-nav">
+        <span aria-hidden />
+        <h1 className="prf-nav__title">Profile</h1>
+        <button
+          type="button"
+          className="prf-nav__settings"
+          aria-label="Edit profile"
+          onClick={() => navigate('/profile/edit')}
+        >
+          <IconGear />
+        </button>
+      </header>
+
+      <div className="prf-hero">
+        <div className="prf-avatar-wrap">
+          {display.photoUrl ? (
+            <img
+              src={display.photoUrl}
+              alt=""
+              className="prf-avatar prf-avatar--img"
+            />
+          ) : (
+            <div className="prf-avatar" aria-label="Profile photo">
+              {display.initials}
+            </div>
+          )}
           <button
             type="button"
-            className="pf-ava__btn"
+            className="prf-avatar__btn"
             aria-label="Change profile photo"
             title="Change photo"
+            onClick={() => navigate('/profile/edit')}
           >
             <CameraIcon />
           </button>
         </div>
-        <h2>{display.name}</h2>
-        <p>{display.phone}</p>
-        {display.email ? (
-          <p className="pf-hero__email" title={display.email}>
-            {display.email}
-          </p>
-        ) : null}
-        {showSessionHint ? (
-          <p className="pf-hero__hint">
-            Log in once on this device to load your saved name, phone, and email from your account.
-          </p>
-        ) : null}
-      </div>
-
-      <div className="pf-bwrap" style={{ flex: 1, minHeight: 0 }}>
-        <div className="pf-bwrap__scroll">
-          <h3 className="pf-secT">Personal</h3>
-          <div className="pf-secB">
-            <button type="button" className="pf-item" onClick={() => navigate('/profile/edit')}>
-              <span className="pf-icoL">
-                <IcPencil />
-              </span>
-              <span className="pf-item__txt">Edit Profile</span>
-              <RowArrow />
-            </button>
-          </div>
-
-          <h3 className="pf-secT">Support</h3>
-          <div className="pf-secB">
-            <button type="button" className="pf-item pf-item--chat" onClick={() => navigate('/chat/support')}>
-              <span className="pf-icoL pf-icoL--accent">
-                <IcChatSupport />
-              </span>
-              <span className="pf-item__txt">
-                Chat with admin
-                <small className="pf-item__sub">InGo Support · bot + team</small>
-              </span>
-              <RowArrow />
-            </button>
-            <button type="button" className="pf-item" onClick={() => navigate('/help-support')}>
-              <span className="pf-icoL">
-                <IcHelp />
-              </span>
-              <span className="pf-item__txt">Help &amp; Support</span>
-              <RowArrow />
-            </button>
-            <button type="button" className="pf-item" onClick={() => navigate('/faqs')}>
-              <span className="pf-icoL">
-                <IcDoc />
-              </span>
-              <span className="pf-item__txt">FAQs</span>
-              <RowArrow />
-            </button>
-          </div>
-
-          <h3 className="pf-secT">Account</h3>
-          <div className="pf-secB">
-            <button type="button" className="pf-item" onClick={() => navigate('/privacy-policy')}>
-              <span className="pf-icoL">
-                <IcLock />
-              </span>
-              <span className="pf-item__txt">Privacy Policy</span>
-              <RowArrow />
-            </button>
-            <button type="button" className="pf-item" onClick={() => navigate('/terms')}>
-              <span className="pf-icoL">
-                <IcDoc />
-              </span>
-              <span className="pf-item__txt">Terms &amp; Conditions</span>
-              <RowArrow />
-            </button>
-            <button type="button" className="pf-item pf-item--logout" onClick={logout}>
-              <span className="pf-icoL" style={{ color: 'transparent', width: '0.1rem' }} />
-              <span className="pf-item__txt">Logout</span>
-            </button>
-          </div>
+        <div className="prf-identity">
+          <h2 className="prf-identity__name">{display.name}</h2>
+          {display.email && display.email !== '—' ? (
+            <p className="prf-identity__email">{display.email}</p>
+          ) : null}
+          <p className="prf-identity__phone">{display.phone}</p>
+          {showSessionHint ? (
+            <p className="prf-identity__hint">
+              Log in once on this device to load your saved details from your account.
+            </p>
+          ) : null}
         </div>
       </div>
 
-      <button type="button" className="pf-chatFab" onClick={() => navigate('/chat/support')} aria-label="Open chat with admin support">
-        <span style={{ display: 'flex', transform: 'scale(1.15)' }} aria-hidden>
-          <IcChatSupport />
-        </span>
-      </button>
+      <div className="prf-tabs" role="tablist" aria-label="Profile sections">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`prf-tab-${t.id}`}
+            aria-selected={activeTab === t.id}
+            aria-controls={`prf-panel-${t.id}`}
+            className={activeTab === t.id ? 'prf-tab prf-tab--active' : 'prf-tab'}
+            onClick={() => setActiveTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="prf-scroll">
+        <div
+          role="tabpanel"
+          id={`prf-panel-${activeTab}`}
+          aria-labelledby={`prf-tab-${activeTab}`}
+          className="prf-panel"
+        >
+          <div className="prf-card">
+            {panelRows.map((row) => (
+              <MenuRow
+                key={row.key}
+                icon={row.icon}
+                label={row.label}
+                meta={row.meta}
+                onClick={() => navigate(row.to)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <button type="button" className="prf-logout" onClick={logout}>
+          <span className="prf-logout__icon">
+            <IconLogout />
+          </span>
+          <span className="prf-logout__label">Log Out</span>
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,350 @@
+/* InGo — Shop checkout (premium) */
+.cko-page {
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f0f2f5;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --cko-blue: #07408f;
+  --cko-orange: #ec6c23;
+}
+
+.cko-nav {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  padding: calc(0.55rem + env(safe-area-inset-top, 0)) 0.75rem 0.65rem;
+  background: var(--cko-blue);
+}
+
+.cko-nav__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cko-nav__back:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cko-nav__title {
+  margin: 0;
+  grid-column: 2;
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+}
+
+.cko-form {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cko-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.85rem 1rem calc(6.5rem + var(--bnav-total, 0px) + env(safe-area-inset-bottom, 0));
+}
+
+.cko-lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.cko-card {
+  margin-bottom: 0.65rem;
+  padding: 0.95rem 1rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.cko-card__title {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cko-blue);
+}
+
+.cko-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cko-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 0.85rem;
+}
+
+.cko-line:last-child {
+  border-bottom: none;
+}
+
+.cko-line__name {
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.cko-line__qty {
+  font-weight: 500;
+  color: #9ca3af;
+}
+
+.cko-line__price {
+  font-weight: 800;
+  color: var(--cko-orange);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cko-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.cko-row--total {
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #f3f4f6;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #111827;
+}
+
+.cko-row--total span:last-child {
+  font-size: 1.15rem;
+  color: var(--cko-orange);
+}
+
+.cko-field {
+  margin-bottom: 0.65rem;
+}
+
+.cko-field:last-child {
+  margin-bottom: 0;
+}
+
+.cko-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cko-blue);
+}
+
+.cko-req {
+  color: var(--cko-orange);
+}
+
+.cko-input,
+.cko-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid var(--cko-orange);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #111827;
+  background: #fff;
+}
+
+.cko-input::placeholder,
+.cko-textarea::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.cko-input:focus,
+.cko-textarea:focus {
+  outline: none;
+  border-color: #cbd5e1;
+  border-left-color: var(--cko-orange);
+  box-shadow: 0 0 0 3px rgba(7, 64, 143, 0.08);
+}
+
+.cko-textarea {
+  resize: vertical;
+  min-height: 4.5rem;
+  line-height: 1.4;
+}
+
+.cko-textarea--sm {
+  min-height: 3.25rem;
+}
+
+.cko-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cko-pay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.cko-pay-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cko-pay-opt:has(input:checked) {
+  border-color: var(--cko-orange);
+  background: rgba(236, 108, 35, 0.06);
+}
+
+.cko-pay-opt input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+  accent-color: var(--cko-orange);
+  cursor: pointer;
+}
+
+.cko-pay-opt__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cko-pay-opt__label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+}
+
+.cko-pay-opt__sub {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+.cko-err {
+  margin: 0 0 0.65rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b42318;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.cko-fine {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.cko-back-link {
+  display: block;
+  margin-top: 0.25rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--cko-blue);
+  text-decoration: none;
+}
+
+.cko-footer {
+  flex-shrink: 0;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--bnav-total, 0);
+  z-index: 20;
+  padding: 0.65rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0));
+  background: linear-gradient(180deg, rgba(240, 242, 245, 0) 0%, rgba(240, 242, 245, 0.92) 28%, #f0f2f5 100%);
+  box-sizing: border-box;
+}
+
+.cko-submit {
+  display: block;
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 12px;
+  background: var(--cko-orange);
+  color: #fff;
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(236, 108, 35, 0.4);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cko-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cko-submit:active:not(:disabled) {
+  filter: brightness(0.96);
+}

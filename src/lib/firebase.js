@@ -1,12 +1,12 @@
 import { initializeApp, getApps } from 'firebase/app';
 
 const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyDTYmMJuKK1ML3SvnZnUQ52mIEXP08vjYg',
-  authDomain: 'hotel-demo-11dcb.firebaseapp.com',
-  projectId: 'hotel-demo-11dcb',
-  storageBucket: 'hotel-demo-11dcb.firebasestorage.app',
-  messagingSenderId: '114298138120',
-  appId: '1:114298138120:web:c848a93fee642a6cf06bbd',
+  apiKey: 'AIzaSyBaqtOtt4ER1qXWiEQRfKU49c9dk3Md3lw',
+  authDomain: 'ingo-92d5f.firebaseapp.com',
+  projectId: 'ingo-92d5f',
+  storageBucket: 'ingo-92d5f.firebasestorage.app',
+  messagingSenderId: '6247948440',
+  appId: '1:6247948440:web:1a81d52d74052cfe81f0ed',
 };
 
 const firebaseConfig = {

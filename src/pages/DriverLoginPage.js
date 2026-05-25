@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { saveDriverSession } from '../lib/driverSession';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './driverPortal.css';
+import InGoLogo from '../components/InGoLogo';
+import { LOGIN_HERO_ART } from '../lib/ingoLogo';
+import './driverLoginPremium.css';
 
 function BackIcon() {
   return (
@@ -17,32 +19,101 @@ function BackIcon() {
     </svg>
   );
 }
-function EyeOn() {
+
+function IconEnvelope() {
   return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
+        d="M4 6h16v12H4V6Zm0 0 8 7 8-7"
         stroke="currentColor"
-        strokeWidth="1.2"
-        fill="none"
-      />
-      <circle cx="12" cy="12" r="2.2" fill="currentColor" />
-    </svg>
-  );
-}
-function EyeOff() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
-      <path
-        d="M3 3l18 18M9.5 9.5A3 3 0 0 0 12 15a3 3 0 0 0 2.2-4.7M6.4 6.4C4.6 7.5 3.2 9.1 2.3 11.1c1.4 3.3 4.7 5.6 8.5 5.6a8.4 8.4 0 0 0 3.4-.7M10.5 4.2A8.4 8.4 0 0 1 12 4c4.2 0 7.6 2.7 9 6.5a9.4 9.4 0 0 1-1.4 2.6"
-        stroke="currentColor"
-        strokeWidth="1.2"
+        strokeWidth="1.7"
         strokeLinecap="round"
-        fill="none"
+        strokeLinejoin="round"
       />
     </svg>
   );
 }
+
+function IconLock() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M8 11V8a4 4 0 0 1 8 0v3"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconEye({ open }) {
+  if (open) {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+        />
+        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 3l18 18M10.5 10.5a3 3 0 0 0 3 3M5.2 5.2C3.1 6.4 1.5 8.1 1 9.5c0 0 4 7 11 7 1.2 0 2.3-.2 3.3-.5M8.2 4.2C9.3 3.8 10.6 3.5 12 3.5c7 0 11 6.5 11 6.5-.2.4-1.1 1.6-2.4 2.8"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TrustShield() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TrustClock() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 8v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TrustStar() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3.5l2.4 5.5 6 .5-4.5 4 1.4 5.9L12 16.8 6.7 19.4 8.1 13.5 3.6 9.5l6-.5L12 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const TRUST_BADGES = [
+  { icon: TrustShield, label: 'Safe & Secure' },
+  { icon: TrustClock, label: 'Fast Payouts' },
+  { icon: TrustStar, label: 'Top Rated Platform' },
+];
 
 export default function DriverLoginPage() {
   const navigate = useNavigate();
@@ -106,9 +177,20 @@ export default function DriverLoginPage() {
       }
 
       if (latest) {
+        if (latest.password !== password) {
+          setErrorMessage('Incorrect password.');
+          return;
+        }
+        if (latest.email_verified_at == null) {
+          setUnverifiedEmail(emailTrim);
+          setErrorMessage('Please verify your email before logging in. Use the link below to enter your code.');
+          return;
+        }
         const st = String(latest.status || '').toLowerCase();
         if (st === 'pending') {
-          setErrorMessage('Your application is still pending approval. You can sign in once an admin approves it.');
+          setErrorMessage(
+            'Your account is under approval. Once it is approved by an admin, you can log in and start working.',
+          );
           return;
         }
         if (st === 'rejected') {
@@ -126,114 +208,173 @@ export default function DriverLoginPage() {
   };
 
   return (
-    <div className="dp">
-      <header className="dp-h">
-        <button type="button" className="dp-back" onClick={() => navigate(-1)} aria-label="Back">
+    <div className="dp-login-page">
+      <header className="dp-login-hero">
+        <button
+          type="button"
+          className="dp-login-hero-back"
+          onClick={() => navigate(-1)}
+          aria-label="Back"
+        >
           <BackIcon />
         </button>
-        <div className="dp-tit" aria-hidden style={{ minHeight: '1.2rem' }} />
-      </header>
-      <form className="dp-log" onSubmit={submit} autoComplete="on">
-        {state?.passwordReset && (
-          <p style={{ textAlign: 'center', color: '#2a7a3a', fontSize: '0.82rem', fontWeight: 600, margin: '0 0 0.4rem' }}>
-            Password updated. Sign in with your new password.
-          </p>
-        )}
-        {state?.emailVerified && (
-          <p style={{ textAlign: 'center', color: '#2a7a3a', fontSize: '0.82rem', fontWeight: 600, margin: '0 0 0.4rem' }}>
-            Email verified. Sign in when your application is approved.
-          </p>
-        )}
-        {state?.registered && (
-          <p style={{ textAlign: 'center', color: '#2a7a3a', fontSize: '0.82rem', fontWeight: 600, margin: '0 0 0.4rem' }}>
-            Application received. You can sign in when approved.
-          </p>
-        )}
-        <div className="dp-logo" aria-hidden>
-          InGo
+        <div className="dp-login-hero-waves" aria-hidden />
+        <div className="dp-login-hero-top">
+          <InGoLogo variant="hero" />
+          <div className="dp-login-hero-badge" role="status">
+            Driver Portal
+          </div>
+          <p className="dp-login-hero-tagline">Deliver. Earn. Grow.</p>
         </div>
-        <div className="dp-badge" role="status">
-          Driver Portal
-        </div>
-        <h1 className="dp-h1">Welcome Back, Driver</h1>
-        <p className="dp-sub">Login to start delivering (approved drivers only)</p>
-
-        {errorMessage ? (
-          <p style={{ textAlign: 'center', color: '#b42318', fontSize: '0.8rem', fontWeight: 600, margin: '0 0 0.5rem' }} role="alert">
-            {errorMessage}
-          </p>
-        ) : null}
-        {unverifiedEmail && unverifiedEmail === email.trim().toLowerCase() ? (
-          <p style={{ textAlign: 'center', margin: '0 0 0.5rem' }}>
-            <Link
-              to={`/verify-email?realm=driver&email=${encodeURIComponent(unverifiedEmail)}`}
-              style={{ color: '#1754d8', fontSize: '0.82rem', fontWeight: 600 }}
-            >
-              Verify email or resend code
-            </Link>
-          </p>
-        ) : null}
-
-        <label className="dp-lab" htmlFor="dlem">
-          Email
-        </label>
-        <input
-          className="dp-inp"
-          id="dlem"
-          name="email"
-          type="email"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            setUnverifiedEmail('');
-          }}
-          autoComplete="email"
-          placeholder="you@example.com"
-          style={{ marginBottom: 0 }}
-          required
-        />
-        <label className="dp-lab" htmlFor="dlpw">
-          Password
-        </label>
-        <div className="pwR">
-          <input
-            className="dp-inp"
-            id="dlpw"
-            name="password"
-            type={show ? 'text' : 'password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            placeholder="••••••••"
-            required
+        <div className="dp-login-hero-scene" aria-hidden>
+          <img
+            src={LOGIN_HERO_ART}
+            alt=""
+            className="dp-login-hero-art"
+            decoding="async"
           />
-          <button
-            type="button"
-            className="pwE"
-            onClick={() => setShow((s) => !s)}
-            aria-label={show ? 'Hide password' : 'Show password'}
-          >
-            {show ? <EyeOff /> : <EyeOn />}
-          </button>
         </div>
-        <div className="dp-forg">
-          <Link to="/forgot-password?realm=driver" style={{ color: 'inherit', font: 'inherit', textDecoration: 'underline' }}>
-            Forgot password
+      </header>
+
+      <main className="dp-login-body">
+        <div className="dp-login-card">
+          <form className="dp-login-form" onSubmit={submit} autoComplete="on">
+            <h1 className="dp-login-title">Welcome Back, Driver</h1>
+            <p className="dp-login-subtitle">Login to start delivering (approved drivers only)</p>
+
+            {state?.passwordReset && (
+              <p className="dp-login-flash" role="status">
+                Password updated. Sign in with your new password.
+              </p>
+            )}
+            {(state?.emailVerified || state?.pendingApproval) && (
+              <p className="dp-login-flash" role="status">
+                Your email is confirmed. Your account is under approval — once approved by an admin, you can log in and
+                start working.
+              </p>
+            )}
+            {state?.registered && (
+              <p className="dp-login-flash" role="status">
+                Application received. Check your email for a verification code, then wait for admin approval before you
+                can log in.
+              </p>
+            )}
+
+            {errorMessage ? (
+              <p className="dp-login-error" role="alert">
+                {errorMessage}
+              </p>
+            ) : null}
+            {unverifiedEmail && unverifiedEmail === email.trim().toLowerCase() ? (
+              <p className="dp-login-verify">
+                <Link
+                  to={`/verify-email?realm=driver&email=${encodeURIComponent(unverifiedEmail)}`}
+                >
+                  Verify email or resend code
+                </Link>
+              </p>
+            ) : null}
+
+            <div className="dp-login-field">
+              <label className="dp-login-label" htmlFor="dlem">
+                Email
+              </label>
+              <div className="dp-login-input-wrap">
+                <span className="dp-login-iconbox" aria-hidden>
+                  <IconEnvelope />
+                </span>
+                <input
+                  className="dp-login-input"
+                  id="dlem"
+                  name="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setUnverifiedEmail('');
+                  }}
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="dp-login-field">
+              <label className="dp-login-label" htmlFor="dlpw">
+                Password
+              </label>
+              <div className="dp-login-input-wrap">
+                <span className="dp-login-iconbox" aria-hidden>
+                  <IconLock />
+                </span>
+                <input
+                  className="dp-login-input"
+                  id="dlpw"
+                  name="password"
+                  type={show ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  required
+                />
+                <button
+                  type="button"
+                  className="dp-login-input-toggle"
+                  onClick={() => setShow((s) => !s)}
+                  aria-label={show ? 'Hide password' : 'Show password'}
+                >
+                  <IconEye open={!show} />
+                </button>
+              </div>
+            </div>
+
+            <div className="dp-login-forgot-row">
+              <Link to="/forgot-password?realm=driver" className="dp-login-forgot">
+                Forgot password
+              </Link>
+            </div>
+
+            <button type="submit" className="dp-login-btn" disabled={isSubmitting}>
+              {isSubmitting ? 'Signing in…' : 'Login'}
+            </button>
+          </form>
+
+          <div className="dp-login-or" aria-hidden>
+            <span className="dp-login-or-line" />
+            <span className="dp-login-or-text">OR</span>
+            <span className="dp-login-or-line" />
+          </div>
+
+          <Link to="/driver/register" className="dp-login-register-btn">
+            Register as a Driver
           </Link>
         </div>
-        <button type="submit" className="dp-btn" style={{ marginTop: '0.2rem' }} disabled={isSubmitting}>
-          {isSubmitting ? 'Signing in…' : 'Login'}
-        </button>
-        <div className="divOr" aria-hidden>
-          or
-        </div>
-        <Link to="/driver/register" className="dp-ol" style={{ textAlign: 'center', textDecoration: 'none', display: 'block' }}>
-          Register as a Driver
-        </Link>
-        <p className="dp-btmL">
-          <Link to="/login">Are you a customer?</Link>
+
+        <p className="dp-login-customer-line">
+          Are you a customer?{' '}
+          <Link to="/login" className="dp-login-customer-link">
+            Customer Login
+          </Link>
         </p>
-      </form>
+      </main>
+
+      <footer className="dp-login-footer">
+        <div className="dp-login-trust">
+          {TRUST_BADGES.map(({ icon: Icon, label }) => (
+            <div key={label} className="dp-login-trust-item">
+              <span className="dp-login-trust-icon" aria-hidden>
+                <Icon />
+              </span>
+              <span className="dp-login-trust-label">{label}</span>
+            </div>
+          ))}
+        </div>
+        <p className="dp-login-copyright">
+          &copy; {new Date().getFullYear()} InGo. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 }

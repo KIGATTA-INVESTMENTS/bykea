@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { isDriverSignedIn } from '../../lib/driverSession';
+import DriverApprovalGate from './DriverApprovalGate';
 
 /** Use around driver pages that are not under `DriverLayout`. */
 export default function DriverAuthGate({ children }) {
@@ -7,5 +8,5 @@ export default function DriverAuthGate({ children }) {
   if (!isDriverSignedIn()) {
     return <Navigate to="/driver/login" replace state={{ from: location.pathname }} />;
   }
-  return children;
+  return <DriverApprovalGate>{children}</DriverApprovalGate>;
 }

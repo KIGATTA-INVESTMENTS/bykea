@@ -1,5 +1,8 @@
 :root {
   --ingo-primary: #F18631;
+  --ingo-secondary: #0A58A6;
+  --ingo-primary-rgb: 241, 134, 49;
+  --ingo-secondary-rgb: 10, 88, 166;
   --ingo-text: #1a1a1a;
   --ingo-bg: #fff;
 }

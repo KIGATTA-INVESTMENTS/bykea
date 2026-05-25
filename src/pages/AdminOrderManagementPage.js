@@ -4,11 +4,11 @@ import './adminPortal.css';
 const tabs = ['All', 'Pending', 'Assigned', 'In Transit', 'Delivered', 'Cancelled'];
 
 const orders = [
-  { id: 'IG-13021', service: 'Delivery', customer: 'Ayesha Tariq', driver: 'Bilal Khan', pickup: 'Stratford, London E15', dropoff: 'Kings Cross, London N1C', amount: '£12.40', payment: 'Bank', datetime: '25 Apr, 09:40 AM', status: 'In Transit' },
-  { id: 'IG-13020', service: 'Taxi', customer: 'Usman Ali', driver: 'Raza Ahmed', pickup: 'Westminster, London SW1', dropoff: 'Covent Garden, London WC2', amount: '£8.60', payment: 'Card', datetime: '25 Apr, 09:27 AM', status: 'Assigned' },
-  { id: 'IG-13019', service: 'Shop', customer: 'Nida Khan', driver: 'Unassigned', pickup: 'Green Valley Mart, Stratford', dropoff: 'Notting Hill, London W11', amount: '£26.20', payment: 'Wallet', datetime: '25 Apr, 09:11 AM', status: 'Pending' },
-  { id: 'IG-13018', service: 'Delivery', customer: 'Shahbaz Noor', driver: 'Adeel Malik', pickup: 'Liverpool Street, London EC2', dropoff: 'Canary Wharf, London E14', amount: '£11.00', payment: 'Cash', datetime: '25 Apr, 08:58 AM', status: 'Delivered' },
-  { id: 'IG-13017', service: 'Taxi', customer: 'Hina Faisal', driver: 'Kashif Umar', pickup: 'Paddington, London W2', dropoff: 'London Bridge, London SE1', amount: '£6.90', payment: 'Bank', datetime: '25 Apr, 08:41 AM', status: 'Cancelled' },
+  { id: 'IG-13021', service: 'Delivery', customer: 'Ayesha Tariq', driver: 'Bilal Khan', pickup: 'Stratford, London E15', dropoff: 'Kings Cross, London N1C', amount: '�$12.40', payment: 'Bank', datetime: '25 Apr, 09:40 AM', status: 'In Transit' },
+  { id: 'IG-13020', service: 'Taxi', customer: 'Usman Ali', driver: 'Raza Ahmed', pickup: 'Westminster, London SW1', dropoff: 'Covent Garden, London WC2', amount: '�$8.60', payment: 'Card', datetime: '25 Apr, 09:27 AM', status: 'Assigned' },
+  { id: 'IG-13019', service: 'Shop', customer: 'Nida Khan', driver: 'Unassigned', pickup: 'Green Valley Mart, Stratford', dropoff: 'Notting Hill, London W11', amount: '�$26.20', payment: 'Wallet', datetime: '25 Apr, 09:11 AM', status: 'Pending' },
+  { id: 'IG-13018', service: 'Delivery', customer: 'Shahbaz Noor', driver: 'Adeel Malik', pickup: 'Liverpool Street, London EC2', dropoff: 'Canary Wharf, London E14', amount: '�$11.00', payment: 'Cash', datetime: '25 Apr, 08:58 AM', status: 'Delivered' },
+  { id: 'IG-13017', service: 'Taxi', customer: 'Hina Faisal', driver: 'Kashif Umar', pickup: 'Paddington, London W2', dropoff: 'London Bridge, London SE1', amount: '�$6.90', payment: 'Bank', datetime: '25 Apr, 08:41 AM', status: 'Cancelled' },
 ];
 
 const timeline = [
@@ -65,20 +65,20 @@ export default function AdminOrderManagementPage() {
       </div>
 
       <section className="admGrid4" style={{ marginBottom: '0.85rem' }}>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2DB84B' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Total Orders Today</h4>
           <p className="v">1,240</p>
-          <p className="s" style={{ color: '#2DB84B' }}>+8% from yesterday</p>
+          <p className="s" style={{ color: '#0A58A6' }}>+8% from yesterday</p>
         </article>
         <article className="admCard admStat" style={{ borderLeftColor: '#ec9120' }}>
           <h4>Active Orders</h4>
           <p className="v" style={{ color: '#ec9120' }}>84</p>
           <p className="s" style={{ color: '#ec9120' }}>In progress now</p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2e7bff' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Completed Today</h4>
-          <p className="v" style={{ color: '#2e7bff' }}>1,089</p>
-          <p className="s" style={{ color: '#2e7bff' }}>87.8% completion rate</p>
+          <p className="v" style={{ color: '#0A58A6' }}>1,089</p>
+          <p className="s" style={{ color: '#0A58A6' }}>87.8% completion rate</p>
         </article>
         <article className="admCard admStat" style={{ borderLeftColor: '#d34444' }}>
           <h4>Cancelled Today</h4>
@@ -228,7 +228,7 @@ export default function AdminOrderManagementPage() {
                   <>
                     <div className="admInlineUser"><span className="admMiniAvatar">BK</span><strong>{selectedOrder.driver}</strong></div>
                     <p className="admDim">Bike - LEA 121</p>
-                    <p style={{ color: '#2DB84B' }}>★★★★☆ 4.8</p>
+                    <p style={{ color: '#0A58A6' }}>★★★★☆ 4.8</p>
                     <button className="admLink" type="button">View Profile</button>
                   </>
                 )}
@@ -253,8 +253,8 @@ export default function AdminOrderManagementPage() {
               <section className="admPanelBlock">
                 <h4 style={{ marginTop: 0 }}>Payment</h4>
                 <p style={{ margin: '0.2rem 0' }}>Method: {selectedOrder.payment}</p>
-                <p className="admDim">Base fare: £8.00 | Distance: £3.40 | Service fee: £1.00</p>
-                <p style={{ color: '#2DB84B', fontWeight: 800, marginBottom: '0.2rem' }}>Total: {selectedOrder.amount}</p>
+                <p className="admDim">Base fare: �$8.00 | Distance: �$3.40 | Service fee: �$1.00</p>
+                <p style={{ color: '#0A58A6', fontWeight: 800, marginBottom: '0.2rem' }}>Total: {selectedOrder.amount}</p>
                 <span className="admBadgeStatus admGreen">Paid</span>
               </section>
 

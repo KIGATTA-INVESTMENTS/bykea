@@ -1,0 +1,274 @@
+/* InGo — Edit profile (premium) */
+.prf-edit-page {
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f0f2f5;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --prf-blue: #07408f;
+  --prf-orange: #ec6c23;
+  --prf-border: #e5e7eb;
+}
+
+.prf-edit-nav {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  padding: calc(0.55rem + env(safe-area-inset-top, 0)) 0.75rem 0.65rem;
+  background: var(--prf-blue);
+}
+
+.prf-edit-nav__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.prf-edit-nav__back:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.prf-edit-nav__title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+}
+
+.prf-edit-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.85rem 1rem calc(6.5rem + var(--bnav-total, 0px));
+}
+
+.prf-edit-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.1rem 1rem 1.15rem;
+  margin-bottom: 0.75rem;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.prf-edit-photo__wrap {
+  position: relative;
+}
+
+.prf-edit-photo__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 5.25rem;
+  height: 5.25rem;
+  border-radius: 50%;
+  background: rgba(7, 64, 143, 0.1);
+  border: 2.5px solid var(--prf-blue);
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--prf-blue);
+  line-height: 1;
+  user-select: none;
+}
+
+.prf-edit-photo__avatar--img {
+  display: block;
+  object-fit: cover;
+  background: #e5e7eb;
+}
+
+.prf-edit-photo__file {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prf-edit-photo__label {
+  margin: 0.65rem 0 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--prf-orange);
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.prf-edit-photo__label:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.prf-edit-photo__err {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #b42318;
+  text-align: center;
+  max-width: 16rem;
+  line-height: 1.35;
+}
+
+.prf-edit-photo__btn {
+  position: absolute;
+  right: -0.1rem;
+  bottom: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--prf-orange);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.prf-edit-card {
+  padding: 1rem 1rem 1.1rem;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.prf-edit-card__heading {
+  margin: 0 0 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--prf-blue);
+}
+
+.prf-edit-field {
+  margin-bottom: 0.85rem;
+}
+
+.prf-edit-field:last-of-type {
+  margin-bottom: 0;
+}
+
+.prf-edit-label {
+  display: block;
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.prf-edit-input-wrap {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  border: 1px solid var(--prf-border);
+  border-left: 3px solid var(--prf-orange);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.prf-edit-input-wrap:focus-within {
+  border-color: var(--prf-blue);
+  border-left-color: var(--prf-orange);
+  box-shadow: 0 0 0 2px rgba(7, 64, 143, 0.12);
+}
+
+.prf-edit-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  font-family: inherit;
+  padding: 0 0.85rem;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.prf-edit-input:focus {
+  outline: none;
+}
+
+.prf-edit-input--phone {
+  padding-left: 0.35rem;
+}
+
+.prf-edit-phone__code {
+  flex-shrink: 0;
+  padding: 0 0.65rem 0 0.85rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--prf-blue);
+  border-right: 1px solid var(--prf-border);
+}
+
+.prf-edit-error {
+  margin: 0.85rem 0 0;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #b42318;
+  background: #fef2f2;
+  border-radius: 8px;
+}
+
+.prf-edit-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--bnav-total, 0);
+  z-index: 20;
+  padding: 0.65rem 1rem 0.75rem;
+  background: linear-gradient(180deg, rgba(240, 242, 245, 0) 0%, rgba(240, 242, 245, 0.92) 28%, #f0f2f5 100%);
+  box-sizing: border-box;
+}
+
+.prf-edit-save {
+  display: block;
+  width: 100%;
+  height: 54px;
+  border: none;
+  border-radius: 12px;
+  background: var(--prf-orange);
+  color: #fff;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(236, 108, 35, 0.4);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.prf-edit-save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.prf-edit-save:active:not(:disabled) {
+  filter: brightness(0.96);
+}

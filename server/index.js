@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const { Paynow } = require('paynow');
 const { createClient } = require('@supabase/supabase-js');
+const { processPaynowResult } = require('./paynowResult');
 
 const PORT = Number(process.env.PORT) || 4000;
 
@@ -13,7 +14,7 @@ const DEFAULT_PUBLIC_PAYNOW_API =
 
 /** Where shoppers return after Paynow (your CRA / Firebase site). Override with PAYNOW_RETURN_URL or CUSTOMER_APP_PUBLIC_URL. */
 const DEFAULT_CUSTOMER_APP =
-  String(process.env.CUSTOMER_APP_PUBLIC_URL || '').trim() || 'https://hotel-demo-11dcb.web.app';
+  String(process.env.CUSTOMER_APP_PUBLIC_URL || '').trim() || 'https://ingo-92d5f.web.app';
 
 const PAYNOW_RESULT_URL =
   String(process.env.PAYNOW_RESULT_URL || '').trim() ||
@@ -131,11 +132,58 @@ function resolvePaynowAuthEmail(customerEmailRaw) {
   return String(customerEmailRaw || '').trim();
 }
 
-/** Paynow may POST transaction updates here (same shape as RESULT_URL expects). */
-app.post('/paynow/result', express.urlencoded({ extended: true }), (req, res) => {
-  // Acknowledge quickly; extend later to verify hash + update DB.
-  res.status(200).send('OK');
-});
+/** Paynow may POST transaction updates here (same shape as Supabase paynow-result edge). */
+app.post(
+  '/paynow/result',
+  express.raw({
+    type: (req) => {
+      const ct = String(req.headers['content-type'] || '').toLowerCase();
+      return ct.includes('application/x-www-form-urlencoded') || ct.includes('text/plain') || !ct;
+    },
+    limit: '128kb',
+  }),
+  async (req, res) => {
+    const key = String(process.env.PAYNOW_INTEGRATION_KEY || '').trim();
+    const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
+    const serviceKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
+
+    if (!key || !supabaseUrl || !serviceKey) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[paynow/result] Missing PAYNOW_INTEGRATION_KEY and/or Supabase service env — payment rows will not update.',
+      );
+      res.status(200).send('OK');
+      return;
+    }
+
+    try {
+      const result = await processPaynowResult(rawBody, {
+        integrationKey: key,
+        supabaseUrl,
+        serviceKey,
+      });
+      if (!result.ok) {
+        // eslint-disable-next-line no-console
+        console.error('[paynow/result] Failed:', result.reason);
+        res.status(500).send('ERR');
+        return;
+      }
+      if (result.kind) {
+        // eslint-disable-next-line no-console
+        console.info(
+          `[paynow/result] Updated ${result.kind} ref=${result.reference} → ${result.paymentStatus}`,
+        );
+      }
+      res.status(200).send('OK');
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[paynow/result] Exception:', e instanceof Error ? e.message : e);
+      res.status(500).send('ERR');
+    }
+  },
+);
 
 app.post('/paynow/initiate', async (req, res) => {
   const id = String(process.env.PAYNOW_INTEGRATION_ID || '').trim();

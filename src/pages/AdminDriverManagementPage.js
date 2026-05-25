@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import './adminPortal.css';
 
 const drivers = [
-  { id: 'DR-201', name: 'Hassan Raza', phone: '+44 7700 555840', vehicle: 'Bike', plate: 'AB19 CDE', deliveries: 412, rating: 4.8, deposit: 'Â£142', status: 'Online', completion: '97%', onlineHours: '52h' },
-  { id: 'DR-202', name: 'Noman Shah', phone: '+44 7700 889002', vehicle: 'Car', plate: 'LM20 FGH', deliveries: 280, rating: 4.6, deposit: 'Â£88', status: 'Offline', completion: '95%', onlineHours: '38h' },
-  { id: 'DR-203', name: 'Saif Malik', phone: '+44 7700 901117', vehicle: 'Bike', plate: 'YN68 JKL', deliveries: 0, rating: 0, deposit: 'Â£40', status: 'Pending', completion: '--', onlineHours: '--' },
-  { id: 'DR-204', name: 'Adeel Hanif', phone: '+44 7700 772334', vehicle: 'Van', plate: 'CK19 MNO', deliveries: 104, rating: 4.4, deposit: 'Â£55', status: 'Suspended', completion: '89%', onlineHours: '21h' },
-  { id: 'DR-205', name: 'Umair Tariq', phone: '+44 7700 991200', vehicle: 'Bike', plate: 'DP21 PQR', deliveries: 188, rating: 4.7, deposit: 'Â£73', status: 'Online', completion: '96%', onlineHours: '43h' },
+  { id: 'DR-201', name: 'Hassan Raza', phone: '+44 7700 555840', vehicle: 'Bike', plate: 'AB19 CDE', deliveries: 412, rating: 4.8, deposit: 'Â$142', status: 'Online', completion: '97%', onlineHours: '52h' },
+  { id: 'DR-202', name: 'Noman Shah', phone: '+44 7700 889002', vehicle: 'Car', plate: 'LM20 FGH', deliveries: 280, rating: 4.6, deposit: 'Â$88', status: 'Offline', completion: '95%', onlineHours: '38h' },
+  { id: 'DR-203', name: 'Saif Malik', phone: '+44 7700 901117', vehicle: 'Bike', plate: 'YN68 JKL', deliveries: 0, rating: 0, deposit: 'Â$40', status: 'Pending', completion: '--', onlineHours: '--' },
+  { id: 'DR-204', name: 'Adeel Hanif', phone: '+44 7700 772334', vehicle: 'Van', plate: 'CK19 MNO', deliveries: 104, rating: 4.4, deposit: 'Â$55', status: 'Suspended', completion: '89%', onlineHours: '21h' },
+  { id: 'DR-205', name: 'Umair Tariq', phone: '+44 7700 991200', vehicle: 'Bike', plate: 'DP21 PQR', deliveries: 188, rating: 4.7, deposit: 'Â$73', status: 'Online', completion: '96%', onlineHours: '43h' },
 ];
 
 const tabs = ['All', 'Online', 'Offline', 'Pending', 'Suspended', 'Rejected'];
@@ -48,7 +48,7 @@ export default function AdminDriverManagementPage() {
 
       <section className="admGrid4" style={{ marginBottom: '0.8rem' }}>
         <article className="admCard admSmallCard"><p className="k">Total Drivers</p><p className="v">348</p></article>
-        <article className="admCard admSmallCard"><p className="k">Online Now</p><p className="v" style={{ color: '#2DB84B' }}>86</p></article>
+        <article className="admCard admSmallCard"><p className="k">Online Now</p><p className="v" style={{ color: '#0A58A6' }}>86</p></article>
         <article className="admCard admSmallCard"><p className="k">Pending Approval</p><p className="v" style={{ color: '#ec9120' }}>12</p></article>
         <article className="admCard admSmallCard"><p className="k">Suspended</p><p className="v" style={{ color: '#d34444' }}>5</p></article>
       </section>
@@ -100,13 +100,13 @@ export default function AdminDriverManagementPage() {
                   <td><span className="admBadgeStatus admBlue">{driver.vehicle}</span></td>
                   <td>{driver.plate}</td>
                   <td>{driver.deliveries}</td>
-                  <td style={{ color: '#2DB84B' }}>{driver.rating ? `${driver.rating} â˜…` : '--'}</td>
+                  <td style={{ color: '#0A58A6' }}>{driver.rating ? `${driver.rating} â˜…` : '--'}</td>
                   <td>{driver.deposit}</td>
                   <td><span className={statusClass(driver.status)}>{driver.status}</span></td>
                   <td>
                     <div className="admActions">
                       <button type="button" aria-label="View">ğŸ‘</button>
-                      <button type="button" aria-label="Approve" style={{ color: '#2DB84B' }}>âœ“</button>
+                      <button type="button" aria-label="Approve" style={{ color: '#0A58A6' }}>âœ“</button>
                       <button type="button" aria-label="Reject" style={{ color: '#d34444' }}>âœ•</button>
                       <button type="button" aria-label="Suspend" style={{ color: '#ec9120' }}>â›”</button>
                     </div>
@@ -165,7 +165,7 @@ export default function AdminDriverManagementPage() {
                   {selectedDriver.name.slice(0, 2).toUpperCase()}
                 </span>
                 <h3 style={{ margin: 0 }}>{selectedDriver.name}</h3>
-                <p style={{ margin: '0.2rem 0 0.35rem', color: '#2DB84B' }}>
+                <p style={{ margin: '0.2rem 0 0.35rem', color: '#0A58A6' }}>
                   {selectedDriver.rating ? `${selectedDriver.rating} â˜…` : 'No ratings yet'}
                 </p>
                 <span className={statusClass(selectedDriver.status)}>{selectedDriver.status}</span>
@@ -193,14 +193,14 @@ export default function AdminDriverManagementPage() {
 
               <div className="admPanelBlock">
                 <h4 style={{ marginTop: 0 }}>Earnings Summary</h4>
-                <p style={{ marginBottom: '0.3rem' }}>This week: <strong style={{ color: '#2DB84B' }}>Â£182</strong></p>
-                <p style={{ margin: 0 }}>This month: <strong style={{ color: '#2DB84B' }}>Â£734</strong></p>
+                <p style={{ marginBottom: '0.3rem' }}>This week: <strong style={{ color: '#0A58A6' }}>Â$182</strong></p>
+                <p style={{ margin: 0 }}>This month: <strong style={{ color: '#0A58A6' }}>Â$734</strong></p>
               </div>
 
               <div className="admPanelBlock">
                 <h4 style={{ marginTop: 0 }}>Deposit Balance &amp; Transactions</h4>
                 <p style={{ marginBottom: '0.3rem' }}>Balance: <strong>{selectedDriver.deposit}</strong></p>
-                <p style={{ margin: 0, color: '#666' }}>+ Â£20 (Top-up), - Â£8 (Penalty), + Â£15 (Bonus)</p>
+                <p style={{ margin: 0, color: '#666' }}>+ Â$20 (Top-up), - Â$8 (Penalty), + Â$15 (Bonus)</p>
               </div>
 
               <div className="admPanelActions">

@@ -45,7 +45,7 @@ to anon
 using (true)
 with check (true);
 
--- Admin customer screen (/admin/customers) deletes via anon key — same pattern as app_users_delete_anon.sql.
+-- Admin (/admin/customers) and customer self-delete (/profile) use anon delete — see app_users_self_delete_customer.sql.
 drop policy if exists "app_users_delete_anon" on public.app_users;
 create policy "app_users_delete_anon"
 on public.app_users

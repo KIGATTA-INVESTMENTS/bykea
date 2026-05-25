@@ -4,9 +4,145 @@ import { compressImageToDataUrl } from '../lib/compressImageToDataUrl';
 import { SHOP_BUSINESS_TYPES } from '../lib/shopBusinessTypes';
 import { customerEmailVerifySend } from '../lib/customerEmailVerify';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './shopOwnerPortal.css';
+import InGoLogo from '../components/InGoLogo';
+import './shopOwnerRegisterPremium.css';
 
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+
+function IconShop() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 9l2-4h14l2 4M5 9v11h14V9"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M9 9V6h6v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconPerson() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconPhone() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6.5 4h3l1.5 4-2 1.2a11 11 0 0 0 5.8 5.8L17 12l4 1.5v3a2 2 0 0 1-2.2 2A15 15 0 0 1 4.5 6.2 2 2 0 0 1 6.5 4z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconEnvelope() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 6h16v12H4V6Zm0 0 8 7 8-7"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconLock() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconTag() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M20 12l-8 8-9-9V4h7l10 8z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <circle cx="7.5" cy="7.5" r="1.25" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconPin() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 21s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="11" r="2" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+function IconEye({ open }) {
+  if (open) {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+        />
+        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 3l18 18M10.5 10.5a3 3 0 0 0 3 3M5.2 5.2C3.1 6.4 1.5 8.1 1 9.5c0 0 4 7 11 7 1.2 0 2.3-.2 3.3-.5M8.2 4.2C9.3 3.8 10.6 3.5 12 3.5c7 0 11 6.5 11 6.5-.2.4-1.1 1.6-2.4 2.8"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconChevronDown() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RegField({ label, id, children, hint, wrapClass = '' }) {
+  const wrapCls = ['so-reg-input-wrap', wrapClass].filter(Boolean).join(' ');
+  return (
+    <div className="so-reg-field">
+      <label className="so-reg-label" htmlFor={id}>
+        {label}
+      </label>
+      <div className={wrapCls}>{children}</div>
+      {hint}
+    </div>
+  );
+}
 
 export default function ShopOwnerRegisterPage() {
   const navigate = useNavigate();
@@ -21,6 +157,8 @@ export default function ShopOwnerRegisterPage() {
     address: '',
   });
   const [agree, setAgree] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [showPass2, setShowPass2] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const shopImgRef = useRef(null);
@@ -123,180 +261,280 @@ export default function ShopOwnerRegisterPage() {
   };
 
   return (
-    <div className="sop sopAuth" role="main">
-      <div className="sopLeft">
-        <Link to="/" className="sopBrand" aria-label="InGo home">
-          InGo
-        </Link>
-        <h1 className="sopH1L">Grow your business with InGo</h1>
-        <p className="sopSubL">Reach more customers and manage your deliveries in one place.</p>
-      </div>
-      <div className="sopRight" style={{ justifyContent: 'flex-start', paddingTop: '1.25rem', paddingBottom: '1.5rem' }}>
-        <h1 className="sopH1R" style={{ marginTop: 0 }}>
-          Register your shop
-        </h1>
-        <p className="sopSubR">Create your shop owner account</p>
-        <form className="sopF" onSubmit={submit} autoComplete="on">
-          {errorMessage ? (
-            <p role="alert" style={{ color: '#c62828', fontSize: '0.82rem', margin: '0 0 0.45rem', fontWeight: 600 }}>
-              {errorMessage}
-            </p>
-          ) : null}
-          <input
-            ref={shopImgRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            style={{ display: 'none' }}
-            aria-hidden
-            tabIndex={-1}
-            onChange={onShopImageChange}
-          />
-          <label className="sopL" htmlFor="sor-bn">
-            Business name
-          </label>
-          <input className="sopI" id="sor-bn" value={form.business} onChange={set('business')} required />
-          <label className="sopL" htmlFor="sor-on">
-            Owner full name
-          </label>
-          <input className="sopI" id="sor-on" value={form.owner} onChange={set('owner')} required autoComplete="name" />
-          <label className="sopL" htmlFor="sor-ph">
-            Phone number
-          </label>
-          <input
-            className="sopI"
-            id="sor-ph"
-            type="tel"
-            value={form.phone}
-            onChange={set('phone')}
-            required
-            autoComplete="tel"
-          />
-          <label className="sopL" htmlFor="sor-em">
-            Email address
-          </label>
-          <input
-            className="sopI"
-            id="sor-em"
-            type="email"
-            value={form.email}
-            onChange={set('email')}
-            required
-            autoComplete="email"
-          />
-          <label className="sopL" htmlFor="sor-p1">
-            Password
-          </label>
-          <input
-            className="sopI"
-            id="sor-p1"
-            type="password"
-            value={form.pass}
-            onChange={set('pass')}
-            required
-            minLength={6}
-            autoComplete="new-password"
-          />
-          <label className="sopL" htmlFor="sor-p2">
-            Confirm password
-          </label>
-          <input
-            className="sopI"
-            id="sor-p2"
-            type="password"
-            value={form.pass2}
-            onChange={set('pass2')}
-            required
-            autoComplete="new-password"
-          />
-          {form.pass && form.pass2 && form.pass !== form.pass2 && (
-            <p style={{ color: '#c62828', fontSize: '0.75rem', margin: '0.1rem 0' }}>Passwords do not match</p>
-          )}
-          <label className="sopL" htmlFor="sor-ty">
-            Business type
-          </label>
-          <select className="sopSel" id="sor-ty" value={form.type} onChange={set('type')}>
-            {SHOP_BUSINESS_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <label className="sopL" htmlFor="sor-ad">
-            Business address
-          </label>
-          <input className="sopI" id="sor-ad" value={form.address} onChange={set('address')} required autoComplete="street-address" />
-          <p className="sopL" style={{ marginTop: '0.45rem' }}>
-            Shop photo <span style={{ fontWeight: 500, color: '#888' }}>(optional)</span>
-          </p>
-          {imageError ? (
-            <p role="alert" style={{ color: '#c62828', fontSize: '0.78rem', margin: '0 0 0.35rem', fontWeight: 600 }}>
-              {imageError}
-            </p>
-          ) : null}
-          <div
-            className="sopDz2 sopDzPr sopRegShopImg"
-            style={{
-              position: 'relative',
-              width: '100%',
-              maxWidth: '22rem',
-              cursor: imageBusy ? 'wait' : 'pointer',
-              padding: shopImageUrl ? 0 : undefined,
-              overflow: 'hidden',
-              minHeight: '5rem',
-            }}
-            onClick={() => !imageBusy && pickShopImage()}
-            onKeyDown={(e) => {
-              if (imageBusy) return;
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                pickShopImage();
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            aria-label={shopImageUrl ? 'Change shop photo' : 'Upload shop photo'}
-          >
-            {shopImageUrl ? (
-              <img src={shopImageUrl} alt="" style={{ width: '100%', display: 'block', maxHeight: 140, objectFit: 'cover' }} />
-            ) : (
-              <span style={{ display: 'block', padding: '0.55rem', fontSize: '0.82rem', color: '#666' }}>
-                {imageBusy ? 'Processing…' : 'Tap to add a logo or storefront photo'}
-              </span>
-            )}
-            {shopImageUrl ? (
-              <button
-                type="button"
-                className="sopImgRm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearShopImage();
-                }}
-                aria-label="Remove shop photo"
-              >
-                ×
-              </button>
-            ) : null}
+    <div className="so-reg-page" role="main">
+      <header className="so-reg-hero">
+        <div className="so-reg-hero-waves" aria-hidden />
+        <div className="so-reg-hero-top">
+          <InGoLogo variant="hero" />
+          <div className="so-reg-hero-badge" role="status">
+            Shop Owner Portal
           </div>
-          <p style={{ fontSize: '0.72rem', color: '#888', margin: '0.2rem 0 0.35rem', maxWidth: '22rem' }}>
-            JPEG, PNG, WebP, or GIF — max 12 MB. Image is resized in your browser. You can skip this and add one later from your profile when that is available.
+          <p className="so-reg-hero-tagline">Grow your business with InGo</p>
+          <p className="so-reg-hero-subtitle">
+            Reach more customers and manage your deliveries in one place.
           </p>
-          <label className="sopChkL" style={{ margin: '0.2rem 0' }}>
-            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} required />
-            I agree to the{' '}
-            <Link to="/terms" className="sopLink">
-              terms
-            </Link>
-          </label>
-          <button className="sopBtn" type="submit" style={{ marginTop: '0.3rem' }} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'Register shop'}
-          </button>
-        </form>
-        <p className="sopBot" style={{ marginTop: '0.5rem' }}>
-          <Link to="/shop-owner/login" className="sopLink">
-            Back to login
-          </Link>
+        </div>
+      </header>
+
+      <main className="so-reg-body">
+        <div className="so-reg-card">
+          <h1 className="so-reg-title">Register Your Shop</h1>
+          <p className="so-reg-subtitle">Create your shop owner account</p>
+
+          <form className="so-reg-form" onSubmit={submit} autoComplete="on">
+            {errorMessage ? (
+              <p className="so-reg-error" role="alert">
+                {errorMessage}
+              </p>
+            ) : null}
+
+            <section className="so-reg-group" aria-labelledby="so-reg-grp-info">
+              <h2 id="so-reg-grp-info" className="so-reg-group-label">
+                Business Info
+              </h2>
+
+              <RegField label="Business name" id="sor-bn">
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconShop />
+                </span>
+                <input
+                  className="so-reg-input"
+                  id="sor-bn"
+                  value={form.business}
+                  onChange={set('business')}
+                  required
+                  autoComplete="organization"
+                />
+              </RegField>
+
+              <RegField label="Owner full name" id="sor-on">
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconPerson />
+                </span>
+                <input
+                  className="so-reg-input"
+                  id="sor-on"
+                  value={form.owner}
+                  onChange={set('owner')}
+                  required
+                  autoComplete="name"
+                />
+              </RegField>
+
+              <RegField label="Phone number" id="sor-ph">
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconPhone />
+                </span>
+                <input
+                  className="so-reg-input"
+                  id="sor-ph"
+                  type="tel"
+                  value={form.phone}
+                  onChange={set('phone')}
+                  required
+                  autoComplete="tel"
+                  placeholder="+44 7XXX XXXXXX"
+                />
+              </RegField>
+
+              <RegField label="Email address" id="sor-em">
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconEnvelope />
+                </span>
+                <input
+                  className="so-reg-input"
+                  id="sor-em"
+                  type="email"
+                  value={form.email}
+                  onChange={set('email')}
+                  required
+                  autoComplete="email"
+                  placeholder="you@shop.com"
+                />
+              </RegField>
+            </section>
+
+            <section className="so-reg-group" aria-labelledby="so-reg-grp-security">
+              <h2 id="so-reg-grp-security" className="so-reg-group-label">
+                Security
+              </h2>
+
+              <RegField label="Password" id="sor-p1">
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconLock />
+                </span>
+                <input
+                  className="so-reg-input"
+                  id="sor-p1"
+                  type={showPass ? 'text' : 'password'}
+                  value={form.pass}
+                  onChange={set('pass')}
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  className="so-reg-input-toggle"
+                  tabIndex={-1}
+                  onClick={() => setShowPass((s) => !s)}
+                  aria-label={showPass ? 'Hide password' : 'Show password'}
+                >
+                  <IconEye open={!showPass} />
+                </button>
+              </RegField>
+
+              <RegField
+                label="Confirm password"
+                id="sor-p2"
+                hint={
+                  form.pass && form.pass2 && form.pass !== form.pass2 ? (
+                    <p className="so-reg-hint">Passwords do not match</p>
+                  ) : null
+                }
+              >
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconLock />
+                </span>
+                <input
+                  className="so-reg-input"
+                  id="sor-p2"
+                  type={showPass2 ? 'text' : 'password'}
+                  value={form.pass2}
+                  onChange={set('pass2')}
+                  required
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  className="so-reg-input-toggle"
+                  tabIndex={-1}
+                  onClick={() => setShowPass2((s) => !s)}
+                  aria-label={showPass2 ? 'Hide password' : 'Show password'}
+                >
+                  <IconEye open={!showPass2} />
+                </button>
+              </RegField>
+            </section>
+
+            <section className="so-reg-group" aria-labelledby="so-reg-grp-details">
+              <h2 id="so-reg-grp-details" className="so-reg-group-label">
+                Details
+              </h2>
+
+              <RegField label="Business type" id="sor-ty" wrapClass="so-reg-select-wrap">
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconTag />
+                </span>
+                <select className="so-reg-select" id="sor-ty" value={form.type} onChange={set('type')}>
+                  {SHOP_BUSINESS_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <span className="so-reg-select-arrow" aria-hidden>
+                  <IconChevronDown />
+                </span>
+              </RegField>
+
+              <RegField label="Business address" id="sor-ad">
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconPin />
+                </span>
+                <input
+                  className="so-reg-input"
+                  id="sor-ad"
+                  value={form.address}
+                  onChange={set('address')}
+                  required
+                  autoComplete="street-address"
+                  placeholder="Street, city, postcode"
+                />
+              </RegField>
+
+              <input
+                ref={shopImgRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                style={{ display: 'none' }}
+                aria-hidden
+                tabIndex={-1}
+                onChange={onShopImageChange}
+              />
+              <div className="so-reg-field">
+                <span className="so-reg-label">
+                  Shop photo <span className="so-reg-label-optional">(optional)</span>
+                </span>
+                {imageError ? (
+                  <p className="so-reg-photo-err" role="alert">
+                    {imageError}
+                  </p>
+                ) : null}
+                <div
+                  className={`so-reg-photo${imageBusy ? ' so-reg-photo--busy' : ''}`}
+                  onClick={() => !imageBusy && pickShopImage()}
+                  onKeyDown={(e) => {
+                    if (imageBusy) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      pickShopImage();
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={shopImageUrl ? 'Change shop photo' : 'Upload shop photo'}
+                >
+                  {shopImageUrl ? (
+                    <img src={shopImageUrl} alt="" />
+                  ) : (
+                    <span className="so-reg-photo-placeholder">
+                      {imageBusy ? 'Processing…' : 'Tap to add a logo or storefront photo'}
+                    </span>
+                  )}
+                  {shopImageUrl ? (
+                    <button
+                      type="button"
+                      className="so-reg-photo-rm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearShopImage();
+                      }}
+                      aria-label="Remove shop photo"
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+                <p className="so-reg-photo-hint">
+                  JPEG, PNG, WebP, or GIF — max 12 MB. Image is resized in your browser. You can skip this and add one
+                  later from your profile when that is available.
+                </p>
+              </div>
+            </section>
+
+            <label className="so-reg-terms">
+              <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} required />
+              <span>
+                I agree to the{' '}
+                <Link to="/terms" onClick={(e) => e.stopPropagation()}>
+                  terms
+                </Link>
+              </span>
+            </label>
+
+            <button className="so-reg-btn" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving…' : 'Register My Shop'}
+            </button>
+          </form>
+        </div>
+
+        <p className="so-reg-foot">
+          Already have an account? <Link to="/shop-owner/login">Login</Link>
         </p>
-      </div>
+      </main>
     </div>
   );
 }

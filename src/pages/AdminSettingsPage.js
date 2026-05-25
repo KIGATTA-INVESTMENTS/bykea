@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import InGoLogo from '../components/InGoLogo';
 import './adminPortal.css';
 
 const zones = [
@@ -27,14 +28,26 @@ export default function AdminSettingsPage() {
         <div className="admSettingsGrid">
           <div className="admField"><label htmlFor="platform-name">Platform Name</label><input id="platform-name" className="admInput" defaultValue="InGo" /></div>
           <div className="admField"><label htmlFor="language">Default Language</label><select id="language" className="admSelect"><option>English</option><option>French</option><option>Portuguese</option></select></div>
-          <div className="admField"><label htmlFor="currency">Default Currency</label><select id="currency" className="admSelect"><option>GBP</option><option>EUR</option><option>USD</option></select></div>
+          <div className="admField"><label htmlFor="currency">Default Currency</label><select id="currency" className="admSelect" defaultValue="USD"><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></div>
           <div className="admField"><label htmlFor="country">Default Country</label><select id="country" className="admSelect"><option>United Kingdom</option><option>Ireland</option><option>France</option></select></div>
           <div className="admField"><label htmlFor="timezone">Timezone</label><select id="timezone" className="admSelect"><option>Europe/London</option><option>Europe/Dublin</option></select></div>
           <div className="admField"><label htmlFor="date-format">Date Format</label><select id="date-format" className="admSelect"><option>DD/MM/YYYY</option><option>YYYY-MM-DD</option></select></div>
         </div>
         <div className="admSettingsUploads">
-          <div><label>Platform Logo</label><div className="admLogoPreview">InGo Logo</div><button className="admOutlineBtn" type="button">Change Logo</button></div>
-          <div><label>Platform Favicon</label><div className="admLogoPreview admSmall">IG</div><button className="admOutlineBtn" type="button">Change Favicon</button></div>
+          <div>
+            <label>Platform Logo</label>
+            <div className="admLogoPreview">
+              <InGoLogo variant="admin" />
+            </div>
+            <button className="admOutlineBtn" type="button">Change Logo</button>
+          </div>
+          <div>
+            <label>Platform Favicon</label>
+            <div className="admLogoPreview admSmall">
+              <InGoLogo variant="adminSidebar" />
+            </div>
+            <button className="admOutlineBtn" type="button">Change Favicon</button>
+          </div>
         </div>
         <button className="admBtnSmall" type="button">Save General</button>
       </section>
@@ -85,7 +98,7 @@ export default function AdminSettingsPage() {
           <div key={zone.id} className="admZoneRow">
             <div><strong>{zone.name}</strong><p className="admDim">{zone.city} - {zone.radius}</p></div>
             <label className="admSwitchCompact" htmlFor={`zone-${zone.id}`}><input id={`zone-${zone.id}`} type="checkbox" defaultChecked={zone.active} /></label>
-            <div className="admActions"><button type="button">✎</button><button type="button" style={{ color: '#d34444' }}>🗑</button></div>
+            <div className="admActions"><button type="button">?</button><button type="button" style={{ color: '#d34444' }}>??</button></div>
           </div>
         ))}
         <button className="admLink" type="button">Add Zone</button>
@@ -115,8 +128,8 @@ export default function AdminSettingsPage() {
             <label className="admToggleRow" htmlFor="cod-enabled"><span>Enabled</span><input id="cod-enabled" type="checkbox" defaultChecked /></label>
             <h4 style={{ marginTop: '0.8rem' }}>InGo Wallet</h4>
             <label className="admToggleRow" htmlFor="wallet-enabled"><span>Enabled</span><input id="wallet-enabled" type="checkbox" defaultChecked /></label>
-            <div className="admField"><label htmlFor="min-topup">Minimum top up amount</label><input id="min-topup" className="admInput" defaultValue="£2.00" /></div>
-            <div className="admField"><label htmlFor="max-wallet">Maximum wallet balance</label><input id="max-wallet" className="admInput" defaultValue="£500.00" /></div>
+            <div className="admField"><label htmlFor="min-topup">Minimum top up amount</label><input id="min-topup" className="admInput" defaultValue="�$2.00" /></div>
+            <div className="admField"><label htmlFor="max-wallet">Maximum wallet balance</label><input id="max-wallet" className="admInput" defaultValue="�$500.00" /></div>
           </div>
         </div>
       </section>
@@ -153,7 +166,7 @@ export default function AdminSettingsPage() {
               {ips.map((ip) => (
                 <span className="admIpChip" key={ip}>
                   {ip}
-                  <button type="button" onClick={() => setIps((current) => current.filter((item) => item !== ip))}>✕</button>
+                  <button type="button" onClick={() => setIps((current) => current.filter((item) => item !== ip))}>?</button>
                 </span>
               ))}
             </div>

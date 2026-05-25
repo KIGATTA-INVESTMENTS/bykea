@@ -4,7 +4,7 @@ import { compressImageToDataUrl } from '../lib/compressImageToDataUrl';
 import { getCustomerSession } from '../lib/customerSession';
 import { CUSTOMER_PARCEL_VEHICLE_OPTIONS } from '../lib/deliveryVehicleTypes';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './requestFlow.css';
+import './bookRide.css';
 
 function BackArrow() {
   return (
@@ -29,7 +29,7 @@ const SIZES = [
 
 function IconEnvelope() {
   return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" aria-hidden>
+    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" aria-hidden>
       <rect x="3" y="6" width="26" height="20" rx="1.5" stroke="currentColor" strokeWidth="1.4" fill="none" />
       <path d="M3 8l13 8 13-8" stroke="currentColor" strokeWidth="1.2" fill="none" />
     </svg>
@@ -37,7 +37,7 @@ function IconEnvelope() {
 }
 function IconBoxSm() {
   return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" aria-hidden>
+    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" aria-hidden>
       <rect x="5" y="8" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none" />
       <path d="M5 12h14" stroke="currentColor" strokeWidth="0.8" />
     </svg>
@@ -45,7 +45,7 @@ function IconBoxSm() {
 }
 function IconBoxLg() {
   return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" aria-hidden>
+    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" aria-hidden>
       <rect x="3" y="4" width="20" height="20" rx="1.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
       <path d="M3 10h20" stroke="currentColor" strokeWidth="0.8" />
     </svg>
@@ -53,7 +53,7 @@ function IconBoxLg() {
 }
 function IconPallet() {
   return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" aria-hidden>
+    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" aria-hidden>
       <rect x="2" y="18" width="28" height="4" rx="0.5" fill="currentColor" />
       <rect x="4" y="6" width="8" height="10" stroke="currentColor" strokeWidth="1" fill="none" />
       <rect x="20" y="6" width="8" height="10" stroke="currentColor" strokeWidth="1" fill="none" />
@@ -79,16 +79,7 @@ const PACKAGE_TYPE_OPTIONS = [
 
 function CamIcon() {
   return (
-    <svg
-      className="pd-upload__icon"
-      viewBox="0 0 24 24"
-      width="32"
-      height="32"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.3"
-      aria-hidden
-    >
+    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
       <rect x="2" y="5" width="20" height="16" rx="1.2" fill="none" />
       <path d="M2 8h3l1.5-2H10l1.5 2H22" strokeLinecap="round" fill="none" />
       <circle cx="12" cy="12" r="3" fill="none" />
@@ -181,27 +172,23 @@ export default function PackageDetailsPage() {
   };
 
   return (
-    <form className="pd-page" onSubmit={onContinue}>
-      <div className="pd-header-block">
-        <div className="pd-topbar">
-          <div className="pd-topbar__row">
-            <Link
-              to="/request-delivery"
-              className="flow-back"
-              aria-label="Back to request delivery"
-            >
-              <BackArrow />
-            </Link>
-            <h1>Package Details</h1>
-          </div>
-          <p>Step 2 of 3</p>
+    <form id="pd-form" className="br-page br-page--form" onSubmit={onContinue}>
+      <header className="br-nav br-nav--stacked">
+        <Link to="/request-delivery" className="br-nav__back" aria-label="Back to request delivery">
+          <BackArrow />
+        </Link>
+        <div className="br-nav__center">
+          <h1 className="br-nav__title">Package Details</h1>
+          <p className="br-nav__step">Step 2 of 3</p>
         </div>
-      </div>
-      <div className="pd-pad--safe">
-        <div className="pd-content">
-        <div className="pd-section" aria-label="Package size">
-          <h2>Package Size (select one)</h2>
-          <div className="pd-grid" role="radiogroup" aria-label="Package size">
+        <span className="br-nav__spacer" aria-hidden />
+      </header>
+
+      <div className="br-scroll br-scroll--form">
+        <section className="br-pd-card" aria-label="Package size">
+          <h2 className="br-pd-heading">Package size</h2>
+          <p className="br-pd-hint">Select one size for your parcel.</p>
+          <div className="br-pd-grid br-pd-grid--4" role="radiogroup" aria-label="Package size">
             {SIZES.map((s) => {
               const IconC = sizeIcon[s.id] || IconBoxSm;
               const on = size === s.id;
@@ -209,49 +196,50 @@ export default function PackageDetailsPage() {
                 <button
                   key={s.id}
                   type="button"
-                  className={`pd-size${on ? ' pd-size--on' : ''}`}
+                  className={on ? 'br-tier br-tier--active br-pd-pick' : 'br-tier br-pd-pick'}
                   onClick={() => setSize(s.id)}
-                  aria-pressed={on}
+                  role="radio"
+                  aria-checked={on}
                 >
-                  <span className="pd-size__icon" aria-hidden>
+                  <span className="br-tier__icon br-pd-pick__icon">
                     <IconC />
                   </span>
-                  {s.label}
+                  <span className="br-tier__label">{s.label}</span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </section>
 
-        <div className="pd-section" aria-label="Vehicle size">
-          <h2>Vehicle size needed</h2>
-          <p className="pd-hint">
-            Pick the smallest vehicle that fits. Drivers with that type or a larger one can accept your delivery
-            (weight limits still apply).
+        <section className="br-pd-card" aria-label="Vehicle size">
+          <h2 className="br-pd-heading">Vehicle size needed</h2>
+          <p className="br-pd-hint">
+            Pick the smallest vehicle that fits. Drivers with that type or a larger one can accept your delivery.
           </p>
-          <div className="pd-grid pd-grid--vehicle" role="radiogroup" aria-label="Minimum vehicle size for delivery">
+          <div className="br-pd-grid br-pd-grid--3" role="radiogroup" aria-label="Minimum vehicle size for delivery">
             {CUSTOMER_PARCEL_VEHICLE_OPTIONS.map((o) => {
               const on = requestedVehicleType === o.value;
               return (
                 <button
                   key={o.value}
                   type="button"
-                  className={`pd-size pd-size--textOnly${on ? ' pd-size--on' : ''}`}
+                  className={on ? 'br-tier br-tier--active br-pd-pick br-pd-pick--text' : 'br-tier br-pd-pick br-pd-pick--text'}
                   onClick={() => setRequestedVehicleType(o.value)}
-                  aria-pressed={on}
+                  role="radio"
+                  aria-checked={on}
                 >
-                  {o.label}
+                  <span className="br-tier__label">{o.label}</span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </section>
 
-        <div className="pd-section">
-          <h2>Package Weight</h2>
-          <div className="flow-input-wrap pd-weight">
+        <section className="br-pd-card">
+          <h2 className="br-pd-heading">Package weight</h2>
+          <div className="br-pd-field">
             <input
-              className="flow-input"
+              className="br-pd-input"
               type="text"
               inputMode="decimal"
               value={weight}
@@ -260,16 +248,18 @@ export default function PackageDetailsPage() {
               autoComplete="off"
               aria-label="Weight in kilograms"
             />
-            <span className="pd-suffix">kg</span>
+            <span className="br-pd-field__suffix">kg</span>
           </div>
-        </div>
+        </section>
 
-        <div className="pd-section">
-          <h2>Package Type</h2>
-          <p className="pd-hint">Choose a category. If you pick <strong>Other</strong>, describe what you are sending below.</p>
-          <div className="pd-select-wrap">
+        <section className="br-pd-card">
+          <h2 className="br-pd-heading">Package type</h2>
+          <p className="br-pd-hint">
+            Choose a category. If you pick Other, describe what you are sending below.
+          </p>
+          <div className="br-pd-select-wrap">
             <select
-              className="pd-select"
+              className="br-pd-select"
               value={typeCategory}
               onChange={(e) => setTypeCategory(e.target.value)}
               aria-label="Package type category"
@@ -282,9 +272,9 @@ export default function PackageDetailsPage() {
             </select>
           </div>
           {typeCategory === 'Other' ? (
-            <div className="flow-input-wrap" style={{ marginTop: '0.65rem' }}>
+            <div className="br-pd-field br-pd-field--mt">
               <input
-                className="flow-input"
+                className="br-pd-input"
                 type="text"
                 value={typeOther}
                 onChange={(e) => setTypeOther(e.target.value)}
@@ -295,14 +285,14 @@ export default function PackageDetailsPage() {
               />
             </div>
           ) : null}
-        </div>
+        </section>
 
-        <div className="pd-section">
-          <h2>Package Photo</h2>
-          <label className="pd-upload">
+        <section className="br-pd-card">
+          <h2 className="br-pd-heading">Package photo</h2>
+          <label className="br-pd-upload">
             <input
               type="file"
-              className="pd-upload__input"
+              className="br-pd-upload__input"
               accept="image/*"
               disabled={photoBusy}
               onChange={async (e) => {
@@ -326,20 +316,25 @@ export default function PackageDetailsPage() {
                 }
               }}
             />
-            <span aria-hidden>
+            <span className="br-pd-upload__icon" aria-hidden>
               <CamIcon />
             </span>
-            <span className="pd-upload__text">
+            <span className="br-pd-upload__text">
               {photoBusy ? 'Processing photo…' : 'Take or upload photo (optional)'}
-              {fileName && !photoBusy ? <span className="pd-filename">{` — ${fileName}`}</span> : null}
+              {fileName && !photoBusy ? (
+                <span className="br-pd-upload__file">{` — ${fileName}`}</span>
+              ) : null}
             </span>
           </label>
-        </div>
+          {photoDataUrl ? (
+            <img src={photoDataUrl} alt="Your package" className="br-pd-preview" />
+          ) : null}
+        </section>
 
-        <div className="pd-section">
-          <h2>Special Instructions</h2>
+        <section className="br-pd-card">
+          <h2 className="br-pd-heading">Special instructions</h2>
           <textarea
-            className="pd-instructions"
+            className="br-pd-textarea"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
@@ -347,24 +342,19 @@ export default function PackageDetailsPage() {
             autoComplete="off"
             maxLength={500}
           />
-        </div>
-        {saveError ? <p className="pd-save-error">{saveError}</p> : null}
-        {photoDataUrl ? (
-          <div className="pd-section" style={{ marginTop: '0.5rem' }}>
-            <p className="pd-hint" style={{ marginBottom: '0.35rem' }}>
-              Package preview
-            </p>
-            <img
-              src={photoDataUrl}
-              alt="Your package"
-              style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 10, objectFit: 'contain', display: 'block' }}
-            />
-          </div>
+        </section>
+
+        {saveError ? (
+          <p className="br-pd-error" role="alert">
+            {saveError}
+          </p>
         ) : null}
-        <button type="submit" className="flow-btn" disabled={isSaving || photoBusy}>
+      </div>
+
+      <div className="br-footer">
+        <button type="submit" className="br-confirm" disabled={isSaving || photoBusy}>
           {isSaving ? 'Saving…' : 'Continue'}
         </button>
-        </div>
       </div>
     </form>
   );

@@ -48,7 +48,7 @@ Optional:
 
 ### URLs
 
-- **`PAYNOW_RETURN_URL`** — page after Paynow (`http://localhost:3000/order-confirmation` locally, or `https://hotel-demo-11dcb.web.app/order-confirmation` when testing against hosted app).
+- **`PAYNOW_RETURN_URL`** — page after Paynow (`http://localhost:3000/order-confirmation` locally, or `https://ingo-92d5f.web.app/order-confirmation` when testing against hosted app).
 - **`PAYNOW_RESULT_URL`** — Paynow server callback. Often must be **HTTPS**. Use ngrok on port 4000: `https://YOUR-SUBDOMAIN.ngrok-free.app/paynow/result`.
 
 ### Paynow test mode (`authemail`)
@@ -110,7 +110,7 @@ Host the **customer React app** on Firebase Hosting, Netlify, Vercel, etc., and 
 | `PORT` | **Do not set** — Railway injects `PORT` automatically. |
 | `PAYNOW_INTEGRATION_ID` | **Required** — from Paynow merchant dashboard. |
 | `PAYNOW_INTEGRATION_KEY` | **Required** — from Paynow merchant dashboard. |
-| `PAYNOW_RETURN_URL` | Optional. Defaults to `https://hotel-demo-11dcb.web.app/order-confirmation` (see repo `.firebaserc`). Set to your live app’s `/order-confirmation` if different. |
+| `PAYNOW_RETURN_URL` | Optional. Defaults to `https://ingo-92d5f.web.app/order-confirmation` (see repo `.firebaserc`). Set to your live app’s `/order-confirmation` if different. |
 | `PAYNOW_RESULT_URL` | Optional. Defaults to `https://bykea-production.up.railway.app/paynow/result` (this API). Use Supabase Edge `paynow-result` instead if you prefer. |
 | `CUSTOMER_APP_PUBLIC_URL` | Optional. e.g. `https://YOUR-PROJECT.web.app` — used with default return path `/order-confirmation` when `PAYNOW_RETURN_URL` is unset. |
 | `PUBLIC_PAYNOW_API_ORIGIN` | Optional. Defaults to `https://bykea-production.up.railway.app` — used to build default `PAYNOW_RESULT_URL`. |

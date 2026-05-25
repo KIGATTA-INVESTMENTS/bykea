@@ -6,7 +6,7 @@ create table if not exists public.service_pricing (
   price_per_km numeric(12, 4) not null default 0,
   base_fare numeric(12, 4) not null default 0,
   service_fee numeric(12, 4) not null default 0,
-  currency text not null default 'GBP',
+  currency text not null default 'USD',
   updated_at timestamptz not null default now(),
   constraint service_pricing_service_type_chk check (
     service_type in (
@@ -87,17 +87,17 @@ insert into public.service_pricing (
   currency
 )
 values
-  ('delivery_motorbike', 0.50, 1.50, 0.20, 'GBP'),
-  ('delivery_tuk_tuk', 0.55, 1.65, 0.22, 'GBP'),
-  ('delivery_car', 0.60, 1.80, 0.24, 'GBP'),
-  ('parcel', 0.45, 1.20, 0.15, 'GBP'),
-  ('taxi', 1.20, 3.00, 0.50, 'GBP'),
-  ('tuk_tuk', 0.80, 2.00, 0.35, 'GBP')
+  ('delivery_motorbike', 0.50, 1.50, 0.20, 'USD'),
+  ('delivery_tuk_tuk', 0.55, 1.65, 0.22, 'USD'),
+  ('delivery_car', 0.60, 1.80, 0.24, 'USD'),
+  ('parcel', 0.45, 1.20, 0.15, 'USD'),
+  ('taxi', 1.20, 3.00, 0.50, 'USD'),
+  ('tuk_tuk', 0.80, 2.00, 0.35, 'USD')
 on conflict (service_type) do nothing;
 
 -- Legacy single delivery row (optional fallback for older app builds)
 insert into public.service_pricing (service_type, price_per_km, base_fare, service_fee, currency)
-values ('delivery', 0.50, 1.50, 0.20, 'GBP')
+values ('delivery', 0.50, 1.50, 0.20, 'USD')
 on conflict (service_type) do nothing;
 
 update public.service_pricing set base_fare = 1.50, service_fee = 0.20

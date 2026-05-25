@@ -1,0 +1,190 @@
+/* Driver email verified — premium success */
+.dp-verify-success-page {
+  --dp-vs-blue: #07408f;
+  --dp-vs-orange: #ec6c23;
+  --dp-vs-orange-dark: #d45a10;
+  --dp-vs-page-bg: #f0f2f5;
+  --dp-vs-grey-soft: #6b7280;
+  --dp-vs-orange-soft: #fff5ee;
+  --dp-vs-info-bg: #e8f0fb;
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--dp-vs-page-bg);
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: calc(0.75rem + env(safe-area-inset-top, 0)) 1.25rem
+    calc(1.5rem + env(safe-area-inset-bottom, 0));
+  box-sizing: border-box;
+}
+
+.dp-verify-success-page *,
+.dp-verify-success-page *::before,
+.dp-verify-success-page *::after {
+  box-sizing: border-box;
+}
+
+.dp-verify-success-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  border: none;
+  background: var(--dp-vs-blue);
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(7, 64, 143, 0.2);
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.dp-verify-success-back:hover {
+  box-shadow: 0 4px 14px rgba(7, 64, 143, 0.28);
+  filter: brightness(1.06);
+}
+
+.dp-verify-success-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0 1rem;
+}
+
+.dp-verify-success-card {
+  width: 100%;
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.75rem 2rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.dp-verify-success-illus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.dp-verify-success-check-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--dp-vs-orange-soft);
+}
+
+.dp-verify-success-check-ring svg {
+  color: var(--dp-vs-orange);
+}
+
+.dp-verify-success-pill {
+  display: inline-block;
+  margin: 0 0 0.85rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--dp-vs-blue);
+  border-radius: 50rem;
+}
+
+.dp-verify-success-title {
+  margin: 0 0 1rem;
+  font-size: clamp(1.65rem, 5vw, 2rem);
+  font-weight: 800;
+  color: var(--dp-vs-blue);
+  line-height: 1.2;
+}
+
+.dp-verify-success-body {
+  margin: 0 0 1.35rem;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--dp-vs-grey-soft);
+  max-width: 22rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.dp-verify-success-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0 0 1.65rem;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  background: var(--dp-vs-info-bg);
+  border-radius: 12px;
+}
+
+.dp-verify-success-info-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dp-vs-blue);
+  margin-top: 0.05rem;
+}
+
+.dp-verify-success-info-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--dp-vs-blue);
+  font-weight: 500;
+}
+
+.dp-verify-success-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 54px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--dp-vs-orange) 0%, var(--dp-vs-orange-dark) 100%);
+  color: #fff;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(236, 108, 35, 0.4);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+.dp-verify-success-btn:hover {
+  background: linear-gradient(135deg, var(--dp-vs-orange-dark) 0%, var(--dp-vs-orange) 100%);
+  box-shadow: 0 6px 18px rgba(236, 108, 35, 0.48);
+  color: #fff;
+}
+
+.dp-verify-success-btn:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dp-verify-success-btn,
+  .dp-verify-success-back {
+    transition: none;
+  }
+}

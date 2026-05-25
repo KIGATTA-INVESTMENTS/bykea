@@ -1,5 +1,6 @@
 .adm {
   --adm-primary: #F18631;
+  --adm-secondary: #0A58A6;
   --adm-text: #1a1a1a;
   --adm-muted: #6f6f6f;
   --adm-border: #e9e9e9;
@@ -29,9 +30,8 @@
 }
 
 .admLogo {
-  font-size: 1.55rem;
-  font-weight: 800;
   margin: 0;
+  line-height: 0;
 }
 
 .admHero {
@@ -234,8 +234,8 @@
   margin-bottom: 1rem;
 }
 
-.admBrand strong {
-  font-size: 1.15rem;
+.admBrand .ingo-logo {
+  flex-shrink: 0;
 }
 
 .admAdminBadge {
@@ -261,7 +261,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #F18631, #22a53e);
+  background: linear-gradient(145deg, var(--adm-primary), var(--adm-secondary));
   color: #fff;
   display: flex;
   align-items: center;
@@ -426,8 +426,8 @@
 }
 
 .admChipBlue {
-  background: rgba(46, 123, 255, 0.12);
-  color: #2e7bff;
+  background: rgba(10, 88, 166, 0.12);
+  color: var(--adm-secondary);
 }
 
 .admChipOrange {
@@ -512,7 +512,7 @@
 
 .admBlue {
   background: #eaf3ff;
-  color: #2e7bff;
+  color: var(--adm-secondary);
 }
 
 .admGray {
@@ -899,8 +899,8 @@
 }
 
 .admInfoBtn {
-  border: 1px solid #2e7bff;
-  color: #2e7bff;
+  border: 1px solid var(--adm-secondary);
+  color: var(--adm-secondary);
   background: #fff;
   border-radius: 10px;
   padding: 0.62rem;
@@ -1019,7 +1019,7 @@
 }
 
 .admRevenueGradient {
-  background: linear-gradient(140deg, #1f8d36, #F18631, #4fca67);
+  background: linear-gradient(140deg, var(--adm-secondary), var(--adm-primary), #2f7ec6);
   color: #fff;
 }
 
@@ -1045,7 +1045,7 @@
   width: 210px;
   height: 210px;
   border-radius: 50%;
-  background: conic-gradient(#F18631 0 45%, #2e7bff 45% 75%, #b6bbc0 75% 95%, #7a43d6 95% 100%);
+  background: conic-gradient(var(--adm-primary) 0 45%, var(--adm-secondary) 45% 75%, #b6bbc0 75% 95%, #7a43d6 95% 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1086,7 +1086,7 @@
 }
 
 .admLegendDot.green { background: #F18631; }
-.admLegendDot.blue { background: #2e7bff; }
+.admLegendDot.blue { background: var(--adm-secondary); }
 .admLegendDot.gray { background: #b6bbc0; }
 .admLegendDot.purple { background: #7a43d6; }
 
@@ -1424,7 +1424,7 @@
 }
 
 .admReportIcon.green { background: #FFF1E6; color: #F18631; }
-.admReportIcon.blue { background: #eaf3ff; color: #2e7bff; }
+.admReportIcon.blue { background: #eaf3ff; color: var(--adm-secondary); }
 .admReportIcon.purple { background: #f1ebff; color: #7a43d6; }
 .admReportIcon.orange { background: #fff4e8; color: #ec9120; }
 .admReportIcon.red { background: #fdeced; color: #d34444; }
@@ -1439,7 +1439,7 @@
 }
 
 .admReportLink.green { color: #F18631; }
-.admReportLink.blue { color: #2e7bff; }
+.admReportLink.blue { color: var(--adm-secondary); }
 .admReportLink.purple { color: #7a43d6; }
 .admReportLink.orange { color: #ec9120; }
 .admReportLink.red { color: #d34444; }
@@ -1591,7 +1591,7 @@
   width: 62px;
   height: 62px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #F18631, #20a73c);
+  background: linear-gradient(145deg, var(--adm-primary), var(--adm-secondary));
   color: #fff;
   display: flex;
   align-items: center;
@@ -1625,7 +1625,7 @@
 }
 
 .admHealthBanner.ok {
-  background: linear-gradient(140deg, #21a53d, #F18631);
+  background: linear-gradient(140deg, var(--adm-secondary), var(--adm-primary));
 }
 
 .admStatusDot {
@@ -1666,7 +1666,7 @@
 }
 
 .admGauge.blue {
-  background: conic-gradient(#2e7bff 0 var(--gauge, 60%), #e7ece9 var(--gauge, 60%) 100%);
+  background: conic-gradient(var(--adm-secondary) 0 var(--gauge, 60%), #e7ece9 var(--gauge, 60%) 100%);
 }
 
 .admGauge.orange {
@@ -1720,7 +1720,7 @@
 .admMiniBarFill {
   width: 100%;
   border-radius: 8px;
-  background: linear-gradient(180deg, #4aca67, #F18631);
+  background: linear-gradient(180deg, #2f7ec6, var(--adm-primary));
 }
 
 .admMixRow {

@@ -1,5 +1,5 @@
 /**
- * Supabase Edge: **stripe-payment** — create PaymentIntent + finalize after client confirms (no webhook).
+ * Supabase Edge: **stripe-payment** ??? create PaymentIntent + finalize after client confirms (no webhook).
  *
  * Deploy:
  *   supabase functions deploy stripe-payment --no-verify-jwt
@@ -17,11 +17,11 @@
  *   { "action": "create_checkout_session", "orderKind": "...", "orderId": "<uuid>", "returnOrigin": "http://localhost:3000", "cancelPath": "/shop/cart" }
  *   { "action": "finalize_checkout_session", "sessionId": "cs_..." }
  *
- * Optional secret `STRIPE_PUBLIC_SITE_URL` (e.g. https://app.example.com) — required for non-localhost return origins.
+ * Optional secret `STRIPE_PUBLIC_SITE_URL` (e.g. https://app.example.com) ??? required for non-localhost return origins.
  *
  * `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are auto-injected on hosted Supabase.
  *
- * (Hosted deploy bundles **only** `index.ts` — no sibling imports.)
+ * (Hosted deploy bundles **only** `index.ts` ??? no sibling imports.)
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
@@ -357,8 +357,8 @@ serve(async (req) => {
     const exp = await readExpectedAmountGbp(supabase, orderKind, orderId);
     if (!exp.ok) return json({ error: exp.reason }, 400);
     const amountPence = gbpToPence(exp.amountGbp);
-    if (amountPence < 30) {
-      return json({ error: 'Amount too small for Stripe (minimum ~£0.30).' }, 400);
+    if (amountPence < 50) {
+      return json({ error: 'Amount too small for Stripe (minimum ~$0.50).' }, 400);
     }
 
     const successUrl = `${returnOrigin}/stripe-return?session_id={CHECKOUT_SESSION_ID}`;
@@ -371,7 +371,7 @@ serve(async (req) => {
     form.append('cancel_url', cancelUrl);
     form.append('metadata[order_kind]', orderKind);
     form.append('metadata[order_id]', orderId);
-    form.append('line_items[0][price_data][currency]', 'gbp');
+    form.append('line_items[0][price_data][currency]', 'usd');
     form.append('line_items[0][price_data][unit_amount]', String(amountPence));
     form.append('line_items[0][price_data][product_data][name]', checkoutProductName(orderKind).slice(0, 120));
     form.append('line_items[0][quantity]', '1');
@@ -428,13 +428,13 @@ serve(async (req) => {
     const exp = await readExpectedAmountGbp(supabase, orderKind, orderId);
     if (!exp.ok) return json({ error: exp.reason }, 400);
     const amountPence = gbpToPence(exp.amountGbp);
-    if (amountPence < 30) {
-      return json({ error: 'Amount too small for Stripe (minimum ~£0.30).' }, 400);
+    if (amountPence < 50) {
+      return json({ error: 'Amount too small for Stripe (minimum ~$0.50).' }, 400);
     }
 
     const form = new URLSearchParams();
     form.append('amount', String(amountPence));
-    form.append('currency', 'gbp');
+    form.append('currency', 'usd');
     form.append('payment_method_types[]', 'card');
     form.append('metadata[order_kind]', orderKind);
     form.append('metadata[order_id]', orderId);

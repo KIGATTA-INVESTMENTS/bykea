@@ -99,8 +99,8 @@ export default function AdminSupportTicketsPage() {
 
       <section className="admGrid4" style={{ marginBottom: '0.8rem' }}>
         <article className="admCard admSmallCard"><p className="k">Open Tickets</p><p className="v" style={{ color: '#d34444' }}>18</p></article>
-        <article className="admCard admSmallCard"><p className="k">In Progress</p><p className="v" style={{ color: '#2e7bff' }}>11</p></article>
-        <article className="admCard admSmallCard"><p className="k">Resolved Today</p><p className="v" style={{ color: '#2DB84B' }}>9</p></article>
+        <article className="admCard admSmallCard"><p className="k">In Progress</p><p className="v" style={{ color: '#0A58A6' }}>11</p></article>
+        <article className="admCard admSmallCard"><p className="k">Resolved Today</p><p className="v" style={{ color: '#0A58A6' }}>9</p></article>
         <article className="admCard admSmallCard"><p className="k">Avg First Response</p><p className="v">12 min</p></article>
       </section>
 
@@ -154,7 +154,7 @@ export default function AdminSupportTicketsPage() {
                   <td>
                     <div className="admActions">
                       <button type="button" aria-label="View">👁</button>
-                      <button type="button" aria-label="Assign" style={{ color: '#2DB84B' }}>✓</button>
+                      <button type="button" aria-label="Assign" style={{ color: '#0A58A6' }}>✓</button>
                       <button type="button" aria-label="Close" style={{ color: '#d34444' }}>✕</button>
                     </div>
                   </td>

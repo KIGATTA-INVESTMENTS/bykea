@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import ShopOrderTrackingSteps from '../components/ShopOrderTrackingSteps';
 import { getOrderById, statusLabel } from '../data/mockOrders';
 import { fetchCustomerOrderDetail, mapDriverRegistrationRow, parseOrderNavKey } from '../lib/customerOrderFeed';
-import { shopOrderCustomerBadgeKey, shopOrderStatusLabel } from '../lib/shopOrderStatus';
 import { getCustomerSession } from '../lib/customerSession';
+import { shopOrderCustomerBadgeKey, shopOrderProgressMessage, shopOrderStatusLabel } from '../lib/shopOrderStatus';
 import './customerAccount.css';
 
 function badgeClass(status) {
@@ -15,8 +16,8 @@ function badgeClass(status) {
 }
 
 function formatMoney(n) {
-  if (n == null || Number.isNaN(n)) return '£0.00';
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
+  if (n == null || Number.isNaN(n)) return '$0.00';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 }
 
 function formatDetailDate(iso) {
@@ -156,6 +157,7 @@ function liveOrderFromBundle(bundle) {
   if (kind === 'shop') {
     const sub = Number(row.subtotal) || 0;
     const del = Number(row.delivery_fee) || 0;
+    const hasDriver = Boolean(row.assigned_driver_id);
     return {
       source: 'live',
       kind: 'shop',
@@ -165,12 +167,15 @@ function liveOrderFromBundle(bundle) {
       to: row.customer_address || '—',
       date: formatDetailDate(row.placed_at),
       breakdown: { base: sub, distance: del, service: 0, total: sub + del },
-      driver: null,
+      driver: bundle.driver ? mapDriverRegistrationRow(bundle.driver) : null,
       rated: true,
       meta: {
         customerName: row.customer_full_name,
         notes: row.customer_notes,
         shopStatusLabel: shopOrderStatusLabel(row.status),
+        shopStatusRaw: row.status,
+        shopProgress: shopOrderProgressMessage(row.status, { hasDriver }),
+        shopHasDriver: hasDriver,
       },
       shopLines: lines || [],
     };
@@ -229,24 +234,33 @@ export default function OrderDetailsPage() {
       };
     }
 
+    const loadDetail = async (isInitial = false) => {
+      const session = getCustomerSession();
+      const { data, error } = await fetchCustomerOrderDetail(raw, session);
+      if (cancelled) return;
+      if (error) {
+        if (isInitial) setFetchError(error);
+        return;
+      }
+      setLiveBundle(data);
+      if (isInitial) setFetchError('');
+    };
+
     setLoading(true);
     setFetchError('');
     setLiveBundle(null);
 
     (async () => {
-      const session = getCustomerSession();
-      const { data, error } = await fetchCustomerOrderDetail(raw, session);
-      if (cancelled) return;
-      setLoading(false);
-      if (error) {
-        setFetchError(error);
-        return;
-      }
-      setLiveBundle(data);
+      await loadDetail(true);
+      if (!cancelled) setLoading(false);
     })();
+
+    const pollMs = parsed.kind === 'shop' ? 3000 : 0;
+    const timer = pollMs ? window.setInterval(() => loadDetail(false), pollMs) : null;
 
     return () => {
       cancelled = true;
+      if (timer) window.clearInterval(timer);
     };
   }, [raw]);
 
@@ -367,7 +381,23 @@ export default function OrderDetailsPage() {
               {order.meta.deliveryProgress}
             </p>
           ) : null}
+          {order.kind === 'shop' && order.source === 'live' && order.meta?.shopProgress ? (
+            <p
+              className="od-deliveryStatusMsg"
+              style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.45, color: '#2a2a2a', fontWeight: 650 }}
+              role="status"
+            >
+              {order.meta.shopProgress}
+            </p>
+          ) : null}
         </div>
+
+        {isShop && order.source === 'live' && order.meta?.shopStatusRaw ? (
+          <div className="od-card">
+            <h2>Order tracking</h2>
+            <ShopOrderTrackingSteps status={order.meta.shopStatusRaw} variant="od" />
+          </div>
+        ) : null}
 
         <div className="od-card">
           <h2>Route</h2>
@@ -431,9 +461,9 @@ export default function OrderDetailsPage() {
           </div>
         ) : null}
 
-        {order.driver && (
+        {order.driver ? (
           <div className="od-card">
-            <h2>Your driver</h2>
+            <h2>{isShop ? 'Delivery driver' : 'Your driver'}</h2>
             <div className="od-drv" style={{ marginTop: 4 }}>
               <div className="od-av" aria-hidden />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -459,7 +489,22 @@ export default function OrderDetailsPage() {
               </div>
             </div>
           </div>
-        )}
+        ) : null}
+
+        {isShop && order.source === 'live' && !order.driver && order.meta?.shopHasDriver === false ? (
+          <div className="od-card">
+            <h2>Delivery driver</h2>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#555', lineHeight: 1.45 }}>
+              {['ready for delivery', 'picked up', 'in transit'].includes(
+                String(order.meta?.shopStatusRaw || '')
+                  .toLowerCase()
+                  .trim(),
+              )
+                ? 'Waiting for a driver to accept your shop delivery. Details will appear here once assigned.'
+                : 'A driver will be assigned when your order is ready for delivery.'}
+            </p>
+          </div>
+        ) : null}
 
         {isShop && order.shopLines?.length > 0 ? (
           <div className="od-card">

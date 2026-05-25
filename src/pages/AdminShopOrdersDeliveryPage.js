@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { shopOrderGrandTotal } from '../lib/shopDeliverySettings';
 import { normalizeShopOrderStatus, shopOrderStatusLabel } from '../lib/shopOrderStatus';
@@ -216,17 +217,13 @@ export default function AdminShopOrdersDeliveryPage() {
     });
   }, [filteredByTab, search]);
 
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
-      <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Shop orders delivery</h2>
-        <div className="admFilters">
-          <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-            Refresh
-          </button>
-        </div>
-      </div>
-
       <p className="admDim" style={{ margin: '0 0 0.85rem', maxWidth: '48rem', lineHeight: 1.45 }}>
         Driver-assigned shop deliveries: pickup at the shop address, drop-off at the customer. Use tabs to filter the
         queue. Run <code style={{ fontSize: '0.85em' }}>shop_customer_orders_driver_assignment.sql</code> if driver
@@ -256,18 +253,18 @@ export default function AdminShopOrdersDeliveryPage() {
             Ready, not accepted yet
           </p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2e7bff' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Active delivery</h4>
-          <p className="v" style={{ color: '#2e7bff' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading ? '…' : stats.active}
           </p>
           <p className="s" style={{ color: '#2563eb' }}>
             Driver assigned, not completed
           </p>
         </article>
-        <article className="admCard admStat" style={{ borderLeftColor: '#2DB84B' }}>
+        <article className="admCard admStat" style={{ borderLeftColor: '#0A58A6' }}>
           <h4>Delivered</h4>
-          <p className="v" style={{ color: '#15803d' }}>
+          <p className="v" style={{ color: '#08487f' }}>
             {loading ? '…' : stats.delivered}
           </p>
           <p className="s" style={{ color: '#166534' }}>

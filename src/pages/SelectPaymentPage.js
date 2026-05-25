@@ -59,7 +59,7 @@ function IconCash() {
         width="20"
         height="12"
         rx="1"
-        fill="#1fa23e"
+        fill="#0A58A6"
         transform="rotate(4 16 16)"
         opacity="0.95"
       />

@@ -1,0 +1,390 @@
+/* Driver Profile — premium layout */
+.dpr--premium {
+  --dp-blue: #07408f;
+  --dp-orange: #ec6c23;
+  --dp-page-bg: #f0f2f5;
+  --dp-info-bg: #e8f0fb;
+  --dp-grey-label: #6b7280;
+  --dp-text: #1f2937;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  background: var(--dp-page-bg);
+  color: var(--dp-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Top nav */
+.dpr--premium .dpr-nav {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  padding: calc(0.6rem + env(safe-area-inset-top, 0)) 1rem 0.55rem;
+  background: var(--dp-blue);
+  flex-shrink: 0;
+}
+
+.dpr--premium .dpr-nav h1 {
+  grid-column: 2;
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+}
+
+.dpr--premium .dpr-navSpacer {
+  grid-column: 1;
+}
+
+.dpr--premium .dpr-settings {
+  grid-column: 3;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: #fff;
+  line-height: 0;
+}
+
+/* Profile band on blue */
+.dpr--premium .dpr-headerBand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem 1.15rem;
+  background: var(--dp-blue);
+  flex-shrink: 0;
+  text-align: left;
+}
+
+.dpr--premium .dpr-av {
+  flex-shrink: 0;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dpr--premium .dpr-avInitials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dpr--premium .dpr-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.dpr--premium .dpr-n {
+  margin: 0 0 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #fff;
+  word-wrap: break-word;
+}
+
+.dpr--premium .dpr-p {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+/* Scroll area */
+.dpr--premium .dpr-sc {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--dp-page-bg);
+  padding: 1rem;
+  padding-bottom: var(--dp-bnav-total);
+}
+
+/* Chat button */
+.dpr--premium .dpr-chatBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0 0 0.85rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--dp-blue);
+  text-decoration: none;
+  background: #fff;
+  border: 2px solid var(--dp-blue);
+  border-radius: 50rem;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+.dpr--premium .dpr-chatBtn:hover,
+.dpr--premium .dpr-chatBtn:focus-visible {
+  background: var(--dp-blue);
+  color: #fff;
+}
+
+/* Info card */
+.dpr--premium .dpr-infoCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0 0 1.25rem;
+  padding: 0.9rem 1rem;
+  background: var(--dp-info-bg);
+  border-radius: 12px;
+}
+
+.dpr--premium .dpr-infoIcon {
+  flex-shrink: 0;
+  color: var(--dp-blue);
+  margin-top: 0.05rem;
+}
+
+.dpr--premium .dpr-infoText {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--dp-blue);
+  font-weight: 500;
+}
+
+/* Section blocks */
+.dpr--premium .dpr-section {
+  margin-bottom: 1.15rem;
+}
+
+.dpr--premium .dpr-secH {
+  margin: 0 0 0.4rem 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dp-blue);
+  line-height: 1.2;
+}
+
+.dpr--premium .dpr-secB {
+  margin: 0;
+  background: #fff;
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.dpr--premium .dprRegCard {
+  padding: 1rem;
+}
+
+.dpr--premium .dprRegRow {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.dpr--premium .dprRegRow:first-child {
+  padding-top: 0;
+}
+
+.dpr--premium .dprRegRow:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.dpr--premium .dprRegLab {
+  margin: 0 0 0.3rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dp-grey-label);
+}
+
+.dpr--premium .dprRegVal {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--dp-text);
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* Vehicle rows with icons */
+.dpr--premium .dpr-vehRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.dpr--premium .dpr-vehRow:first-child {
+  padding-top: 0;
+}
+
+.dpr--premium .dpr-vehRow:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.dpr--premium .dpr-vehIcon {
+  flex-shrink: 0;
+  color: var(--dp-blue);
+  margin-top: 0.1rem;
+  line-height: 0;
+}
+
+.dpr--premium .dpr-vehBody {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Deposit */
+.dpr--premium .dpr-depositAmt {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--dp-blue);
+  line-height: 1.2;
+}
+
+.dpr--premium .dpr-statusPill {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 50rem;
+  line-height: 1.2;
+}
+
+.dpr--premium .dpr-statusPill--paid {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.dpr--premium .dpr-statusPill--unpaid {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+/* Documents */
+.dpr--premium .dpr-docRow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.dpr--premium .dpr-docRow:first-child {
+  padding-top: 0;
+}
+
+.dpr--premium .dpr-docRow:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.dpr--premium .dpr-docIcon {
+  flex-shrink: 0;
+  color: var(--dp-blue);
+  line-height: 0;
+}
+
+.dpr--premium .dpr-docName {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--dp-text);
+  line-height: 1.35;
+}
+
+.dpr--premium .dpr-docView {
+  flex-shrink: 0;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--dp-blue);
+  text-decoration: none;
+  background: #fff;
+  border: 1.5px solid var(--dp-blue);
+  border-radius: 50rem;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dpr--premium .dpr-docView:hover,
+.dpr--premium .dpr-docView:focus-visible {
+  background: var(--dp-blue);
+  color: #fff;
+}
+
+.dpr--premium .dpr-docMuted {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--dp-grey-label);
+  text-align: right;
+  max-width: 42%;
+  line-height: 1.3;
+}
+
+/* Log out */
+.dpr--premium .dpr-logoutRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.85rem 1rem;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--dp-orange);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dpr--premium .dpr-logoutRow:hover {
+  opacity: 0.85;
+}
+
+.dpr--premium .dpr-logoutIcon {
+  flex-shrink: 0;
+  color: #dc2626;
+  line-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dpr--premium .dpr-chatBtn,
+  .dpr--premium .dpr-docView {
+    transition: none;
+  }
+}

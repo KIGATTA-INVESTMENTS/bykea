@@ -1,0 +1,467 @@
+/* Shop Owner — Analytics premium */
+.soan-page {
+  --soan-blue: #07408f;
+  --soan-orange: #ec6c23;
+  --soan-green: #16a34a;
+  --soan-red: #dc2626;
+  --soan-grey: #6b7280;
+  --soan-page-bg: #f0f2f5;
+  --soan-border: #e5e7eb;
+  color: #1f2937;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+/* Page header */
+.soan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.soan-head h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 4.5vw, 1.65rem);
+  font-weight: 800;
+  color: var(--soan-blue);
+  line-height: 1.2;
+}
+
+.soan-periods {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.soan-period {
+  padding: 0.4rem 0.85rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 50rem;
+  background: #fff;
+  color: var(--soan-grey);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.soan-period--on {
+  background: var(--soan-orange);
+  border-color: var(--soan-orange);
+  color: #fff;
+  font-weight: 800;
+}
+
+.soan-error {
+  padding: 1rem;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #fecaca;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.soan-error p {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* Cards */
+.soan-card {
+  padding: 16px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.soan-card-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--soan-blue);
+}
+
+.soan-card-sub {
+  margin: 0 0 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--soan-grey);
+}
+
+.soan-big-value {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--soan-blue);
+  letter-spacing: -0.02em;
+}
+
+.soan-chg-pill {
+  display: inline-block;
+  margin: 0.35rem 0 0.65rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 50rem;
+}
+
+.soan-chg-pill--up {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.soan-chg-pill--down {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.soan-chart-wrap {
+  width: 100%;
+  overflow: hidden;
+}
+
+.soan-chart-wrap svg {
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  display: block;
+}
+
+.soan-footnote {
+  margin: 0.5rem 0 0;
+  font-size: 0.6875rem;
+  font-style: italic;
+  color: var(--soan-grey);
+}
+
+/* Orders legend */
+.soan-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.soan-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.soan-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.soan-legend-dot--del {
+  background: var(--soan-green);
+}
+
+.soan-legend-dot--tr {
+  background: var(--soan-blue);
+}
+
+.soan-legend-dot--can {
+  background: var(--soan-red);
+}
+
+/* Stats grid */
+.soan-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 400px) {
+  .soan-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.soan-stat-card {
+  padding: 16px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  min-height: 7rem;
+}
+
+.soan-stat-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--soan-grey);
+}
+
+.soan-stat-value {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--soan-blue);
+}
+
+.soan-stat-mini {
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+.soan-spark {
+  display: block;
+  width: 100%;
+  max-width: 80px;
+}
+
+/* Products table */
+.soan-products-card {
+  padding: 16px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.soan-products-card .soan-card-title {
+  margin-bottom: 0.75rem;
+}
+
+.soan-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.soan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  table-layout: fixed;
+}
+
+.soan-table th {
+  padding: 0.75rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--soan-blue);
+  text-align: left;
+  border-bottom: 1px solid var(--soan-border);
+  background: #fff;
+  white-space: nowrap;
+}
+
+.soan-table td {
+  padding: 0.7rem 0.65rem;
+  border-bottom: 1px solid #f0f2f5;
+  vertical-align: middle;
+  color: #374151;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.soan-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.soan-table td.soan-td-name {
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.soan-table td.soan-td-rev {
+  color: var(--soan-blue);
+  font-weight: 800;
+}
+
+.soan-table-loading {
+  text-align: center;
+  padding: 1.75rem 1rem;
+  color: var(--soan-grey);
+}
+
+.soan-table-empty-wrap {
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.soan-table-empty-wrap p {
+  margin: 0.65rem 0 0;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--soan-grey);
+}
+
+/* Delivery stats */
+.soan-tracked {
+  margin: 0 0 0.85rem;
+  font-size: 0.8125rem;
+  color: var(--soan-grey);
+  font-weight: 500;
+}
+
+.soan-tracked strong {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.soan-dbar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.soan-dbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.soan-dbar-label {
+  flex: 0 0 5.5rem;
+  min-width: 0;
+}
+
+.soan-dbar-track {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 50rem;
+  overflow: hidden;
+}
+
+.soan-dbar-fill {
+  height: 100%;
+  border-radius: 50rem;
+  min-width: 0;
+  transition: width 0.3s ease;
+}
+
+.soan-dbar-fill--on {
+  background: var(--soan-green);
+}
+
+.soan-dbar-fill--late {
+  background: var(--soan-orange);
+}
+
+.soan-dbar-fill--can {
+  background: var(--soan-red);
+}
+
+.soan-dbar-pct {
+  flex: 0 0 2.5rem;
+  text-align: right;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--soan-grey);
+}
+
+.soan-hstack {
+  display: flex;
+  height: 10px;
+  border-radius: 50rem;
+  overflow: hidden;
+  margin-top: 0.85rem;
+  background: #e5e7eb;
+}
+
+.soan-hstack-seg {
+  min-width: 2px;
+  height: 100%;
+}
+
+.soan-hstack-seg--on {
+  background: var(--soan-green);
+}
+
+.soan-hstack-seg--late {
+  background: var(--soan-orange);
+}
+
+.soan-hstack-seg--can {
+  background: var(--soan-red);
+}
+
+/* Customer insights */
+.soan-insights-line {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--soan-grey);
+  font-weight: 500;
+}
+
+.soan-insights-line strong {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.soan-locations-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: var(--soan-blue);
+}
+
+.soan-locations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.soan-loc-pill {
+  display: inline-block;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+  background: #f0f2f5;
+  border-radius: 50rem;
+}
+
+.soan-loc-empty {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--soan-grey);
+}
+
+/* Tooltip */
+.soan-tooltip {
+  position: fixed;
+  z-index: 50;
+  padding: 0.35rem 0.55rem;
+  background: #1f2937;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 8px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}

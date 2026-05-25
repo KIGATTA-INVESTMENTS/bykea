@@ -40,7 +40,7 @@ create table if not exists public.driver_registrations (
   doc_vehicle_registration_url text,
   doc_profile_with_vehicle_url text,
 
-  -- Deposit shown in UI (Â£10); payment captured later in app / admin
+  -- Deposit shown in UI (Â$10); payment captured later in app / admin
   deposit_required_gbp numeric(12, 2) not null default 10.00,
   deposit_paid boolean not null default false,
 

@@ -1,0 +1,454 @@
+/* InGo — Individual shop detail (premium) */
+.shpd-page {
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f0f2f5;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --shpd-blue: #07408f;
+  --shpd-orange: #ec6c23;
+  --shpd-grey: #f0f2f5;
+  --bnav-h: 3.625rem;
+  --bnav-safe: max(0.5rem, env(safe-area-inset-bottom, 0));
+  --bnav-total: calc(var(--bnav-h) + var(--bnav-safe));
+  --shpd-cbar-h: 3.5rem;
+}
+
+/* —— Top nav —— */
+.shpd-nav {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  padding: calc(0.55rem + env(safe-area-inset-top, 0)) 0.75rem 0.65rem;
+  background: var(--shpd-blue);
+}
+
+.shpd-nav__back {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shpd-nav__back:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.shpd-nav__title {
+  margin: 0;
+  grid-column: 2;
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 0.25rem;
+}
+
+.shpd-nav__cart {
+  grid-column: 3;
+  justify-self: end;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  background: transparent;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shpd-nav__cart:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.shpd-badge {
+  position: absolute;
+  top: 0.05rem;
+  right: 0;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.22rem;
+  border-radius: 50rem;
+  background: var(--shpd-orange);
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+/* —— Hero banner —— */
+.shpd-hero {
+  flex-shrink: 0;
+  position: relative;
+  margin: 0 0 0;
+  padding: 1rem 1.15rem 2.25rem;
+  background: var(--shpd-blue);
+  border-radius: 0 0 20px 20px;
+  overflow: hidden;
+}
+
+.shpd-hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 28px;
+  background: var(--shpd-blue);
+  clip-path: ellipse(58% 100% at 50% 100%);
+  pointer-events: none;
+}
+
+.shpd-hero__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.shpd-hero__text {
+  min-width: 0;
+  flex: 1;
+}
+
+.shpd-hero__name {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.shpd-hero__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.55rem;
+  margin-top: 0.55rem;
+}
+
+.shpd-hero__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 50rem;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.3;
+}
+
+.shpd-hero__pill--star {
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.shpd-hero__meta {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.35;
+}
+
+.shpd-hero__art {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  color: #fff;
+}
+
+.shpd-hero__art svg {
+  width: 100%;
+  height: 100%;
+}
+
+.shpd-hero__art-accent {
+  fill: var(--shpd-orange);
+}
+
+/* —— Scroll / products —— */
+.shpd-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.85rem 1rem 1rem;
+  padding-bottom: max(1rem, calc(var(--bnav-total) + 0.5rem));
+}
+
+.shpd-scroll--cart {
+  padding-bottom: max(1rem, calc(var(--bnav-total) + var(--shpd-cbar-h) + 0.65rem));
+}
+
+.shpd-cat {
+  margin-bottom: 0.5rem;
+}
+
+.shpd-cat__head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0.15rem 0 0.65rem;
+}
+
+.shpd-cat__label {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--shpd-blue);
+  line-height: 1.2;
+}
+
+.shpd-cat__line {
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+  min-width: 0;
+}
+
+.shpd-products {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* —— Product card —— */
+.shpd-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 16px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.shpd-card__thumb {
+  flex-shrink: 0;
+  width: 70px;
+  height: 70px;
+  border-radius: 12px;
+  background: var(--shpd-grey);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shpd-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.shpd-card__ph-icon {
+  color: #9ca3af;
+}
+
+.shpd-card__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.shpd-card__name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.shpd-card__price {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--shpd-orange);
+  line-height: 1.2;
+}
+
+.shpd-card__tag {
+  display: inline-block;
+  margin-top: 0.1rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 50rem;
+  background: #e8f0fb;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--shpd-blue);
+  line-height: 1.3;
+  text-transform: capitalize;
+}
+
+.shpd-card__add {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--shpd-blue);
+  color: #fff;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease;
+}
+
+.shpd-card__add:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.shpd-card__add--on {
+  background: var(--shpd-orange);
+}
+
+.shpd-card__add--off {
+  background: #e5e7eb;
+  color: #6b7280;
+  cursor: default;
+}
+
+/* —— Empty states —— */
+.shpd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 2rem 1.25rem;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.shpd-empty__icon {
+  color: #9ca3af;
+}
+
+.shpd-empty__text {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  font-style: italic;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.shpd-status {
+  padding: 1rem 1.25rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.shpd-status--err {
+  color: #b42318;
+  background: #fef2f2;
+  margin: 0.75rem 1rem;
+  border-radius: 10px;
+}
+
+.shpd-back-link {
+  margin: 0 1rem 1rem;
+  padding: 0.55rem 1rem;
+  border: none;
+  border-radius: 10px;
+  background: var(--shpd-blue);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* —— Sticky cart bar —— */
+.shpd-cbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--bnav-total);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  height: var(--shpd-cbar-h);
+  padding: 0 1rem;
+  border: none;
+  background: var(--shpd-orange);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 -4px 15px rgba(236, 108, 35, 0.3);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shpd-cbar:active {
+  filter: brightness(0.97);
+}
+
+.shpd-cbar__left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.shpd-cbar__label {
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shpd-cbar__total {
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.2;
+}

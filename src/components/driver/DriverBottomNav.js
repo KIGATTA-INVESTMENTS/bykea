@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import './DriverApp.css';
 
-const cOn = '#F18631';
-const cOff = '#6b6b6b';
+const cOn = '#EC6C23';
+const cOff = '#9ca3af';
 
 function IconHome({ isOn }) {
   const c = isOn ? cOn : cOff;

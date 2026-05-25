@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FIXED_ADMIN_EMAIL, isValidAdminCredential, markAdminSignedIn } from '../lib/adminAuth';
+import InGoLogo from '../components/InGoLogo';
 import './adminPortal.css';
 
 function LogisticsIllustration() {
@@ -55,7 +56,9 @@ export default function AdminLoginPage() {
   return (
     <div className="adm admLogin">
       <section className="admLoginLeft">
-        <h1 className="admLogo">InGo</h1>
+        <h1 className="admLogo">
+          <InGoLogo variant="admin" />
+        </h1>
         <div className="admHero">
           <LogisticsIllustration />
         </div>
@@ -128,10 +131,6 @@ export default function AdminLoginPage() {
             <button className="admBtn" type="submit">
               Sign In
             </button>
-
-            <div className="admForgot">
-              <button type="button">Forgot Password</button>
-            </div>
           </form>
 
           <p className="admWarning">

@@ -5,6 +5,7 @@ import { fetchPlatformCommissionSettings } from '../lib/platformCommissionSettin
 import { getDriverSession } from '../lib/driverSession';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './driverEarningsWalletProfile.css';
+import './driverEarningsPremium.css';
 
 const PERIODS = [
   { id: 'today', label: 'Today' },
@@ -119,10 +120,26 @@ function buildChart(period, rows) {
 
 function IcCal() {
   return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
       <rect x="3.5" y="4.5" width="17" height="16" rx="1.2" stroke="currentColor" strokeWidth="1.4" fill="none" />
       <path d="M3.5 9.5h17" stroke="currentColor" strokeWidth="1.2" />
       <path d="M8 2.5v3M16 2.5v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcJobsEmpty() {
+  return (
+    <svg
+      width="44"
+      height="44"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      style={{ margin: '0 auto 0.75rem', display: 'block', color: '#9ca3af' }}
+    >
+      <rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 10h8M8 14h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -214,25 +231,28 @@ export default function DriverEarningsPage() {
   const recent = useMemo(() => allRows.slice(0, 25), [allRows]);
 
   return (
-    <div className="dvRoot" role="main">
+    <div className="dvRoot dvRoot--premium" role="main">
       <header className="dvH">
+        <span className="dv__heroSpacer" aria-hidden />
         <h1>My Earnings</h1>
         <button type="button" className="dvFil" aria-label="Filter by date" onClick={() => {}}>
           <IcCal />
         </button>
       </header>
       <div className="dvSc">
-        {loadErr ? <p className="dvSumP" style={{ color: '#b71c1c', marginBottom: 8 }}>{loadErr}</p> : null}
-        {loading ? <p className="dvSumP">Loading completed jobs…</p> : null}
+        {loadErr ? <p className="dv__notice dv__notice--error">{loadErr}</p> : null}
+        {loading ? <p className="dv__notice">Loading completed jobs…</p> : null}
         {!loading && !driverId ? (
-          <p className="dvSumP">Sign in as a driver to see earnings from completed deliveries and rides.</p>
+          <p className="dv__notice">Sign in as a driver to see earnings from completed deliveries and rides.</p>
         ) : null}
 
         <section className="dvSum" aria-label="Earnings summary">
-          <p className="dvSumL">Gross earnings · {summary.sublabel}</p>
+          <p className="dvSumL">
+            Gross Earnings · {summary.sublabel}
+          </p>
           <p className="dvSumAmt">{summary.totalStr}</p>
           <p className="dvSumNet" role="status">
-            {summary.pctDisplay}% platform fee on gross · You keep <span>{summary.netStr}</span>
+            {summary.pctDisplay}% platform fee · You keep <span>{summary.netStr}</span>
           </p>
           <div className="dv3r">
             <div className="dv3b">
@@ -275,12 +295,8 @@ export default function DriverEarningsPage() {
               <div className="dvBcol" key={`${b.day}-${i}`}>
                 <div className="dvBtrack">
                   <div
-                    className="dvBbar"
-                    style={
-                      b.amount <= 0
-                        ? { height: '2px', minHeight: 2, background: 'rgba(241, 134, 49, 0.2)' }
-                        : { height: `${b.pct}%` }
-                    }
+                    className={b.amount <= 0 ? 'dvBbar dvBbar--empty' : 'dvBbar'}
+                    style={b.amount <= 0 ? { height: '4px' } : { height: `${b.pct}%` }}
                   >
                     {b.amount > 0 ? <span className="dvBval">{formatGBP(b.amount)}</span> : null}
                   </div>
@@ -296,59 +312,58 @@ export default function DriverEarningsPage() {
             <span>Gross Earnings</span>
             <span className="dvBDR dvBDR--b">{summary.grossStr}</span>
           </div>
-          <div className="dvBDL">
-            <span>
-              Platform commission (
-              {summary.pctDisplay}
-              % of gross)
-            </span>
+          <div className="dvBDL dvBDL--commission">
+            <span>Platform Commission ({summary.pctDisplay}% of gross)</span>
             <span className="dvBDR dvBDR--r">{summary.commissionStr}</span>
           </div>
-          <div className="dvBdiv" />
-          <div className="dvBDL">
+          <div className="dvBDL dvBDL--net">
             <span>Net Earnings</span>
             <span className="dvBDR dvBDR--net">{summary.netStr}</span>
           </div>
         </section>
 
-        <h2 className="dvRsec">Completed jobs</h2>
+        <h2 className="dvRsec">Completed Jobs</h2>
         {!loading && recent.length === 0 && driverId ? (
-          <p className="dvSumP" style={{ marginBottom: 12 }}>
-            No completed jobs yet. Finishing a taxi or tuk-tuk ride (End journey), or a parcel delivery once it is
-            marked delivered, will appear here. If parcels never show, run{' '}
-            <code style={{ fontSize: 11 }}>supabase/driver_booking_completed_at.sql</code> in Supabase.
-          </p>
-        ) : null}
-        {recent.map((r) => (
-          <div className="dvRrow" key={`${r.kind}-${r.id}`}>
-            <div>
-              <p className="dvRid">
-                #{r.ref}
-                {' '}
-                <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>
-                  (
-                  {r.kind === 'parcel'
-                    ? 'Parcel'
-                    : r.kind === 'shop'
-                      ? 'Shop'
-                      : r.kind === 'tuktuk'
-                        ? 'Tuk-Tuk'
-                        : 'Taxi'}
-                  )
-                </span>
-              </p>
-              <p className="dvRto">{r.to}</p>
-            </div>
-            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span className="dvRsub">{formatRecentTime(r.at)}</span>
-              <span className="dvRAmt">{formatGBP(r.amount)} gross</span>
-              <span className="dvRnet">
-                Net {formatGBP(jobNet(r.amount, driverCommissionPct))}
-                {driverCommissionPct > 0 ? ` (${formatPctDisplay(driverCommissionPct)}% fee)` : ''}
-              </span>
-            </div>
+          <div className="dvJobsEmpty">
+            <IcJobsEmpty />
+            <p>
+              No completed jobs yet. When you accept and finish a delivery or ride, it will appear here.
+            </p>
           </div>
-        ))}
+        ) : null}
+        {recent.length > 0 ? (
+          <div className="dvJobsCard">
+            {recent.map((r) => (
+              <div className="dvRrow" key={`${r.kind}-${r.id}`}>
+                <div>
+                  <p className="dvRid">
+                    #{r.ref}{' '}
+                    <span className="dvRkind">
+                      (
+                      {r.kind === 'parcel'
+                        ? 'Parcel'
+                        : r.kind === 'shop'
+                          ? 'Shop'
+                          : r.kind === 'tuktuk'
+                            ? 'Tuk-Tuk'
+                            : 'Taxi'}
+                      )
+                    </span>
+                  </p>
+                  <p className="dvRto">{r.to}</p>
+                </div>
+                <div className="dvRrowMeta">
+                  <span className="dvRsub">{formatRecentTime(r.at)}</span>
+                  <span className="dvRAmt">{formatGBP(r.amount)} gross</span>
+                  <span className="dvRnet">
+                    Net {formatGBP(jobNet(r.amount, driverCommissionPct))}
+                    {driverCommissionPct > 0 ? ` (${formatPctDisplay(driverCommissionPct)}% fee)` : ''}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

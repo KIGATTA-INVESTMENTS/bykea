@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './adminPortal.css';
 
 const ACTIVE_DAYS = 14;
 
@@ -346,15 +346,13 @@ export default function AdminCustomerManagementPage() {
 
   const panelRecent = selectedCustomer ? recentByUserId[selectedCustomer.id] || [] : [];
 
+  useSetAdminHeaderActions(
+    <AdminHeaderRefresh onClick={() => load()} disabled={loading} />,
+    [loading, load],
+  );
+
   return (
     <div className="adm">
-      <div className="admToolbar">
-        <h2 style={{ margin: 0 }}>Customer Management</h2>
-        <button className="admOutlineBtn" type="button" onClick={() => load()} disabled={loading}>
-          Refresh
-        </button>
-      </div>
-
       {error ? (
         <div className="admCard" style={{ borderColor: '#f0c7c7', marginBottom: '0.85rem' }}>
           <p style={{ margin: 0, color: '#b42318' }}>{error}</p>
@@ -368,7 +366,7 @@ export default function AdminCustomerManagementPage() {
         </article>
         <article className="admCard admSmallCard">
           <p className="k">Activity today</p>
-          <p className="v" style={{ color: '#2DB84B' }}>
+          <p className="v" style={{ color: '#0A58A6' }}>
             {loading || !stats ? '…' : stats[1].toLocaleString()}
           </p>
           <p className="admDim" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
@@ -467,7 +465,7 @@ export default function AdminCustomerManagementPage() {
                     <td>{customer.phone}</td>
                     <td>{customer.email}</td>
                     <td>{customer.orders}</td>
-                    <td style={{ color: '#2DB84B', fontWeight: 700 }}>{formatGBP(customer.spent)}</td>
+                    <td style={{ color: '#0A58A6', fontWeight: 700 }}>{formatGBP(customer.spent)}</td>
                     <td>{customer.joined}</td>
                     <td>
                       <span className={statusClass(customer.status)}>{customer.status}</span>

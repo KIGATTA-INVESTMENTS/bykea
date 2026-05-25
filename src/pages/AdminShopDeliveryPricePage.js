@@ -73,7 +73,7 @@ export default function AdminShopDeliveryPricePage() {
         {
           id: SHOP_DELIVERY_SETTINGS_ID,
           delivery_fee: amount,
-          currency: 'GBP',
+          currency: 'USD',
           updated_at: now,
         },
         { onConflict: 'id' },
@@ -126,7 +126,7 @@ export default function AdminShopDeliveryPricePage() {
         ) : (
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#333' }}>Delivery cost (GBP)</span>
+              <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#333' }}>Delivery cost (USD)</span>
               <input
                 type="text"
                 inputMode="decimal"

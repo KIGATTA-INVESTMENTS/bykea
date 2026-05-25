@@ -41,7 +41,7 @@ export default function AdminNotificationManagementPage() {
               <div className="admDim">{row.recipients}</div>
               <div className="admDim">📲 ✉ SMS WA</div>
               <div className="admDim">{row.date}</div>
-              <div style={{ color: '#2DB84B' }}>{row.delivered} delivered</div>
+              <div style={{ color: '#0A58A6' }}>{row.delivered} delivered</div>
               <div style={{ color: '#d34444' }}>{row.failed} failed</div>
               <button className="admLink" type="button">View Details</button>
             </div>

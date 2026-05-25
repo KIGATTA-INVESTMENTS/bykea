@@ -1,0 +1,341 @@
+/* Shop Owner — Support Chat premium */
+.sopShell--portal-premium .sopCont--portal-chat {
+  padding: 0.65rem 0.65rem 0;
+  background: #f0f2f5;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.sopCont--portal-chat > .soc-page {
+  flex: 1;
+  min-height: 0;
+}
+
+.soc-page {
+  --soc-blue: #07408f;
+  --soc-orange: #ec6c23;
+  --soc-green: #16a34a;
+  --soc-grey: #6b7280;
+  --soc-page-bg: #f0f2f5;
+  --soc-info-bg: #e8f0fb;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--soc-page-bg);
+  color: #1f2937;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Header card */
+.soc-header-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+  padding: 0.85rem 0.75rem 0.9rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.soc-back {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-right: 0.35rem;
+  border: none;
+  background: transparent;
+  color: var(--soc-blue);
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.soc-back:hover {
+  background: var(--soc-info-bg);
+}
+
+.soc-header-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 0.25rem;
+}
+
+.soc-avatar-wrap {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 0.45rem;
+}
+
+.soc-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--soc-blue);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(7, 64, 143, 0.25);
+}
+
+.soc-online-dot {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--soc-green);
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.soc-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--soc-blue);
+  text-align: center;
+  line-height: 1.25;
+}
+
+.soc-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.25rem 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--soc-green);
+}
+
+.soc-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--soc-green);
+  animation: soc-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes soc-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+}
+
+.soc-badge-pill {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--soc-blue);
+  background: #fff;
+  border: 1.5px solid var(--soc-blue);
+  border-radius: 50rem;
+}
+
+/* Messages area */
+.soc-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.75rem 0.65rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  background: var(--soc-page-bg);
+}
+
+.soc-row {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.soc-row--recv {
+  justify-content: flex-start;
+}
+
+.soc-row--sent {
+  justify-content: flex-end;
+}
+
+.soc-msg-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--soc-orange);
+  box-shadow: 0 2px 6px rgba(236, 108, 35, 0.35);
+}
+
+.soc-msg-block {
+  max-width: min(84%, 30rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.soc-row--sent .soc-msg-block {
+  align-items: flex-end;
+}
+
+.soc-bubble {
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.soc-bubble--recv {
+  background: var(--soc-blue);
+  color: #fff;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 4px 14px rgba(7, 64, 143, 0.2);
+}
+
+.soc-bubble--sent {
+  background: var(--soc-orange);
+  color: #fff;
+  border-radius: 16px;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 14px rgba(236, 108, 35, 0.3);
+}
+
+.soc-meta {
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--soc-grey);
+  font-weight: 500;
+}
+
+.soc-meta--left {
+  text-align: left;
+}
+
+.soc-meta--right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.2rem;
+}
+
+.soc-tick {
+  display: flex;
+  align-items: center;
+  color: var(--soc-orange);
+  line-height: 0;
+  opacity: 0.9;
+}
+
+/* System message */
+.soc-sys {
+  align-self: center;
+  text-align: center;
+  max-width: 92%;
+  margin: 0.15rem auto;
+  padding: 0.45rem 0.9rem;
+  border-radius: 50rem;
+  background: var(--soc-info-bg);
+  color: var(--soc-blue);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* Input bar */
+.soc-input-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  padding: 0.55rem 0.65rem calc(0.55rem + env(safe-area-inset-bottom, 0));
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
+}
+
+.soc-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 48px;
+  border: 1px solid #e2e8f0;
+  border-radius: 50rem;
+  padding: 0 1rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  background: #fff;
+  outline: none;
+}
+
+.soc-input::placeholder {
+  color: #9ca3af;
+}
+
+.soc-input:focus {
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 3px rgba(236, 108, 35, 0.12);
+}
+
+.soc-send {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: var(--soc-orange);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 4px 12px rgba(236, 108, 35, 0.4);
+  -webkit-tap-highlight-color: transparent;
+  transition: filter 0.15s ease;
+}
+
+.soc-send:hover {
+  filter: brightness(1.06);
+}
+
+.soc-send:active {
+  transform: scale(0.97);
+}

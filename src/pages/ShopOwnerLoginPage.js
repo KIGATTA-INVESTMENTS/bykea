@@ -2,34 +2,141 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { saveShopOwnerSession } from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './shopOwnerPortal.css';
+import InGoLogo from '../components/InGoLogo';
+import './shopOwnerLoginPremium.css';
 
-function EyeOn() {
+function IconEnvelope() {
   return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
+        d="M4 6h16v12H4V6Zm0 0 8 7 8-7"
         stroke="currentColor"
-        strokeWidth="1.2"
-        fill="none"
-      />
-      <circle cx="12" cy="12" r="2.2" fill="currentColor" />
-    </svg>
-  );
-}
-function EyeOff() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
-      <path
-        d="M3 3l18 18M9.5 9.5A3 3 0 0 0 12 15a3 3 0 0 0 2.2-4.7M6.4 6.4C4.6 7.5 3.2 9.1 2.3 11.1c1.4 3.3 4.7 5.6 8.5 5.6a8.4 8.4 0 0 0 3.4-.7M10.5 4.2A8.4 8.4 0 0 1 12 4c4.2 0 7.6 2.7 9 6.5a9.4 9.4 0 0 1-1.4 2.6"
-        stroke="currentColor"
-        strokeWidth="1.2"
+        strokeWidth="1.7"
         strokeLinecap="round"
-        fill="none"
+        strokeLinejoin="round"
       />
     </svg>
   );
 }
+
+function IconLock() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M8 11V8a4 4 0 0 1 8 0v3"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconEye({ open }) {
+  if (open) {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+        />
+        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 3l18 18M10.5 10.5a3 3 0 0 0 3 3M5.2 5.2C3.1 6.4 1.5 8.1 1 9.5c0 0 4 7 11 7 1.2 0 2.3-.2 3.3-.5M8.2 4.2C9.3 3.8 10.6 3.5 12 3.5c7 0 11 6.5 11 6.5-.2.4-1.1 1.6-2.4 2.8"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconShopHero() {
+  return (
+    <svg className="so-login-hero-art" viewBox="0 0 120 88" fill="none" aria-hidden>
+      <path
+        d="M8 72V36l12-8h32l12 8v36H8z"
+        fill="currentColor"
+        opacity="0.95"
+      />
+      <path d="M20 28h48v8H20v-8z" fill="#fff" opacity="0.35" />
+      <rect x="28" y="44" width="14" height="18" rx="1" fill="#fff" opacity="0.5" />
+      <rect x="50" y="44" width="14" height="18" rx="1" fill="#fff" opacity="0.5" />
+      <rect x="72" y="44" width="14" height="18" rx="1" fill="#fff" opacity="0.5" />
+      <path
+        d="M44 20h32l6 8H38l6-8z"
+        fill="currentColor"
+      />
+      <path
+        d="M88 52c0-8 6-14 14-14h6v14H88z"
+        fill="currentColor"
+        opacity="0.85"
+      />
+      <circle cx="98" cy="58" r="5" fill="#fff" opacity="0.4" />
+      <path
+        d="M94 68h20l-4 8H90l4-8z"
+        fill="currentColor"
+        opacity="0.9"
+      />
+    </svg>
+  );
+}
+
+function TrustShop() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 9l2-4h14l2 4M5 9v11h14V9M9 13h6"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M9 9V6h6v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TrustChart() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 19V5M4 19h16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path
+        d="M8 15v-4M12 15V8M16 15V11"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TrustHeadset() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 14v-2a8 8 0 0 1 16 0v2M6 14h0a2 2 0 0 1 2 2v2H4v-4M18 14h0a2 2 0 0 0 2 2v2h-4v-4"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const TRUST_BADGES = [
+  { icon: TrustShop, label: 'Easy Setup' },
+  { icon: TrustChart, label: 'Grow Sales' },
+  { icon: TrustHeadset, label: '24/7 Support' },
+];
 
 export default function ShopOwnerLoginPage() {
   const navigate = useNavigate();
@@ -101,99 +208,153 @@ export default function ShopOwnerLoginPage() {
   };
 
   return (
-    <div className="sop sopAuth" role="main">
-      <div className="sopLeft">
-        <Link to="/" className="sopBrand" aria-label="InGo home">
-          InGo
-        </Link>
-        <h1 className="sopH1L">Grow your business with InGo</h1>
-        <p className="sopSubL">Reach more customers and manage your deliveries in one place.</p>
-      </div>
-      <div className="sopRight">
-        <p className="sopPtl">Shop owner portal</p>
-        <h1 className="sopH1R">Welcome back</h1>
-        <p className="sopSubR">Login to your dashboard</p>
-        <form className="sopF" onSubmit={submit} autoComplete="on">
-          {state?.passwordReset && (
-            <p style={{ color: '#2a7a3a', fontSize: '0.82rem', fontWeight: 600, margin: '0 0 0.4rem' }}>
-              Password updated. Sign in with your new password.
-            </p>
-          )}
-          {state?.registered && (
-            <p style={{ color: '#A85612', fontSize: '0.82rem', fontWeight: 600, margin: '0 0 0.4rem' }}>
-              Your shop is registered. You can sign in now.
-            </p>
-          )}
-          {errorMessage ? (
-            <p role="alert" style={{ color: '#c62828', fontSize: '0.82rem', fontWeight: 600, margin: '0 0 0.4rem' }}>
-              {errorMessage}
-            </p>
-          ) : null}
-          {unverifiedEmail && unverifiedEmail === email.trim().toLowerCase() ? (
-            <p style={{ margin: '0 0 0.4rem' }}>
-              <Link
-                to={`/verify-email?realm=shop_owner&email=${encodeURIComponent(unverifiedEmail)}`}
-                className="sopLink"
-              >
-                Verify email or resend code
+    <div className="so-login-page" role="main">
+      <header className="so-login-hero">
+        <div className="so-login-hero-waves" aria-hidden />
+        <div className="so-login-hero-top">
+          <InGoLogo variant="hero" />
+          <div className="so-login-hero-badge" role="status">
+            Shop Owner Portal
+          </div>
+          <p className="so-login-hero-tagline">Grow your business with InGo</p>
+          <p className="so-login-hero-subtitle">
+            Reach more customers and manage your deliveries in one place.
+          </p>
+        </div>
+        <div className="so-login-hero-scene" aria-hidden>
+          <IconShopHero />
+        </div>
+      </header>
+
+      <main className="so-login-body">
+        <div className="so-login-card">
+          <form className="so-login-form" onSubmit={submit} autoComplete="on">
+            <h1 className="so-login-title">Welcome Back</h1>
+            <p className="so-login-subtitle">Login to your dashboard</p>
+
+            {state?.passwordReset && (
+              <p className="so-login-flash" role="status">
+                Password updated. Sign in with your new password.
+              </p>
+            )}
+            {state?.registered && (
+              <p className="so-login-flash so-login-flash--warn" role="status">
+                Your shop is registered. You can sign in now.
+              </p>
+            )}
+            {errorMessage ? (
+              <p className="so-login-error" role="alert">
+                {errorMessage}
+              </p>
+            ) : null}
+            {unverifiedEmail && unverifiedEmail === email.trim().toLowerCase() ? (
+              <p className="so-login-verify">
+                <Link
+                  to={`/verify-email?realm=shop_owner&email=${encodeURIComponent(unverifiedEmail)}`}
+                >
+                  Verify email or resend code
+                </Link>
+              </p>
+            ) : null}
+
+            <div className="so-login-field">
+              <label className="so-login-label" htmlFor="sop-em">
+                Email
+              </label>
+              <div className="so-login-input-wrap">
+                <span className="so-login-iconbox" aria-hidden>
+                  <IconEnvelope />
+                </span>
+                <input
+                  className="so-login-input"
+                  id="sop-em"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setUnverifiedEmail('');
+                  }}
+                  placeholder="you@shop.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="so-login-field">
+              <label className="so-login-label" htmlFor="sop-pw">
+                Password
+              </label>
+              <div className="so-login-input-wrap">
+                <span className="so-login-iconbox" aria-hidden>
+                  <IconLock />
+                </span>
+                <input
+                  className="so-login-input"
+                  id="sop-pw"
+                  name="password"
+                  type={show ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+                <button
+                  type="button"
+                  className="so-login-input-toggle"
+                  tabIndex={-1}
+                  onClick={() => setShow((s) => !s)}
+                  aria-label={show ? 'Hide password' : 'Show password'}
+                >
+                  <IconEye open={!show} />
+                </button>
+              </div>
+            </div>
+
+            <div className="so-login-row">
+              <label className="so-login-chk">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                Remember me
+              </label>
+              <Link to="/forgot-password?realm=shop_owner" className="so-login-forgot">
+                Forgot password?
               </Link>
-            </p>
-          ) : null}
-          <label className="sopL" htmlFor="sop-em">
-            Email
-          </label>
-          <input
-            className="sopI"
-            id="sop-em"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setUnverifiedEmail('');
-            }}
-            placeholder="you@shop.com"
-            required
-          />
-          <label className="sopL" htmlFor="sop-pw">
-            Password
-          </label>
-          <div className="sopPwR" style={{ marginBottom: '0.1rem' }}>
-            <input
-              className="sopI sopPwI"
-              id="sop-pw"
-              name="password"
-              type={show ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button type="button" className="sopPwT" tabIndex={-1} onClick={() => setShow((s) => !s)} aria-label={show ? 'Hide password' : 'Show password'}>
-              {show ? <EyeOn /> : <EyeOff />}
+            </div>
+
+            <button type="submit" className="so-login-btn" disabled={isSubmitting}>
+              {isSubmitting ? 'Signing in…' : 'Login'}
             </button>
+          </form>
+
+          <div className="so-login-or" aria-hidden>
+            <span className="so-login-or-line" />
+            <span className="so-login-or-text">OR</span>
+            <span className="so-login-or-line" />
           </div>
-          <div className="sopRow" style={{ margin: '0.1rem 0' }}>
-            <label className="sopChkL">
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-              Remember me
-            </label>
-            <Link to="/forgot-password?realm=shop_owner" className="sopLink">
-              Forgot password
-            </Link>
-          </div>
-          <button className="sopBtn" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in…' : 'Login'}
-          </button>
-        </form>
-        <p className="sopDivR" aria-hidden>
-          or
+
+          <Link to="/shop-owner/register" className="so-login-register-btn">
+            Register Your Shop
+          </Link>
+        </div>
+      </main>
+
+      <footer className="so-login-footer">
+        <div className="so-login-trust">
+          {TRUST_BADGES.map(({ icon: Icon, label }) => (
+            <div key={label} className="so-login-trust-item">
+              <span className="so-login-trust-icon" aria-hidden>
+                <Icon />
+              </span>
+              <span className="so-login-trust-label">{label}</span>
+            </div>
+          ))}
+        </div>
+        <p className="so-login-copyright">
+          &copy; {new Date().getFullYear()} InGo. All rights reserved.
         </p>
-        <Link to="/shop-owner/register" className="sopOutL" style={{ textAlign: 'center', textDecoration: 'none', display: 'block' }}>
-          Register your shop
-        </Link>
-      </div>
+      </footer>
     </div>
   );
 }

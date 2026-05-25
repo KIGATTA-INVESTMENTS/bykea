@@ -3,18 +3,21 @@ import { formatGBP } from '../lib/currency';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
+import './shopOwnerDashboardPremium.css';
+import './shopOwnerPaymentsPremium.css';
 
 const TX_FILT = ['All', 'Sales', 'Payouts', 'Refunds'];
 
-function typeBdg(t) {
-  if (t === 'Sale') return 'sopBdgT--sl';
-  if (t === 'Payout') return 'sopBdgT--po';
-  return 'sopBdgT--rf';
+function txTypeClass(t) {
+  if (t === 'Sale') return 'sopay-tx-type sopay-tx-type--sale';
+  if (t === 'Payout') return 'sopay-tx-type sopay-tx-type--payout';
+  return 'sopay-tx-type sopay-tx-type--refund';
 }
-function stBdg(s) {
-  if (s === 'Completed') return 'sopBdgS--ok';
-  if (s === 'Pending') return 'sopBdgS--pd';
-  return 'sopBdgS--fl';
+
+function txStatusClass(s) {
+  if (s === 'Completed') return 'sopay-tx-status sopay-tx-status--ok';
+  if (s === 'Pending') return 'sopay-tx-status sopay-tx-status--pd';
+  return 'sopay-tx-status sopay-tx-status--fl';
 }
 
 function formatDt(iso) {
@@ -46,6 +49,39 @@ function payoutStatusLabel(status) {
   return 'Failed';
 }
 
+function IcCalendar() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden className="sopay-date-icon">
+      <rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 3v3M16 3v3M4 10h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcTxEmpty() {
+  return (
+    <svg viewBox="0 0 64 64" width="56" height="56" fill="none" aria-hidden style={{ color: '#d1d5db' }}>
+      <rect x="8" y="14" width="48" height="36" rx="4" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 24h48M20 14V10h24v4" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M22 32h8M22 38h20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcInvoiceEmpty() {
+  return (
+    <svg viewBox="0 0 64 64" width="56" height="56" fill="none" aria-hidden style={{ color: '#d1d5db' }}>
+      <path
+        d="M14 8h24l10 10v34a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M38 8v10h10M22 28h20M22 36h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IcPdf() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.1" aria-hidden>
@@ -72,7 +108,8 @@ export default function ShopOwnerPaymentsPage() {
   const session = getShopOwnerSession();
   const monthStart = startOfMonth();
   const monthLabel = useMemo(
-    () => `${monthStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`,
+    () =>
+      `${monthStart.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} – ${new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`,
     [monthStart],
   );
 
@@ -191,7 +228,10 @@ export default function ShopOwnerPaymentsPage() {
     return { revenue, pendingPayout, completedPayout, net };
   }, [monthStart, rows, withdrawals]);
 
-  const availableToWithdraw = useMemo(() => Math.max(0, summary.net - summary.pendingPayout - summary.completedPayout), [summary]);
+  const availableToWithdraw = useMemo(
+    () => Math.max(0, summary.net - summary.pendingPayout - summary.completedPayout),
+    [summary],
+  );
 
   const invoices = useMemo(() => {
     const paid = withdrawals.filter((w) => String(w.status || '').toLowerCase() === 'paid');
@@ -215,6 +255,8 @@ export default function ShopOwnerPaymentsPage() {
       }),
     [f, rows],
   );
+
+  const showTxEmpty = !loading && filteredRows.length === 0;
 
   const submitWithdrawal = async () => {
     setErr('');
@@ -249,165 +291,192 @@ export default function ShopOwnerPaymentsPage() {
   };
 
   return (
-    <div className="sop">
-      <div className="sopPageH">
+    <div className="sopay-page">
+      <div className="sopay-head">
         <h1>Payments</h1>
-        <input
-          type="text"
-          className="sopI2"
-          value={monthLabel}
-          readOnly
-          aria-label="Date range"
-          style={{ minWidth: 14 }}
-        />
+        <label className="sopay-date-btn">
+          <IcCalendar />
+          <input type="text" value={monthLabel} readOnly aria-label="Date range" />
+        </label>
       </div>
+
       {loadError ? (
-        <div className="sopCard" style={{ borderColor: '#f0c7c7', marginBottom: '0.65rem', padding: '0.65rem 0.85rem' }}>
-          <p style={{ margin: 0, color: '#b42318', fontSize: '0.88rem' }}>{loadError}</p>
+        <div className="sopay-error" role="alert">
+          <p>{loadError}</p>
         </div>
       ) : null}
-      <div className="sopSum3" role="group" aria-label="Payment summary">
-        <div className="sopPayG">
-          <p className="n">Total revenue</p>
-          <p className="v">{formatGBP(summary.revenue)}</p>
-          <p className="s">This month</p>
-        </div>
-        <div className="sopPayW">
-          <p style={{ fontSize: '0.7rem', color: '#6b6b6b', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Pending payout</p>
-          <p style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0.1rem 0' }}>{formatGBP(summary.pendingPayout)}</p>
-          <span className="soPBdgP">Processing</span>
-        </div>
-        <div className="sopPayW">
-          <p style={{ fontSize: '0.7rem', color: '#6b6b6b', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completed payouts</p>
-          <p style={{ fontSize: '1.35rem', fontWeight: 800, color: '#F18631', margin: '0.1rem 0' }}>{formatGBP(summary.completedPayout)}</p>
-          <p style={{ fontSize: '0.68rem', color: '#6b6b6b', margin: 0 }}>This month</p>
-        </div>
+
+      <section className="sopay-hero" aria-label="Total revenue">
+        <p className="sopay-hero-label">Total Revenue</p>
+        <p className="sopay-hero-value">{formatGBP(summary.revenue)}</p>
+        <p className="sopay-hero-sub">This month</p>
+      </section>
+
+      <div className="sopay-stats" role="group" aria-label="Payout summary">
+        <article className="sopay-stat">
+          <p className="sopay-stat-label">Pending payout</p>
+          <p className="sopay-stat-value">{formatGBP(summary.pendingPayout)}</p>
+          <span className="sopay-pill-processing">Processing</span>
+        </article>
+        <article className="sopay-stat">
+          <p className="sopay-stat-label">Completed payouts</p>
+          <p className="sopay-stat-value sopay-stat-value--blue">{formatGBP(summary.completedPayout)}</p>
+          <p className="sopay-stat-foot">This month</p>
+        </article>
       </div>
-      <div className="sopPout">
-        <h2>Payout account</h2>
-        <div className="sopAccR">
-          <span>
-            <span style={{ fontWeight: 800 }}>{session?.business_name || 'Shop account'}</span> · {session?.email || 'No email on file'}
-            <span className="soPBdgG">Primary</span>
-          </span>
-        </div>
-        <div className="sopAccR" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-          <span style={{ fontSize: '0.8rem', color: '#555' }}>Available to withdraw: <strong>{formatGBP(availableToWithdraw)}</strong></span>
-        </div>
-        <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            className="sopI2"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Enter amount"
-            aria-label="Withdrawal amount"
-            style={{ minWidth: 180 }}
-          />
-          <button type="button" className="sopEx" onClick={() => setAmount(String(availableToWithdraw.toFixed(2)))}>
-            Withdraw all
+
+      <section className="sopay-payout" aria-labelledby="sopay-payout-title">
+        <h2 id="sopay-payout-title">Payout Account</h2>
+        <p className="sopay-account-line">
+          <strong>{session?.business_name || 'Shop account'}</strong> · {session?.email || 'No email on file'}
+          <span className="sopay-badge-primary">Primary</span>
+        </p>
+        <p className="sopay-available">
+          Available to withdraw: <strong>{formatGBP(availableToWithdraw)}</strong>
+        </p>
+        <div className="sopay-withdraw-row">
+          <div className="sopay-amount-wrap">
+            <span className="sopay-amount-prefix" aria-hidden>
+              �$
+            </span>
+            <input
+              type="text"
+              className="sopay-amount-input"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="Enter amount"
+              aria-label="Withdrawal amount"
+            />
+          </div>
+          <button type="button" className="sopay-btn-withdraw-all" onClick={() => setAmount(String(availableToWithdraw.toFixed(2)))}>
+            Withdraw All
           </button>
-          <button type="button" className="sopBtn2" onClick={submitWithdrawal} disabled={busy} style={{ width: 'auto', margin: 0, padding: '0.42rem 0.7rem' }}>
+          <button type="button" className="sopay-btn-withdraw" onClick={submitWithdrawal} disabled={busy}>
             {busy ? 'Sending…' : 'Withdraw'}
           </button>
         </div>
-        {msg ? <p style={{ margin: '0.45rem 0 0', color: '#0d5c2f', fontSize: '0.82rem', fontWeight: 700 }}>{msg}</p> : null}
-        {err ? <p style={{ margin: '0.45rem 0 0', color: '#b42318', fontSize: '0.82rem', fontWeight: 700 }}>{err}</p> : null}
-      </div>
-      <div className="sopSecH" style={{ marginTop: '0.2rem' }}>
-        <h2>Transaction history</h2>
-        <button type="button" className="sopEx" aria-label="Refresh" onClick={() => load()} disabled={loading}>
+        {msg ? (
+          <p className="sopay-flash sopay-flash--ok" role="status">
+            {msg}
+          </p>
+        ) : null}
+        {err ? (
+          <p className="sopay-flash sopay-flash--err" role="alert">
+            {err}
+          </p>
+        ) : null}
+      </section>
+
+      <div className="sopay-sec-head">
+        <h2>Transaction History</h2>
+        <button type="button" className="sopay-btn-refresh" aria-label="Refresh" onClick={() => load()} disabled={loading}>
           Refresh
         </button>
       </div>
-      <div className="sopPerR" style={{ margin: '0.1rem 0.05rem 0.4rem' }}>
+
+      <div className="sopay-tabs" role="tablist" aria-label="Filter transactions">
         {TX_FILT.map((p) => (
           <button
             key={p}
             type="button"
-            className={f === p ? 'sopPill2 sopPill2--on' : 'sopPill2'}
+            role="tab"
+            className={f === p ? 'sopay-tab sopay-tab--on' : 'sopay-tab'}
+            aria-selected={f === p}
             onClick={() => setF(p)}
-            aria-pressed={f === p}
           >
             {p}
           </button>
         ))}
       </div>
-      <div className="sopTwrap">
-        <table className="sopTable" style={{ minWidth: 700 }} aria-label="Transactions">
-          <thead>
-            <tr>
-              <th>Transaction ID</th>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Order ID</th>
-              <th>Amount</th>
-              <th>Type</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="admDim" style={{ padding: '1rem' }}>
-                  Loading transactions…
-                </td>
-              </tr>
-            ) : filteredRows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="admDim" style={{ padding: '1rem' }}>
-                  No transactions in this filter.
-                </td>
-              </tr>
-            ) : (
-              filteredRows.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.id}</td>
-                  <td style={{ fontSize: '0.7rem' }}>{formatDt(r.date)}</td>
-                  <td>{r.customer}</td>
-                  <td>{r.order !== '—' ? <span className="sopLink2">{r.order}</span> : r.order}</td>
-                  <td>
-                    {r.type === 'Refund' || r.type === 'Payout' ? <span style={{ color: '#c62828' }}>−</span> : '+'}
-                    {formatGBP(r.amount)}
-                  </td>
-                  <td>
-                    <span className={typeBdg(r.type)}>{r.type}</span>
-                  </td>
-                  <td>
-                    <span className={stBdg(r.st)}>{r.st}</span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="sopInv" style={{ marginTop: 12 }}>
-        <h2 className="sopSecH" style={{ border: 'none', marginBottom: 8, padding: 0 }}>
-          Invoices
-        </h2>
-        {invoices.length === 0 ? (
-          <p className="admDim" style={{ margin: 0, padding: '0.5rem 0.2rem' }}>
-            No paid payout invoices yet.
-          </p>
-        ) : invoices.map((inv) => (
-          <div key={inv.num} className="sopInvRow">
-            <div>
-              <a href="#inv" onClick={(e) => e.preventDefault()} className="sopLink2" style={{ display: 'block' }}>
-                {inv.num}
-              </a>
-              <span style={{ color: '#888', fontSize: '0.72rem' }}>{inv.date} · {inv.orders} orders</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 800 }}>{formatGBP(inv.amount)}</span>
-              <span className="sopBdg sopBdg--d">Paid</span>
-              <button type="button" className="sopPicon sopPicon--g" style={{ color: '#F18631' }} aria-label="Download PDF">
-                <IcPdf />
-              </button>
-            </div>
+
+      <div className="sopay-table-card">
+        {showTxEmpty ? (
+          <div className="sopay-table-empty-wrap" role="status">
+            <IcTxEmpty />
+            <p>No transactions in this filter.</p>
           </div>
-        ))}
+        ) : (
+          <div className="sopay-table-scroll">
+            <table className="sopay-table" aria-label="Transactions">
+              <thead>
+                <tr>
+                  <th>Transaction ID</th>
+                  <th>Date</th>
+                  <th>Customer</th>
+                  <th>Order ID</th>
+                  <th>Amount</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="sopay-table-loading">
+                      Loading transactions…
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRows.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.id}</td>
+                      <td style={{ fontSize: '0.75rem' }}>{formatDt(r.date)}</td>
+                      <td>{r.customer}</td>
+                      <td>{r.order}</td>
+                      <td>
+                        <span className={r.type === 'Refund' || r.type === 'Payout' ? 'sopay-amount-neg' : 'sopay-amount-pos'}>
+                          {r.type === 'Refund' || r.type === 'Payout' ? '−' : '+'}
+                          {formatGBP(r.amount)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={txTypeClass(r.type)}>{r.type}</span>
+                      </td>
+                      <td>
+                        <span className={txStatusClass(r.st)}>{r.st}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      <section className="sopay-invoices" aria-labelledby="sopay-inv-title">
+        <h2 id="sopay-inv-title">Invoices</h2>
+        <div className="sopay-invoice-card">
+          {invoices.length === 0 ? (
+            <div className="sopay-invoice-empty" role="status">
+              <IcInvoiceEmpty />
+              <p>No paid payout invoices yet.</p>
+            </div>
+          ) : (
+            <div className="sopay-invoice-list">
+              {invoices.map((inv) => (
+                <div key={inv.num} className="sopay-invoice-row">
+                  <div>
+                    <a href="#inv" onClick={(e) => e.preventDefault()}>
+                      {inv.num}
+                    </a>
+                    <span className="sopay-invoice-meta">
+                      {inv.date} · {inv.orders} orders
+                    </span>
+                  </div>
+                  <div className="sopay-invoice-right">
+                    <span className="sopay-invoice-amt">{formatGBP(inv.amount)}</span>
+                    <span className="sopay-badge-paid">Paid</span>
+                    <button type="button" className="sopay-pdf-btn" aria-label="Download PDF">
+                      <IcPdf />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

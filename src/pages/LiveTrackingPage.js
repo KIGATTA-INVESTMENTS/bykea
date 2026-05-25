@@ -5,15 +5,13 @@ import { mapDriverRegistrationRow } from '../lib/customerOrderFeed';
 import { isReliableGpsLatLng, publicDirectionsCoordsMapUrl, publicDirectionsMapUrl, publicPlaceMapUrl } from '../lib/googleMapsConfig';
 import { forwardGeocodeAddress } from '../lib/reverseGeocode';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import './requestFlow.css';
 import './orderTracking.css';
 
-const STEPS = [
-  { id: 'placed', label: 'Order Placed' },
-  { id: 'assigned', label: 'Driver assigned' },
-  { id: 'pickup', label: 'En route to pickup' },
-  { id: 'transit', label: 'In transit' },
-  { id: 'done', label: 'Delivered' },
+const TIMELINE_STEPS = [
+  { id: 'confirmed', label: 'Order Confirmed' },
+  { id: 'preparing', label: 'Preparing Your Order' },
+  { id: 'delivery', label: 'Out for Delivery' },
+  { id: 'delivered', label: 'Delivered' },
 ];
 
 function BackArrow() {
@@ -30,56 +28,99 @@ function BackArrow() {
   );
 }
 
-function MapPinA() {
+function MapStoreIcon() {
   return (
-    <svg viewBox="0 0 32 40" width="28" height="35" aria-hidden>
+    <svg viewBox="0 0 32 32" width="36" height="36" aria-hidden>
+      <circle cx="16" cy="16" r="15" fill="#07408f" />
       <path
-        d="M16 2.5C10.2 2.5 5.5 7.1 5.5 12.6c0 4.6 2.1 6.1 3.1 7.1l7.4 9.1 7.4-9.1c1-1.1 3-2.3 3-7.1C26.4 7.1 21.7 2.5 16 2.5Z"
-        fill="#F18631"
+        d="M8 14h16v10H8V14Zm2-4h12l1 3H9l1-3Z"
+        stroke="#fff"
+        strokeWidth="1.2"
+        fill="none"
+        strokeLinejoin="round"
       />
-      <circle cx="16" cy="12" r="4" fill="white" />
-    </svg>
-  );
-}
-function MapPinB() {
-  return (
-    <svg viewBox="0 0 32 40" width="28" height="35" aria-hidden>
-      <path
-        d="M16 2.5C10.2 2.5 5.5 7.1 5.5 12.6c0 4.6 2.1 6.1 3.1 7.1l7.4 9.1 7.4-9.1c1-1.1 3-2.3 3-7.1C26.4 7.1 21.7 2.5 16 2.5Z"
-        fill="#e53935"
-      />
-      <circle cx="16" cy="12" r="4" fill="white" />
+      <path d="M11 14v-2h2v2M15 14v-2h2v2M19 14v-2h2v2" stroke="#fff" strokeWidth="1" />
     </svg>
   );
 }
 
-function getStepState(i, activeIndex) {
-  if (i < activeIndex) return 'done';
-  if (i === activeIndex) return 'active';
-  return 'pending';
+function MapRiderIcon() {
+  return (
+    <svg viewBox="0 0 32 32" width="34" height="34" aria-hidden>
+      <circle cx="16" cy="16" r="15" fill="#fff" stroke="#07408f" strokeWidth="2" />
+      <circle cx="10" cy="22" r="2.5" fill="#07408f" />
+      <circle cx="22" cy="22" r="2.5" fill="#07408f" />
+      <path
+        d="M10 12h4l1.5 3h6.5l-1 5H11l-1-8Z"
+        fill="#07408f"
+        stroke="#07408f"
+        strokeWidth="0.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MapHomeIcon() {
+  return (
+    <svg viewBox="0 0 32 32" width="36" height="36" aria-hidden>
+      <circle cx="16" cy="16" r="15" fill="#07408f" />
+      <path d="M16 8l8 7v9H8V15l8-7Z" fill="#fff" />
+      <rect x="13" y="18" width="6" height="6" rx="0.5" fill="#07408f" />
+    </svg>
+  );
 }
 
 function IconPhone() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path
-        d="M6.5 2C5.1 2 4 3.1 4 4.5V19C4 20.4 5.1 21.4 6.5 21.4h11C18.9 21.4 20 20.3 20 19V4.4C20 3 19 2 17.5 2h-11Z"
-        fill="currentColor"
-        opacity="0.2"
+        d="M6.5 4.5h3.2l1.2 3.5 2.2-1.2a11 11 0 0 0 4.8 4.8l-1.2-2.2 3.5-1.2v3.2a2 2 0 0 1-2 1.8A13.5 13.5 0 0 1 4.7 6.5a2 2 0 0 1 1.8-2Z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
 }
+
 function IconChat2() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path
-        d="M4 4h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6L3 20V5a1 1 0 0 1 1-1Z"
-        fill="currentColor"
-        fillOpacity="0.08"
+        d="M5 5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 4V7a2 2 0 0 1 2-2Z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
+}
+
+function formatShortTime(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleTimeString('en-GB', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function timelineUiActiveIndex(activeIndex) {
+  if (activeIndex >= 4) return 4;
+  if (activeIndex <= 0) return 0;
+  if (activeIndex === 1) return 1;
+  return 2;
+}
+
+function getTimelineStepState(i, activeIndex) {
+  if (activeIndex >= 4) return 'done';
+  const uiActive = Math.min(3, timelineUiActiveIndex(activeIndex));
+  if (i < uiActive) return 'done';
+  if (i === uiActive) return 'active';
+  return 'pending';
 }
 
 function formatOrderId(v) {
@@ -113,9 +154,6 @@ export default function LiveTrackingPage() {
   const [pollErr, setPollErr] = useState('');
   const [fromGeo, setFromGeo] = useState(null);
   const [toGeo, setToGeo] = useState(null);
-  const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  const [cancelWorking, setCancelWorking] = useState(false);
-  const [cancelErr, setCancelErr] = useState('');
 
   const fromAddr = useMemo(() => {
     if (liveRow?.pickup_location) return String(liveRow.pickup_location).trim();
@@ -213,20 +251,32 @@ export default function LiveTrackingPage() {
     };
   }, [fromAddr, toAddr]);
 
-  useEffect(() => {
-    if (!cancelModalOpen) return undefined;
-    const onKey = (e) => {
-      if (e.key === 'Escape' && !cancelWorking) setCancelModalOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [cancelModalOpen, cancelWorking]);
-
   const orderId = formatOrderId(order.orderId);
   const driverUi = liveDriverRow ? mapDriverRegistrationRow(liveDriverRow) : order.driver || null;
 
-  const waitingForDriver = Boolean(pollTarget && !liveDriverRow && !pollErr);
   const hasDriver = Boolean(driverUi);
+  const etaDisplay = useMemo(() => {
+    const raw = String(order.eta || '').trim();
+    if (raw) return raw.replace(/^Est\.?\s*/i, '');
+    return '20–25 min';
+  }, [order.eta]);
+
+  const orderDetailsTo = useMemo(() => {
+    if (deliveryId) return `/order/${encodeURIComponent(`delivery:${deliveryId}`)}`;
+    if (rideId) {
+      const kind = order.mode === 'tuk' || String(rideTable).includes('tuk') ? 'tuk' : 'taxi';
+      return `/order/${encodeURIComponent(`${kind}:${rideId}`)}`;
+    }
+    const bare = String(order.orderId || '').replace(/^#+/, '');
+    if (bare) return `/order/${encodeURIComponent(bare)}`;
+    return null;
+  }, [deliveryId, rideId, order.mode, order.orderId, rideTable]);
+
+  const driverRating = useMemo(() => {
+    const r = order.driver?.rating ?? order.rating;
+    const n = Number(r);
+    return Number.isFinite(n) && n > 0 ? n.toFixed(1) : '4.8';
+  }, [order.driver?.rating, order.rating]);
 
   const activeIndex = useMemo(() => {
     if (!pollTarget) return 2;
@@ -240,6 +290,21 @@ export default function LiveTrackingPage() {
     if (hasDriver) return 2;
     return 1;
   }, [pollTarget, hasDriver, liveRow, isDelivery]);
+
+  const placedIso = liveRow?.created_at || order.placedAt;
+  const stepTimes = useMemo(() => {
+    const base = placedIso ? new Date(placedIso) : null;
+    if (!base || Number.isNaN(+base)) {
+      return ['12:30 PM', '12:33 PM', '12:40 PM', null];
+    }
+    const addMin = (m) => new Date(base.getTime() + m * 60000);
+    return [
+      formatShortTime(base),
+      formatShortTime(addMin(3)),
+      formatShortTime(addMin(10)),
+      activeIndex >= 4 ? formatShortTime(liveRow?.updated_at || liveRow?.delivered_at) : null,
+    ];
+  }, [placedIso, activeIndex, liveRow?.updated_at, liveRow?.delivered_at]);
 
   const trackingMapSrc = useMemo(() => {
     if (!fromAddr || !toAddr) return '';
@@ -277,8 +342,9 @@ export default function LiveTrackingPage() {
   ]);
 
   const isCancelled = String(liveRow?.status || '').toLowerCase() === 'cancelled';
-  const isDelivered = String(liveRow?.status || '').toLowerCase() === 'completed' || String(liveRow?.status || '').toLowerCase() === 'delivered';
-  const showCancel = activeIndex < 4 && !isCancelled;
+  const isDelivered =
+    String(liveRow?.status || '').toLowerCase() === 'completed' ||
+    String(liveRow?.status || '').toLowerCase() === 'delivered';
 
   useEffect(() => {
     if (!isDelivered || !hasDriver) return;
@@ -295,259 +361,139 @@ export default function LiveTrackingPage() {
     });
   }, [isDelivered, hasDriver, navigate, orderId, fromAddr, toAddr, driverUi, isDelivery, rideTable, pollTarget, liveDriverRow?.id]);
 
-  const confirmCancelOrder = async () => {
-    setCancelErr('');
-    if (!pollTarget || !isSupabaseConfigured || !supabase) {
-      setCancelModalOpen(false);
-      navigate('/home', { replace: true });
-      return;
-    }
-    setCancelWorking(true);
-    try {
-      const clearAssign = { status: 'cancelled', assigned_driver_id: null };
-      const statusOnly = { status: 'cancelled' };
-      if (isDelivery) {
-        let { error } = await supabase.from('customer_delivery_orders').update(clearAssign).eq('id', pollTarget);
-        if (error && /assigned_driver_id|column/i.test(error.message)) {
-          ({ error } = await supabase.from('customer_delivery_orders').update(statusOnly).eq('id', pollTarget));
-        }
-        if (error) throw new Error(error.message);
-      } else {
-        let { error } = await supabase.from(rideTable).update(clearAssign).eq('id', pollTarget);
-        if (error && /assigned_driver_id|column/i.test(error.message)) {
-          ({ error } = await supabase.from(rideTable).update(statusOnly).eq('id', pollTarget));
-        }
-        if (error) throw new Error(error.message);
-      }
-      setCancelModalOpen(false);
-      navigate('/home', { replace: true });
-    } catch (e) {
-      setCancelErr(e?.message || 'Could not cancel this order.');
-    } finally {
-      setCancelWorking(false);
-    }
-  };
-
   return (
-    <div className="lt-page" role="main" aria-label="Live tracking">
-      <header className="lt-top">
-        <div className="lt-top__row" style={{ position: 'relative', minHeight: '2.7rem' }}>
-          <Link to="/home" className="flow-back" aria-label="Back to home" replace>
-            <BackArrow />
-          </Link>
-          <h1>Live Tracking</h1>
-        </div>
-        <p className="lt-top__sub">{orderId}</p>
+    <div className="lt-page lt-page--premium" role="main" aria-label="Track order">
+      <header className="lt-nav">
+        <Link to="/home" className="lt-nav__back" aria-label="Back to home" replace>
+          <BackArrow />
+        </Link>
+        <h1 className="lt-nav__title">Track Order</h1>
+        <Link to="/help-support" className="lt-nav__help">
+          Help
+        </Link>
       </header>
 
-      <div className={`lt-map${trackingMapSrc ? ' lt-map--gmap' : ''}`}>
-        <GoogleMapEmbed src={trackingMapSrc} title="Route map" loading="eager" />
-        <div className="lt-map__route" aria-hidden />
-        <div className="lt-pin lt-pin--g">
-          <MapPinA />
-        </div>
-        <div className="lt-rider" style={{ top: '44%' }} aria-hidden>
-          <div className="lt-rider-dot" />
-        </div>
-        <div className="lt-pin lt-pin--r">
-          <MapPinB />
-        </div>
-        {waitingForDriver ? (
-          <div className="lt-map__loading" role="status" aria-live="polite">
-            <div className="lt-map__spinner" aria-hidden />
-            <p className="lt-map__loadingText">Finding a driver…</p>
-            <p className="lt-map__loadingSub">We’ll notify you here when someone accepts your request.</p>
+      <div className="lt-body">
+        <div className="lt-order-bar">
+          <p className="lt-order-bar__id">{orderId}</p>
+          <div className="lt-order-bar__eta">
+            <span className="lt-order-bar__eta-lab">Estimated delivery</span>
+            <span className="lt-order-bar__eta-val">{etaDisplay}</span>
           </div>
+        </div>
+
+        <div className={`lt-map-card${trackingMapSrc ? ' lt-map-card--gmap' : ''}`}>
+          <GoogleMapEmbed src={trackingMapSrc} title="Route map" loading="eager" />
+          {!trackingMapSrc ? (
+            <>
+              <div className="lt-map-card__route" aria-hidden />
+              <div className="lt-map-card__pin lt-map-card__pin--store">
+                <MapStoreIcon />
+              </div>
+              <div className="lt-map-card__pin lt-map-card__pin--rider">
+                <MapRiderIcon />
+              </div>
+              <div className="lt-map-card__pin lt-map-card__pin--home">
+                <MapHomeIcon />
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        {pollErr ? (
+          <p className="lt-alert" role="alert">
+            {pollErr}
+          </p>
+        ) : null}
+        {isCancelled ? (
+          <p className="lt-alert lt-alert--info" role="status">
+            This order has been cancelled.
+          </p>
+        ) : null}
+
+        <section className="lt-timeline-card" aria-label="Order progress">
+          <ol className="lt-timeline">
+            {TIMELINE_STEPS.map((s, i) => {
+              const st = getTimelineStepState(i, activeIndex);
+              const time =
+                st === 'pending' ? '—' : stepTimes[i] || (st === 'active' ? '—' : null);
+              return (
+                <li
+                  key={s.id}
+                  className={`lt-timeline__item lt-timeline__item--${st}`}
+                >
+                  <span className="lt-timeline__marker" aria-hidden>
+                    {st === 'done' ? (
+                      <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+                        <path
+                          d="M1.5 5.5l3 3.5L10 1.5"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : null}
+                  </span>
+                  <span className="lt-timeline__label">{s.label}</span>
+                  <span className="lt-timeline__time">{time || '—'}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+
+        {hasDriver ? (
+          <section className="lt-rider-card" aria-label="Your rider">
+            <div className="lt-rider-card__avatar oc-avatar" aria-hidden />
+            <div className="lt-rider-card__info">
+              <span className="lt-rider-card__role">Rider</span>
+              <p className="lt-rider-card__name">{driverUi.name}</p>
+              <p className="lt-rider-card__rating">
+                {driverRating} <span aria-hidden>★</span>
+              </p>
+            </div>
+            <div className="lt-rider-card__actions">
+              {/\d/.test(String(driverUi.phone || '')) ? (
+                <a
+                  className="lt-rider-card__btn"
+                  href={`tel:${String(driverUi.phone).replace(/[^\d+]/g, '')}`}
+                  aria-label="Call rider"
+                >
+                  <IconPhone />
+                </a>
+              ) : (
+                <button type="button" className="lt-rider-card__btn" aria-label="Call rider" disabled>
+                  <IconPhone />
+                </button>
+              )}
+              <button
+                type="button"
+                className="lt-rider-card__btn"
+                aria-label="Message rider"
+                onClick={() =>
+                  navigate('/chat', {
+                    state: { name: driverUi.name, role: 'driver' },
+                  })
+                }
+              >
+                <IconChat2 />
+              </button>
+            </div>
+          </section>
         ) : null}
       </div>
 
-      <div className="lt-sheet">
-        <div className="lt-sheet__inner">
-          {pollErr ? (
-            <p className="lt-pollErr" role="alert">
-              {pollErr}
-            </p>
-          ) : null}
-          {isCancelled ? (
-            <p className="lt-cancelledBanner" role="status">
-              This order has been cancelled.
-            </p>
-          ) : null}
-
-          <div className="lt-stepper" style={{ position: 'relative' }}>
-            <hr className="lt-stepper__line" />
-            {STEPS.map((s, i) => {
-              const st = getStepState(i, activeIndex);
-              return (
-                <div
-                  key={s.id}
-                  className={`lt-st${st === 'done' ? ' lt-st--done' : st === 'active' ? ' lt-st--active' : ''}`}
-                >
-                  <div className="lt-st__icon" style={{ minHeight: 14, justifyContent: 'center' }} aria-hidden>
-                    {st === 'done' && (
-                      <svg viewBox="0 0 12 12" width="9" height="9" fill="none">
-                        <path d="M1.5 5.5l3 3.5L10 1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                      </svg>
-                    )}
-                    {st === 'active' && (waitingForDriver && i === 1 ? <span className="lt-pulse lt-pulse--wait" /> : <span className="lt-pulse" />)}
-                    {st === 'pending' && (
-                      <span
-                        style={{
-                          display: 'block',
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: '#d8d8d8',
-                        }}
-                      />
-                    )}
-                  </div>
-                  <p className="lt-st__text">{s.label}</p>
-                </div>
-              );
-            })}
-          </div>
-
-          {hasDriver ? (
-            <div className="lt-dcard">
-              <div className="oc-avatar" style={{ width: 44, height: 44, flexShrink: 0 }} aria-hidden />
-              <div className="oc-dtext" style={{ flex: 1, minWidth: 0 }}>
-                <p className="oc-dname" style={{ margin: '0 0 0.1rem' }}>
-                  {driverUi.name}
-                </p>
-                {String(liveRow?.driver_nav_leg || '').toLowerCase() === 'to_dropoff' ? (
-                  <p className="lt-dstatus">On the way to drop-off</p>
-                ) : (
-                  <p className="lt-dstatus">On the way to pickup</p>
-                )}
-                <p className="lt-eta">{order.eta ? `Est. ${order.eta}` : 'Track on the map above'}</p>
-                <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: '#555' }}>
-                  {driverUi.vehicle} · {driverUi.plate}
-                </p>
-              </div>
-              <div className="oc-dactions" style={{ flexShrink: 0 }}>
-                {/\d/.test(String(driverUi.phone || '')) ? (
-                  <a
-                    className="oc-icon-btn"
-                    href={`tel:${String(driverUi.phone).replace(/[^\d+]/g, '')}`}
-                    aria-label="Call driver"
-                  >
-                    <IconPhone />
-                  </a>
-                ) : (
-                  <button type="button" className="oc-icon-btn" aria-label="Call driver" disabled>
-                    <IconPhone />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="oc-icon-btn"
-                  aria-label="Message driver"
-                  onClick={() =>
-                    navigate('/chat', {
-                      state: { name: driverUi.name, role: 'driver' },
-                    })
-                  }
-                >
-                  <IconChat2 />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="lt-dcard lt-dcard--wait">
-              <div className="oc-avatar oc-avatar--ph" style={{ width: 44, height: 44, flexShrink: 0 }} aria-hidden />
-              <div className="oc-dtext" style={{ flex: 1, minWidth: 0 }}>
-                <p className="oc-dname" style={{ margin: '0 0 0.1rem' }}>
-                  {pollTarget ? 'Matching a driver' : 'Driver updates'}
-                </p>
-                <p className="lt-dstatus">
-                  {pollTarget
-                    ? 'Hang tight — the map shows your route. A driver will appear here when they accept.'
-                    : 'Book with an account linked to Supabase to see live driver assignment.'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="lt-pkg">
-            <span>
-              {(order.packageInfo || order.package || {}).type || 'Documents'} ·{' '}
-              {(order.packageInfo || order.package || {}).size || 'Medium'}
-            </span>
-            <span className="lt-pkg__id">{orderId}</span>
-          </div>
-
-          {isDelivered && hasDriver ? (
-            <button
-              type="button"
-              className="da-navB"
-              style={{ margin: '0.25rem 0 0.5rem' }}
-              onClick={() =>
-                navigate('/rate', {
-                  state: {
-                    order: { id: orderId, from: fromAddr, to: toAddr, driver: driverUi },
-                    reviewContext: {
-                      bookingTable: isDelivery ? 'customer_delivery_orders' : rideTable,
-                      bookingId: pollTarget,
-                      revieweeDriverId: liveDriverRow?.id || null,
-                    },
-                  },
-                })
-              }
-            >
-              Rate Driver
-            </button>
-          ) : null}
-
-          {showCancel && (
-            <button type="button" className="lt-cancel" onClick={() => setCancelModalOpen(true)}>
-              Cancel Order
-            </button>
-          )}
-        </div>
+      <div className="lt-footer">
+        <button
+          type="button"
+          className="lt-details-btn"
+          disabled={!orderDetailsTo}
+          onClick={() => orderDetailsTo && navigate(orderDetailsTo)}
+        >
+          Order Details
+        </button>
       </div>
-
-      {cancelModalOpen ? (
-        <div className="lt-modalRoot" role="dialog" aria-modal="true" aria-labelledby="lt-cancel-title">
-          <button
-            type="button"
-            className="lt-modalBackdrop"
-            aria-label="Close"
-            disabled={cancelWorking}
-            onClick={() => !cancelWorking && setCancelModalOpen(false)}
-          />
-          <div className="lt-modalCard">
-            <div className="lt-modalIcon" aria-hidden>
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none">
-                <circle cx="12" cy="12" r="9" stroke="#F18631" strokeWidth="1.4" />
-                <path d="M8 8l8 8M16 8l-8 8" stroke="#c62828" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </div>
-            <h2 id="lt-cancel-title" className="lt-modalTitle">
-              Cancel this order?
-            </h2>
-            <p className="lt-modalText">
-              {pollTarget
-                ? 'Your request will be marked as cancelled. If a driver was already assigned, they will be notified that the job is off.'
-                : 'You’ll leave tracking and return home. This demo booking isn’t saved to the server.'}
-            </p>
-            <p className="lt-modalOrderRef">{orderId}</p>
-            {cancelErr ? (
-              <p className="lt-modalErr" role="alert">
-                {cancelErr}
-              </p>
-            ) : null}
-            <div className="lt-modalActions">
-              <button type="button" className="lt-modalBtnGhost" disabled={cancelWorking} onClick={() => setCancelModalOpen(false)}>
-                Keep order
-              </button>
-              <button type="button" className="lt-modalBtnDanger" disabled={cancelWorking} onClick={() => confirmCancelOrder()}>
-                {cancelWorking ? 'Cancelling…' : 'Yes, cancel'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -1,0 +1,655 @@
+/* Shop Owner — Payments premium */
+.sopay-page {
+  --sopay-blue: #07408f;
+  --sopay-orange: #ec6c23;
+  --sopay-orange-dark: #d45a10;
+  --sopay-grey: #6b7280;
+  --sopay-page-bg: #f0f2f5;
+  --sopay-info-bg: #e8f0fb;
+  color: #1f2937;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* Header */
+.sopay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sopay-head h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 4.5vw, 1.65rem);
+  font-weight: 800;
+  color: var(--sopay-blue);
+  line-height: 1.2;
+}
+
+.sopay-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.9rem;
+  border: 2px solid var(--sopay-blue);
+  border-radius: 50rem;
+  background: #fff;
+  color: var(--sopay-blue);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: default;
+  max-width: 100%;
+}
+
+.sopay-date-btn input {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  min-width: 0;
+  flex: 1;
+  cursor: default;
+}
+
+.sopay-date-btn input:focus {
+  outline: none;
+}
+
+.sopay-date-icon {
+  flex-shrink: 0;
+  line-height: 0;
+  color: var(--sopay-blue);
+}
+
+.sopay-error {
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.sopay-error p {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* Revenue hero */
+.sopay-hero {
+  padding: 1.15rem 1.1rem 1rem;
+  background: var(--sopay-blue);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(7, 64, 143, 0.22);
+  color: #fff;
+}
+
+.sopay-hero-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sopay-hero-value {
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 3.25rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.sopay-hero-sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* Stats row */
+.sopay-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+@media (max-width: 400px) {
+  .sopay-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sopay-stat {
+  padding: 1rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  min-height: 6.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.sopay-stat-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sopay-grey);
+}
+
+.sopay-stat-value {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #1f2937;
+}
+
+.sopay-stat-value--blue {
+  color: var(--sopay-blue);
+}
+
+.sopay-stat-foot {
+  margin: auto 0 0;
+  padding-top: 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--sopay-grey);
+}
+
+.sopay-pill-processing {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--sopay-orange);
+  border-radius: 50rem;
+}
+
+/* Payout account */
+.sopay-payout {
+  padding: 1rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.sopay-payout h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--sopay-blue);
+}
+
+.sopay-account-line {
+  margin: 0 0 0.35rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #374151;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.sopay-badge-primary {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--sopay-blue);
+  border-radius: 50rem;
+  vertical-align: middle;
+}
+
+.sopay-available {
+  margin: 0 0 0.85rem;
+  font-size: 0.8125rem;
+  color: var(--sopay-grey);
+  font-weight: 500;
+}
+
+.sopay-available strong {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.sopay-withdraw-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.sopay-amount-wrap {
+  flex: 1 1 10rem;
+  display: flex;
+  align-items: stretch;
+  min-height: 48px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.sopay-amount-wrap:focus-within {
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 3px rgba(7, 64, 143, 0.1);
+}
+
+.sopay-amount-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  font-weight: 700;
+  color: var(--sopay-blue);
+  background: #f9fafb;
+  border-right: 1px solid #e2e8f0;
+}
+
+.sopay-amount-input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  border: none;
+  font-size: 1rem;
+  font-family: inherit;
+  padding: 0 0.85rem;
+  color: #1f2937;
+}
+
+.sopay-amount-input:focus {
+  outline: none;
+}
+
+.sopay-btn-withdraw-all {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0.5rem 0.9rem;
+  border: 2px solid var(--sopay-blue);
+  border-radius: 50rem;
+  background: #fff;
+  color: var(--sopay-blue);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sopay-btn-withdraw-all:hover {
+  background: var(--sopay-info-bg);
+}
+
+.sopay-btn-withdraw {
+  flex: 0 0 auto;
+  align-self: center;
+  min-height: 48px;
+  padding: 0 1.25rem;
+  border: none;
+  border-radius: 50rem;
+  background: linear-gradient(135deg, var(--sopay-orange) 0%, var(--sopay-orange-dark) 100%);
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(236, 108, 35, 0.4);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.sopay-btn-withdraw:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--sopay-orange-dark) 0%, var(--sopay-orange) 100%);
+  box-shadow: 0 6px 18px rgba(236, 108, 35, 0.48);
+}
+
+.sopay-btn-withdraw:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sopay-flash {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sopay-flash--ok {
+  color: #0d5c2f;
+}
+
+.sopay-flash--err {
+  color: #b42318;
+}
+
+/* Section headers */
+.sopay-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sopay-sec-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--sopay-blue);
+}
+
+.sopay-btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.9rem;
+  border: 2px solid var(--sopay-blue);
+  border-radius: 50rem;
+  background: #fff;
+  color: var(--sopay-blue);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sopay-btn-refresh:hover:not(:disabled) {
+  background: var(--sopay-info-bg);
+}
+
+.sopay-btn-refresh:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Filter tabs */
+.sopay-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.1rem;
+}
+
+.sopay-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.sopay-tab {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.85rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 50rem;
+  background: #fff;
+  color: #374151;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sopay-tab--on {
+  background: var(--sopay-orange);
+  border-color: var(--sopay-orange);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* Table card */
+.sopay-table-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.sopay-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sopay-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  table-layout: fixed;
+}
+
+.sopay-table th {
+  padding: 0.75rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sopay-blue);
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.sopay-table td {
+  padding: 0.7rem 0.65rem;
+  border-bottom: 1px solid #f0f2f5;
+  vertical-align: middle;
+  color: #374151;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.sopay-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sopay-table-loading td,
+.sopay-table-empty td {
+  text-align: center;
+  padding: 1.75rem 1rem;
+  color: var(--sopay-grey);
+}
+
+.sopay-table-empty td {
+  font-style: italic;
+}
+
+.sopay-table-empty-wrap {
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.sopay-table-empty-wrap p {
+  margin: 0.65rem 0 0;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--sopay-grey);
+}
+
+.sopay-amount-pos {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.sopay-amount-neg {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.sopay-tx-type,
+.sopay-tx-status {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 50rem;
+  line-height: 1.2;
+}
+
+.sopay-tx-type--sale {
+  background: var(--sopay-info-bg);
+  color: var(--sopay-blue);
+}
+
+.sopay-tx-type--payout {
+  background: #fff5ee;
+  color: var(--sopay-orange);
+}
+
+.sopay-tx-type--refund {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.sopay-tx-status--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.sopay-tx-status--pd {
+  background: #fff5ee;
+  color: var(--sopay-orange);
+}
+
+.sopay-tx-status--fl {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Invoices */
+.sopay-invoices h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--sopay-blue);
+}
+
+.sopay-invoice-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.sopay-invoice-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: var(--sopay-grey);
+}
+
+.sopay-invoice-empty p {
+  margin: 0.65rem 0 0;
+  font-size: 0.875rem;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.sopay-invoice-list {
+  padding: 0.25rem 0;
+}
+
+.sopay-invoice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.sopay-invoice-row:last-child {
+  border-bottom: none;
+}
+
+.sopay-invoice-row a {
+  font-weight: 700;
+  color: var(--sopay-blue);
+  text-decoration: none;
+}
+
+.sopay-invoice-row a:hover {
+  text-decoration: underline;
+}
+
+.sopay-invoice-meta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--sopay-grey);
+  margin-top: 0.15rem;
+}
+
+.sopay-invoice-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sopay-invoice-amt {
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.sopay-badge-paid {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #fff;
+  background: #16a34a;
+  border-radius: 50rem;
+}
+
+.sopay-pdf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid rgba(7, 64, 143, 0.2);
+  border-radius: 8px;
+  background: var(--sopay-info-bg);
+  color: var(--sopay-blue);
+  cursor: pointer;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sopay-btn-withdraw {
+    transition: none;
+  }
+}

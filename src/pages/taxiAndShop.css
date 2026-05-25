@@ -3,6 +3,7 @@
 .shop,
 .shop-d {
   --ingo-green: #F18631;
+  --ingo-secondary: #0A58A6;
   --ingo-text: #1a1a1a;
   --ingo-muted: #6b6b6b;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
@@ -146,7 +147,7 @@
   gap: 0.3rem;
   border: none;
   background: none;
-  color: #F18631;
+  color: var(--ingo-secondary);
   font: inherit;
   font-weight: 600;
   font-size: 0.82rem;
@@ -455,7 +456,7 @@
 .taxi__ch {
   border: none;
   background: none;
-  color: #F18631;
+  color: var(--ingo-secondary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -530,7 +531,7 @@
   height: 1.05rem;
   padding: 0 0.2rem;
   border-radius: 50rem;
-  background: #F18631;
+  background: var(--ingo-secondary);
   color: #fff;
   font-size: 0.6rem;
   font-weight: 800;
@@ -644,9 +645,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 .shop__pill--on {
-  background: #F18631;
+  background: var(--ingo-secondary);
   color: #fff;
-  border-color: #F18631;
+  border-color: var(--ingo-secondary);
 }
 
 /* /shops — category boxes (All + 6 types), 2-column grid */
@@ -932,9 +933,9 @@
 .shop__pBtn {
   margin-top: auto;
   width: 100%;
-  border: 1.5px solid #F18631;
+  border: 1.5px solid var(--ingo-secondary);
   background: #fff;
-  color: #F18631;
+  color: var(--ingo-secondary);
   font: inherit;
   font-size: 0.68rem;
   font-weight: 700;
@@ -1121,9 +1122,9 @@
 }
 .shop__pAdd {
   align-self: center;
-  border: 1.5px solid #F18631;
+  border: 1.5px solid var(--ingo-secondary);
   background: #fff;
-  color: #F18631;
+  color: var(--ingo-secondary);
   font: inherit;
   font-size: 0.68rem;
   font-weight: 700;
@@ -1427,8 +1428,8 @@
 .schk__inp:focus,
 .schk__ta:focus {
   outline: none;
-  border-color: #F18631;
-  box-shadow: 0 0 0 2px rgba(241, 134, 49, 0.2);
+  border-color: var(--ingo-secondary);
+  box-shadow: 0 0 0 2px rgba(10, 88, 166, 0.18);
 }
 .schk__ta {
   resize: vertical;
@@ -1516,7 +1517,7 @@
   text-align: center;
 }
 .schk__link {
-  color: #F18631;
+  color: var(--ingo-secondary);
   font-weight: 700;
   font-size: 0.86rem;
   text-decoration: none;

@@ -1,6 +1,7 @@
 /* InGo Driver — Active delivery, Pickup confirm, Navigation, Status */
 .dd {
   --g: #F18631;
+  --s: #0A58A6;
   --t: #1a1a1a;
   --b: #e0e0e0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -19,8 +20,8 @@
 }
 .dd-inp:focus {
   outline: none;
-  border-color: var(--g);
-  box-shadow: 0 0 0 2px rgba(241, 134, 49, 0.2);
+  border-color: var(--s);
+  box-shadow: 0 0 0 2px rgba(10, 88, 166, 0.18);
 }
 /* Active delivery */
 .da-page {
@@ -105,7 +106,7 @@
   top: 48%;
   margin: -1.1rem 0 0 -1.1rem;
   border-radius: 50%;
-  border: 2px solid #F18631;
+  border: 2px solid var(--s);
   animation: daR 1.6s ease-out infinite;
   pointer-events: none;
   z-index: 2;
@@ -143,7 +144,7 @@
 }
 .da-card {
   border: 1px solid #f0f0f0;
-  border-left: 3px solid #F18631;
+  border-left: 3px solid var(--s);
   border-radius: 10px;
   padding: 0.5rem 0.5rem 0.45rem 0.5rem;
   margin-bottom: 0.5rem;
@@ -155,7 +156,7 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #F18631;
+  color: var(--s);
   margin: 0 0 0.1rem 0;
 }
 .da-addrB {
@@ -448,10 +449,10 @@
 .pu-m .pu-pinPulse {
   width: 0.5rem;
   height: 0.5rem;
-  background: #F18631;
+  background: var(--s);
   border-radius: 50%;
   animation: daR 1.6s ease-out infinite;
-  box-shadow: 0 0 0 0 rgba(241, 134, 49, 0.35);
+  box-shadow: 0 0 0 0 rgba(10, 88, 166, 0.3);
 }
 .pu-m {
   flex: 0 0 8rem;
@@ -475,7 +476,7 @@
   border: 1px solid #f0f0f0;
 }
 .pu-icoG {
-  color: #F18631;
+  color: var(--s);
   display: flex;
   justify-content: center;
   margin: 0 0 0.15rem 0;
@@ -554,23 +555,23 @@
 .pu-cb {
   width: 0.9rem;
   height: 0.9rem;
-  border: 1.5px solid #F18631;
+  border: 1.5px solid var(--s);
   border-radius: 2px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #fff;
-  color: #F18631;
+  color: var(--s);
   font-size: 0.5rem;
   line-height: 1;
   font-weight: 800;
   box-sizing: content-box;
 }
 .pu-cb--on {
-  background: #F18631;
+  background: var(--s);
   color: #fff;
-  border-color: #F18631;
+  border-color: var(--s);
 }
 .pu-pic {
   border: 1.5px dashed #b8b8b8;
@@ -590,14 +591,14 @@
   font: inherit;
 }
 .pu-ptx {
-  color: #F18631;
+  color: var(--s);
   font-weight: 800;
   font-size: 0.78rem;
   margin: 0.1rem 0 0.05rem 0;
   display: block;
 }
 .pu-ps {
-  color: #F18631;
+  color: var(--s);
   font-size: 0.7rem;
   font-weight: 800;
   margin: 0;
@@ -617,7 +618,7 @@
 }
 .pu-ta:focus {
   outline: none;
-  border-color: #F18631;
+  border-color: var(--s);
 }
 .pu-sub {
   width: 100%;
@@ -694,7 +695,7 @@
   text-align: left;
 }
 .nav-ar {
-  color: #F18631;
+  color: var(--s);
   flex-shrink: 0;
   line-height: 0;
   margin-top: 0.05rem;
@@ -767,7 +768,7 @@
 }
 .nav-eta {
   font-size: 0.8rem;
-  color: #F18631;
+  color: var(--s);
   font-weight: 800;
   margin: 0 0 0.05rem 0;
 }
@@ -816,7 +817,7 @@
 }
 .nav-mainBtn--done {
   margin-top: 0.75rem;
-  background: linear-gradient(180deg, #2f8f44 0%, #1a7a32 100%);
+  background: linear-gradient(180deg, #2f7ec6 0%, var(--s) 100%);
 }
 .nav-mainBtn:disabled {
   opacity: 0.62;
@@ -1155,7 +1156,7 @@
 .ds-suc {
   min-height: 100dvh;
   min-height: 100vh;
-  background: linear-gradient(150deg, #1fa23e, #F18631, #2aa045);
+  background: linear-gradient(150deg, var(--s), var(--g), #2f7ec6);
   display: flex;
   flex-direction: column;
   align-items: center;

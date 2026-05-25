@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
 import { formatGBP } from '../lib/currency';
 import './driverPortal.css';
+import './driverOrdersPremium.css';
 
 const TABS = [
   { id: 'active', label: 'Active' },
@@ -60,13 +61,14 @@ const HISTORY = [
 function statusClass(st) {
   if (st === 'Delivered') return 'dplOrdSt dplOrdSt--dn';
   if (st === 'Cancelled') return 'dplOrdSt dplOrdSt--cx';
-  return 'dplOrdSt dplOrdSt--pu';
+  return 'dplOrdSt dplOrdSt--pickup';
 }
 
 function lineStatusClass(label) {
-  if (label.includes('pickup')) return 'dplOrdSt dplOrdSt--pu';
-  if (label.includes('drop')) return 'dplOrdSt dplOrdSt--go';
-  return 'dplOrdSt dplOrdSt--pu';
+  const s = String(label || '').toLowerCase();
+  if (s.includes('drop')) return 'dplOrdSt dplOrdSt--enroute';
+  if (s.includes('pickup')) return 'dplOrdSt dplOrdSt--pickup';
+  return 'dplOrdSt dplOrdSt--pickup';
 }
 
 export default function DriverOrdersPage() {
@@ -81,30 +83,34 @@ export default function DriverOrdersPage() {
   const showEmptyActive = tab === 'active' && ACTIVE.length === 0;
 
   return (
-    <div className="dpl" role="main" aria-label="Orders">
-      <h1 className="dplH">Orders</h1>
-      <p className="dplIntro">Active jobs and your recent delivery history.</p>
-      <div className="dplTabs" role="tablist" aria-label="Order lists">
-        {TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            className={tab === id ? 'dplTab dplTab--on' : 'dplTab'}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
+    <div className="dpl dpl--premium" role="main" aria-label="Orders">
+      <header className="dpl__hero">
+        <h1 className="dplH dpl__title">Orders</h1>
+        <p className="dplIntro dpl__subtitle">Active jobs and your recent delivery history.</p>
+      </header>
+
+      <div className="dpl__tabsWrap">
+        <div className="dplTabs" role="tablist" aria-label="Order lists">
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              className={tab === id ? 'dplTab dplTab--on' : 'dplTab'}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
+
       <div className="dplBody">
         {tab === 'active' && (
           <>
             {showEmptyActive ? (
-              <p className="dh__pEm" style={{ marginTop: '0.5rem' }}>
-                No active deliveries. Go online on Home to receive offers.
-              </p>
+              <p className="dpl__empty">No active deliveries. Go online on Home to receive offers.</p>
             ) : (
               ACTIVE.map((row) => (
                 <div key={row.id} className="dplOrdCard dplOrdCard--act">
@@ -112,52 +118,50 @@ export default function DriverOrdersPage() {
                     <p className="dplOrdId">{row.id}</p>
                     <span className={lineStatusClass(row.lineStatus)}>{row.lineStatus}</span>
                   </div>
-                  <div className="dh-addrL dh-addrN">{row.from}</div>
-                  <div className="dh-addrL dh-addrR2">{row.to}</div>
+
+                  <div className="dplRoute">
+                    <div className="dplRoute__row dplRoute__row--pick">
+                      <span className="dplRoute__dot" aria-hidden />
+                      <p className="dplRoute__addr">{row.from}</p>
+                    </div>
+                    <div className="dplRoute__row dplRoute__row--drop">
+                      <span className="dplRoute__dot" aria-hidden />
+                      <p className="dplRoute__addr">{row.to}</p>
+                    </div>
+                  </div>
+
                   <p className="dplOrdMeta">
                     {row.pkg}
                     {' · '}
                     {row.lineTime}
                   </p>
-                  <div className="dh__row2" style={{ padding: '0.1rem 0 0.15rem 0' }}>
-                    <div className="bL">
-                      <span className="a1" style={{ fontSize: '0.72rem' }}>
-                        Payout
-                      </span>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p className="a3" style={{ margin: 0 }}>{formatGBP(row.amount)}</p>
-                    </div>
+
+                  <div className="dplOrdPayout">
+                    <span className="dplOrdPayoutLbl">Payout</span>
+                    <span className="dplOrdPayoutAmt">{formatGBP(row.amount)}</span>
                   </div>
+
                   <button type="button" className="dplOrdGo" onClick={() => openActive(row)}>
-                    Continue delivery
+                    Continue Delivery
                   </button>
                 </div>
               ))
             )}
           </>
         )}
+
         {tab === 'history' && (
           <>
-            <h2 className="dh__secH" style={{ marginTop: 0 }}>
-              Recent
-            </h2>
             {HISTORY.map((r) => (
-              <div key={r.id} className="dplOrdCard">
-                <div className="dh__row2">
-                  <div className="bL">
-                    <span className="a1">{r.id}</span>
-                    <p className="a2">{r.to}</p>
-                    <span className={statusClass(r.st)} style={{ marginTop: 6, display: 'inline-block' }}>
-                      {r.st}
-                    </span>
-                  </div>
-                  <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-                    <p className="a3" style={{ margin: '0 0 0.1rem' }}>{formatGBP(r.amt)}</p>
-                    <p className="rT" style={{ margin: 0 }}>
-                      {r.t}
-                    </p>
-                  </div>
+              <div key={r.id} className="dplOrdCard dplOrdCard--hist">
+                <div className="dplOrdTop">
+                  <p className="dplOrdId">{r.id}</p>
+                  <span className={statusClass(r.st)}>{r.st}</span>
+                </div>
+                <p className="dplOrdHistTo">{r.to}</p>
+                <div className="dplOrdPayout">
+                  <span className="dplOrdPayoutLbl">{r.t}</span>
+                  <span className="dplOrdPayoutAmt">{formatGBP(r.amt)}</span>
                 </div>
               </div>
             ))}

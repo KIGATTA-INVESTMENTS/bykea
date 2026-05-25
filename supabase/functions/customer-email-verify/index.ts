@@ -191,7 +191,7 @@ serve(async (req) => {
   try {
     body = (await req.json()) as Record<string, unknown>;
   } catch {
-    return json({ ok: false, error: 'Invalid JSON body' }, 400);
+    return json({ ok: false, error: 'Invalid request. Please try again.' });
   }
 
   const action = String(body.action ?? '').trim();
@@ -199,12 +199,12 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')?.trim();
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim();
   if (!supabaseUrl || !serviceKey) {
-    return json({ ok: false, error: 'Server is missing Supabase configuration.' }, 500);
+    return json({ ok: false, error: 'Verification is temporarily unavailable. Please try again later.' });
   }
 
   const hmacSecret = Deno.env.get('EMAIL_VERIFY_HMAC_SECRET')?.trim();
   if (!hmacSecret) {
-    return json({ ok: false, error: 'EMAIL_VERIFY_HMAC_SECRET is not set on the server.' }, 500);
+    return json({ ok: false, error: 'Verification is temporarily unavailable. Please try again later.' });
   }
 
   const supabase = createClient(supabaseUrl, serviceKey, {
@@ -215,15 +215,15 @@ serve(async (req) => {
     const email = normalizeEmail(body.email);
     const password = String(body.password ?? '');
     if (!email || !password) {
-      return json({ ok: false, error: 'Email and password are required.' }, 400);
+      return json({ ok: false, error: 'Email and password are required.' });
     }
 
     const found = await findSendRow(supabase, realm, email, password);
-    if (!found.ok) return json({ ok: false, error: found.error }, 400);
+    if (!found.ok) return json({ ok: false, error: found.error });
     const row = found.row;
 
     if (row.email_verified_at) {
-      return json({ ok: false, error: 'This email is already verified.' }, 400);
+      return json({ ok: false, error: 'This email is already verified.' });
     }
 
     const sentAt = row.email_verification_sent_at ? new Date(row.email_verification_sent_at).getTime() : 0;
@@ -232,7 +232,7 @@ serve(async (req) => {
         ok: false,
         error: 'Please wait about a minute before requesting another code.',
         retryAfterSec: Math.ceil((RESEND_MIN_INTERVAL_MS - (Date.now() - sentAt)) / 1000),
-      }, 429);
+      });
     }
 
     const code = random6Digit();
@@ -251,19 +251,19 @@ serve(async (req) => {
       .eq('id', row.id);
 
     if (uErr) {
-      return json({ ok: false, error: uErr.message || 'Could not save verification code.' }, 500);
+      return json({ ok: false, error: uErr.message || 'Could not save verification code.' });
     }
 
     const resendKey = Deno.env.get('RESEND_API_KEY')?.trim();
     if (!resendKey) {
-      return json({ ok: false, error: 'RESEND_API_KEY is not set on the server.' }, 500);
+      return json({ ok: false, error: 'Could not send verification email right now. Please try again later.' });
     }
 
     const fromRaw = Deno.env.get('RESEND_FROM_EMAIL')?.trim() || 'admin@ingo.co.zw';
     const from = fromRaw.includes('<') ? fromRaw : `InGo <${fromRaw}>`;
 
     const mailed = await sendResendEmail(resendKey, from, email, realm, code);
-    if (!mailed.ok) return json({ ok: false, error: mailed.error }, 502);
+    if (!mailed.ok) return json({ ok: false, error: mailed.error || 'Could not send verification email.' });
 
     return json({ ok: true });
   }
@@ -272,7 +272,7 @@ serve(async (req) => {
     const email = normalizeEmail(body.email);
     const code = normalizeCode(body.code);
     if (!email || code.length !== 6) {
-      return json({ ok: false, error: 'Email and a 6-digit code are required.' }, 400);
+      return json({ ok: false, error: 'Email and a 6-digit code are required.' });
     }
 
     const tbl = tableForRealm(realm);
@@ -292,7 +292,7 @@ serve(async (req) => {
         .not('email_verification_code_hash', 'is', null)
         .order('created_at', { ascending: false })
         .limit(1);
-      if (qErr) return json({ ok: false, error: qErr.message || 'Lookup failed.' }, 400);
+      if (qErr) return json({ ok: false, error: qErr.message || 'Lookup failed.' });
       row = rows && rows[0] ? (rows[0] as typeof row) : null;
     } else {
       const { data: r, error: qErr } = await supabase
@@ -300,12 +300,12 @@ serve(async (req) => {
         .select('id, email, email_verified_at, email_verification_code_hash, email_verification_expires_at')
         .eq('email', email)
         .maybeSingle();
-      if (qErr) return json({ ok: false, error: qErr.message || 'Lookup failed.' }, 400);
+      if (qErr) return json({ ok: false, error: qErr.message || 'Lookup failed.' });
       row = r as typeof row | null;
     }
 
     if (!row) {
-      return json({ ok: false, error: 'No account found for this email.' }, 400);
+      return json({ ok: false, error: 'No account found for this email.' });
     }
     if (row.email_verified_at) {
       return json({ ok: true, alreadyVerified: true });
@@ -313,13 +313,13 @@ serve(async (req) => {
 
     const exp = row.email_verification_expires_at ? new Date(row.email_verification_expires_at).getTime() : 0;
     if (!exp || Date.now() > exp) {
-      return json({ ok: false, error: 'This code has expired. Request a new one.' }, 400);
+      return json({ ok: false, error: 'This code has expired. Request a new one.' });
     }
 
     const stored = String(row.email_verification_code_hash ?? '');
     const attemptHash = await hmacSha256Hex(hmacSecret, hmacPayload(realm, email, code));
     if (!stored || !timingSafeEqualHex(stored, attemptHash)) {
-      return json({ ok: false, error: 'Invalid verification code.' }, 400);
+      return json({ ok: false, error: 'Invalid verification code.' });
     }
 
     const { error: finErr } = await supabase
@@ -332,11 +332,11 @@ serve(async (req) => {
       .eq('id', row.id);
 
     if (finErr) {
-      return json({ ok: false, error: finErr.message || 'Could not complete verification.' }, 500);
+      return json({ ok: false, error: finErr.message || 'Could not complete verification.' });
     }
 
     return json({ ok: true });
   }
 
-  return json({ ok: false, error: 'Unknown action. Use send or verify.' }, 400);
+  return json({ ok: false, error: 'Unknown action. Use send or verify.' });
 });

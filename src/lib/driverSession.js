@@ -13,6 +13,7 @@ const PROFILE_KEY = 'ingo_driver_profile';
  *   vehicle_model?: string | null,
  *   vehicle_plate?: string | null,
  *   vehicle_color?: string | null,
+ *   status?: string | null,
  * }} profile
  */
 export function saveDriverSession(profile) {
@@ -31,6 +32,7 @@ export function saveDriverSession(profile) {
         vehicle_model: profile.vehicle_model ?? '',
         vehicle_plate: profile.vehicle_plate ?? '',
         vehicle_color: profile.vehicle_color ?? '',
+        status: profile.status ?? 'approved',
       }),
     );
   } catch {
