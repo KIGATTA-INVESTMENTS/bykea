@@ -68,12 +68,13 @@ serve(async (req) => {
     language: String(body.language || 'en').trim() || 'en',
   });
 
-  const cc = String(body.country || '')
+  const cc = String(body.country || 'zw')
     .trim()
     .toLowerCase();
   if (cc.length === 2 && /^[a-z]{2}$/.test(cc)) {
     params.set('components', `country:${cc}`);
     if (cc === 'gb') params.set('region', 'uk');
+    if (cc === 'zw') params.set('region', 'zw');
   }
   if (body.typesAddress) {
     params.set('types', 'address');

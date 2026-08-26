@@ -196,6 +196,109 @@
   color: var(--sopay-blue);
 }
 
+.sopay-payout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.sopay-payout-head h2 {
+  margin: 0;
+}
+
+.sopay-btn-edit-payout {
+  border: 0;
+  background: transparent;
+  color: var(--sopay-orange, #ec6c23);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.sopay-payout-summary,
+.sopay-payout-missing {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.sopay-payout-summary p {
+  margin: 0.15rem 0;
+}
+
+.sopay-payout-form {
+  margin: 0 0 1rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sopay-payout-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.sopay-payout-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  border: 1.5px solid #d0d5dd;
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+}
+
+.sopay-payout-chip--on {
+  border-color: var(--sopay-orange, #ec6c23);
+  background: #fff7f0;
+  color: var(--sopay-blue);
+}
+
+.sopay-payout-fields {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.sopay-payout-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sopay-blue);
+}
+
+.sopay-payout-fields input,
+.sopay-payout-fields select {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #1f2937;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+}
+
 .sopay-account-line {
   margin: 0 0 0.35rem;
   font-size: 0.9375rem;

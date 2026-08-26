@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FMT_GBP as FMT } from '../lib/currency';
 import { mapRowsToCustomerProducts, mapShopOwnerToCard } from '../lib/customerShopMap';
-import { groupByCategory } from '../data/mockShopData';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { useShopCart } from '../context/ShopCartContext';
 import './shopDetailPremium.css';
+
+const POPULAR_LIMIT = 8;
+const FILTER_ALL = 'all';
+const FILTER_POPULAR = 'popular';
 
 function BackIcon() {
   return (
@@ -58,6 +61,17 @@ function CartBadge({ count }) {
   );
 }
 
+function DeliveryTruckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
+      <path d="M3 6.5h11v8H3v-8Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M14 9.5h4l3 3v2h-7v-5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx="7" cy="17" r="1.8" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="17.5" cy="17" r="1.8" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 function StorefrontIcon() {
   return (
     <svg viewBox="0 0 80 80" fill="none" aria-hidden>
@@ -70,12 +84,7 @@ function StorefrontIcon() {
       />
       <path d="M24 68V44h12v24M44 68V52h12v16" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
       <rect x="30" y="38" width="20" height="14" rx="2" className="shpd-hero__art-accent" fill="#EC6C23" stroke="none" />
-      <path
-        d="M8 32h64"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
+      <path d="M8 32h64" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
       <circle cx="40" cy="22" r="6" fill="#EC6C23" opacity="0.9" />
     </svg>
   );
@@ -83,7 +92,7 @@ function StorefrontIcon() {
 
 function ImagePlaceholderIcon() {
   return (
-    <svg className="shpd-card__ph-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden>
+    <svg className="shpd-card__ph-icon" viewBox="0 0 24 24" width="36" height="36" fill="none" aria-hidden>
       <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.4" />
       <circle cx="9" cy="10" r="1.5" fill="currentColor" />
       <path d="M3 16l5-4 4 3 3-2 6 5" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
@@ -115,6 +124,76 @@ function formatCategoryLabel(c) {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
+/** Rank products for a “Popular” shelf: in-stock first, then with photos, then higher stock. */
+function pickPopularProducts(products, limit = POPULAR_LIMIT) {
+  return [...products]
+    .sort((a, b) => {
+      const stockScore = Number(b.inStock) - Number(a.inStock);
+      if (stockScore) return stockScore;
+      const imgScore = Number(Boolean(b.imageUrl)) - Number(Boolean(a.imageUrl));
+      if (imgScore) return imgScore;
+      return (Number(b.stock) || 0) - (Number(a.stock) || 0);
+    })
+    .slice(0, limit);
+}
+
+function ProductCard({ product, inCart, onAdd, onOpen }) {
+  return (
+    <article
+      className="shpd-card"
+      role="listitem"
+      tabIndex={0}
+      onClick={() => onOpen?.(product)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen?.(product);
+        }
+      }}
+    >
+      <div className="shpd-card__media">
+        {product.imageUrl ? (
+          <img src={product.imageUrl} alt="" loading="lazy" decoding="async" />
+        ) : (
+          <div className="shpd-card__ph">
+            <ImagePlaceholderIcon />
+          </div>
+        )}
+        {!product.inStock ? <span className="shpd-card__oos">Out of stock</span> : null}
+        {product.onSale ? <span className="shpd-card__sale">Sale</span> : null}
+      </div>
+      <div className="shpd-card__body">
+        <h4 className="shpd-card__name">{product.name}</h4>
+        {product.brandName ? <p className="shpd-card__brand">{product.brandName}</p> : null}
+        <p className="shpd-card__cat">{formatCategoryLabel(product.category)}</p>
+        <div className="shpd-card__priceRow">
+          <p className="shpd-card__price">{formatP(product.price)}</p>
+          {product.compareAt ? (
+            <p className="shpd-card__compare">{formatP(product.compareAt)}</p>
+          ) : null}
+        </div>
+        {product.inStock ? (
+          <button
+            type="button"
+            className={`shpd-card__add${inCart ? ' shpd-card__add--on' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd(product);
+            }}
+            aria-label={inCart ? `${product.name} added to cart` : `Add ${product.name} to cart`}
+          >
+            {inCart ? 'Added ✓' : 'Add to cart'}
+          </button>
+        ) : (
+          <span className="shpd-card__add shpd-card__add--off" aria-disabled>
+            Unavailable
+          </span>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export default function ShopDetailPage() {
   const { shopId } = useParams();
   const navigate = useNavigate();
@@ -123,6 +202,7 @@ export default function ShopDetailPage() {
   const [prods, setProds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [filter, setFilter] = useState(FILTER_ALL);
 
   const cartProductIds = useMemo(() => new Set(items.map((l) => l.id)), [items]);
 
@@ -136,6 +216,7 @@ export default function ShopDetailPage() {
     setShop(null);
     setProds([]);
     setLoadError('');
+    setFilter(FILTER_ALL);
     setLoading(true);
     if (!isSupabaseConfigured || !supabase) {
       setShop(null);
@@ -144,11 +225,23 @@ export default function ShopDetailPage() {
       setLoading(false);
       return;
     }
-    const { data: ownerRow, error: ownerErr } = await supabase
+    const DETAIL_PRODUCT_COLUMNS =
+      'id, shop_owner_id, name, category, brand_name, description, price, compare_at_price, stock, sku, is_active, offers_free_delivery, image_primary_url, tags';
+
+    const ownerPromise = supabase
       .from('shop_owners')
       .select('id, business_name, business_type, business_address, shop_image_url')
       .eq('id', shopId)
       .maybeSingle();
+    const prodPromise = supabase
+      .from('shop_products')
+      .select(DETAIL_PRODUCT_COLUMNS)
+      .eq('shop_owner_id', shopId)
+      .eq('is_active', true)
+      .order('category', { ascending: true })
+      .order('name', { ascending: true });
+
+    const [{ data: ownerRow, error: ownerErr }, prodFirst] = await Promise.all([ownerPromise, prodPromise]);
     if (ownerErr || !ownerRow) {
       setShop(null);
       setProds([]);
@@ -158,14 +251,31 @@ export default function ShopDetailPage() {
     }
     const card = mapShopOwnerToCard(ownerRow);
     setShop(card);
-    const { data: productRows, error: prodErr } = await supabase
-      .from('shop_products')
-      .select('*')
-      .eq('shop_owner_id', shopId)
-      .eq('is_active', true)
-      .order('category', { ascending: true })
-      .order('name', { ascending: true });
     setLoading(false);
+
+    let { data: productRows, error: prodErr } = prodFirst;
+    if (prodErr && /brand_name|offers_free_delivery|column|schema cache/i.test(prodErr.message || '')) {
+      ({ data: productRows, error: prodErr } = await supabase
+        .from('shop_products')
+        .select(
+          'id, shop_owner_id, name, category, description, price, compare_at_price, stock, sku, is_active, image_primary_url, tags',
+        )
+        .eq('shop_owner_id', shopId)
+        .eq('is_active', true)
+        .order('category', { ascending: true })
+        .order('name', { ascending: true }));
+    }
+    if (prodErr && /tags|column/i.test(prodErr.message || '')) {
+      ({ data: productRows, error: prodErr } = await supabase
+        .from('shop_products')
+        .select(
+          'id, shop_owner_id, name, category, description, price, compare_at_price, stock, sku, is_active, image_primary_url',
+        )
+        .eq('shop_owner_id', shopId)
+        .eq('is_active', true)
+        .order('category', { ascending: true })
+        .order('name', { ascending: true }));
+    }
     if (prodErr) {
       setProds([]);
       setLoadError(prodErr.message);
@@ -178,19 +288,31 @@ export default function ShopDetailPage() {
     load();
   }, [load]);
 
-  const byCat = groupByCategory(prods);
+  const categories = useMemo(() => {
+    const set = new Set();
+    for (const p of prods) {
+      const label = formatCategoryLabel(p.category);
+      if (label) set.add(label);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [prods]);
+
+  const popular = useMemo(() => pickPopularProducts(prods), [prods]);
+
+  const visibleProducts = useMemo(() => {
+    if (filter === FILTER_ALL) return prods;
+    if (filter === FILTER_POPULAR) return popular;
+    return prods.filter((p) => formatCategoryLabel(p.category) === filter);
+  }, [filter, prods, popular]);
+
   const hasCart = totalCount > 0;
+  const showPopularShelf = filter === FILTER_ALL && popular.length > 0;
 
   if (loading) {
     return (
       <div className="shpd-page" role="main">
         <header className="shpd-nav">
-          <button
-            type="button"
-            className="shpd-nav__back"
-            onClick={() => navigate('/shops')}
-            aria-label="Back to shops"
-          >
+          <button type="button" className="shpd-nav__back" onClick={() => navigate('/shops')} aria-label="Back to shops">
             <BackIcon />
           </button>
           <h1 className="shpd-nav__title">Shop</h1>
@@ -207,12 +329,7 @@ export default function ShopDetailPage() {
     return (
       <div className="shpd-page" role="main">
         <header className="shpd-nav">
-          <button
-            type="button"
-            className="shpd-nav__back"
-            onClick={() => navigate('/shops')}
-            aria-label="Back to shops"
-          >
+          <button type="button" className="shpd-nav__back" onClick={() => navigate('/shops')} aria-label="Back to shops">
             <BackIcon />
           </button>
           <h1 className="shpd-nav__title">Shop</h1>
@@ -237,19 +354,25 @@ export default function ShopDetailPage() {
   return (
     <div className="shpd-page" role="main">
       <header className="shpd-nav">
-        <button
-          type="button"
-          className="shpd-nav__back"
-          onClick={() => navigate('/shops')}
-          aria-label="Back to shops"
-        >
+        <button type="button" className="shpd-nav__back" onClick={() => navigate('/shops')} aria-label="Back to shops">
           <BackIcon />
         </button>
         <h1 className="shpd-nav__title">{shop.name}</h1>
-        <Link to="/shop/cart" className="shpd-nav__cart" aria-label={`Cart, ${totalCount} items`}>
-          <CartIcon />
-          <CartBadge count={totalCount} />
-        </Link>
+        <div className="shpd-nav__actions">
+          <button
+            type="button"
+            className="shpd-nav__delivery"
+            onClick={() => navigate('/request-delivery')}
+            aria-label="Request a delivery"
+          >
+            <DeliveryTruckIcon />
+            <span>Delivery</span>
+          </button>
+          <Link to="/shop/cart" className="shpd-nav__cart" aria-label={`Cart, ${totalCount} items`}>
+            <CartIcon />
+            <CartBadge count={totalCount} />
+          </Link>
+        </div>
       </header>
 
       <section className="shpd-hero" aria-label="Shop information">
@@ -268,12 +391,54 @@ export default function ShopDetailPage() {
                 {shop.delivery} · {shop.fee}
               </span>
             </div>
+            <p className="shpd-hero__count">
+              {prods.length} {prods.length === 1 ? 'product' : 'products'}
+              {categories.length ? ` · ${categories.length} ${categories.length === 1 ? 'category' : 'categories'}` : ''}
+            </p>
           </div>
           <div className="shpd-hero__art" aria-hidden>
-            <StorefrontIcon />
+            {shop.imageUrl ? (
+              <img src={shop.imageUrl} alt="" className="shpd-hero__shopImg" loading="lazy" decoding="async" />
+            ) : (
+              <StorefrontIcon />
+            )}
           </div>
         </div>
       </section>
+
+      {prods.length > 0 ? (
+        <nav className="shpd-filters" aria-label="Filter products by category">
+          <div className="shpd-filters__track">
+            <button
+              type="button"
+              className={`shpd-chip${filter === FILTER_ALL ? ' shpd-chip--on' : ''}`}
+              aria-pressed={filter === FILTER_ALL}
+              onClick={() => setFilter(FILTER_ALL)}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`shpd-chip${filter === FILTER_POPULAR ? ' shpd-chip--on' : ''}`}
+              aria-pressed={filter === FILTER_POPULAR}
+              onClick={() => setFilter(FILTER_POPULAR)}
+            >
+              Popular
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`shpd-chip${filter === c ? ' shpd-chip--on' : ''}`}
+                aria-pressed={filter === c}
+                onClick={() => setFilter(c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </nav>
+      ) : null}
 
       {loadError ? (
         <p className="shpd-status shpd-status--err" style={{ marginTop: '0.75rem' }} role="alert">
@@ -285,60 +450,63 @@ export default function ShopDetailPage() {
         {prods.length === 0 && !loadError ? (
           <div className="shpd-empty" role="status">
             <EmptyCategoryIcon />
-            <p className="shpd-empty__text">No products in this category yet.</p>
+            <p className="shpd-empty__text">This shop has no products yet.</p>
           </div>
         ) : null}
 
-        {byCat.map(([cname, products]) => (
-          <section key={cname} className="shpd-cat">
-            <div className="shpd-cat__head">
-              <h3 className="shpd-cat__label">{cname}</h3>
-              <span className="shpd-cat__line" aria-hidden />
+        {showPopularShelf ? (
+          <section className="shpd-shelf" aria-label="Popular products">
+            <div className="shpd-shelf__head">
+              <h3 className="shpd-shelf__title">Popular</h3>
+              <button type="button" className="shpd-shelf__more" onClick={() => setFilter(FILTER_POPULAR)}>
+                See all
+              </button>
             </div>
-            {products.length === 0 ? (
+            <div className="shpd-grid" role="list">
+              {popular.map((p) => (
+                <ProductCard
+                  key={`pop-${p.id}`}
+                  product={p}
+                  inCart={cartProductIds.has(p.id)}
+                  onAdd={addToCart}
+                  onOpen={(prod) => navigate(`/shop/${shopId}/product/${prod.id}`)}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {prods.length > 0 ? (
+          <section
+            className="shpd-shelf"
+            aria-label={filter === FILTER_POPULAR ? 'Popular products' : filter === FILTER_ALL ? 'All products' : filter}
+          >
+            <div className="shpd-shelf__head">
+              <h3 className="shpd-shelf__title">
+                {filter === FILTER_ALL ? 'All products' : filter === FILTER_POPULAR ? 'Popular' : filter}
+              </h3>
+              <span className="shpd-shelf__count">{visibleProducts.length}</span>
+            </div>
+            {visibleProducts.length === 0 ? (
               <div className="shpd-empty" role="status">
                 <EmptyCategoryIcon />
                 <p className="shpd-empty__text">No products in this category yet.</p>
               </div>
             ) : (
-              <div className="shpd-products" role="list">
-                {products.map((p) => {
-                  const inCart = cartProductIds.has(p.id);
-                  return (
-                    <article key={p.id} className="shpd-card" role="listitem">
-                      <div className="shpd-card__thumb">
-                        {p.imageUrl ? (
-                          <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" />
-                        ) : (
-                          <ImagePlaceholderIcon />
-                        )}
-                      </div>
-                      <div className="shpd-card__body">
-                        <h4 className="shpd-card__name">{p.name}</h4>
-                        <p className="shpd-card__price">{formatP(p.price)}</p>
-                        <span className="shpd-card__tag">{formatCategoryLabel(p.category)}</span>
-                      </div>
-                      {p.inStock ? (
-                        <button
-                          type="button"
-                          className={`shpd-card__add${inCart ? ' shpd-card__add--on' : ''}`}
-                          onClick={() => addToCart(p)}
-                          aria-label={inCart ? `${p.name} added to cart` : `Add ${p.name} to cart`}
-                        >
-                          {inCart ? 'Added ✓' : 'Add to cart'}
-                        </button>
-                      ) : (
-                        <span className="shpd-card__add shpd-card__add--off" aria-disabled>
-                          Unavailable
-                        </span>
-                      )}
-                    </article>
-                  );
-                })}
+              <div className="shpd-grid" role="list">
+                {visibleProducts.map((p) => (
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    inCart={cartProductIds.has(p.id)}
+                    onAdd={addToCart}
+                    onOpen={(prod) => navigate(`/shop/${shopId}/product/${prod.id}`)}
+                  />
+                ))}
               </div>
             )}
           </section>
-        ))}
+        ) : null}
       </div>
 
       {hasCart ? (

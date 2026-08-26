@@ -6,11 +6,11 @@
 alter table public.customer_delivery_orders drop constraint if exists customer_delivery_orders_payment_chk;
 alter table public.customer_delivery_orders
   add constraint customer_delivery_orders_payment_chk check (
-    payment_method in ('ecocash', 'card', 'cod', 'stripe')
+    payment_method in ('ecocash', 'card', 'cod', 'stripe', 'wallet')
   );
 
 comment on column public.customer_delivery_orders.payment_method is
-  'cod = cash; card = Paynow; stripe = Stripe card; ecocash = legacy';
+  'cod = cash; card = Paynow; stripe = Stripe card; wallet = in-app wallet; ecocash = legacy';
 
 alter table public.customer_delivery_orders
   add column if not exists stripe_payment_intent_id text;

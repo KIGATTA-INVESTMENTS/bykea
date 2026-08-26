@@ -196,6 +196,49 @@
   color: var(--so-reg-grey-soft);
 }
 
+.so-reg-group-note {
+  margin: -0.5rem 0 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--so-reg-grey-soft);
+}
+
+.so-reg-payout-choice {
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+
+.so-reg-payout-choice__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.so-reg-payout-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  border: 1.5px solid #d0d5dd;
+  background: #fff;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+}
+
+.so-reg-payout-chip input {
+  margin: 0;
+}
+
+.so-reg-payout-chip--on {
+  border-color: var(--so-reg-orange, #ec6c23);
+  background: #fff7f0;
+  color: var(--so-reg-blue, #07408f);
+}
+
 .so-reg-field {
   margin-bottom: 1rem;
 }

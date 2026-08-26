@@ -1,0 +1,66 @@
+.lt-route-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  border-radius: inherit;
+  overflow: hidden;
+  background: linear-gradient(165deg, #e8edf3, #d4dce8);
+}
+
+.lt-route-map__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  touch-action: none;
+}
+
+.lt-route-map__hud {
+  position: absolute;
+  left: 0.65rem;
+  right: 3.25rem;
+  bottom: 0.65rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 4px 18px rgba(7, 64, 143, 0.16);
+  border: 1px solid rgba(7, 64, 143, 0.08);
+  pointer-events: none;
+}
+
+.lt-route-map__hud-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.lt-route-map__hud-eta {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #07408f;
+  line-height: 1.1;
+}
+
+.lt-route-map__hud-dist {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #4b5563;
+  line-height: 1.2;
+}
+
+.lt-route-map__hud-leg {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b7280;
+}

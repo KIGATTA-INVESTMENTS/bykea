@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
-import { Link } from 'react-router-dom';
 import { formatGBP } from '../lib/currency';
+import { formatShopOwnerPayoutSummary } from '../lib/shopOwnerPayoutAccount';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
 
@@ -22,6 +22,8 @@ import './adminPortal.css';
  *  createdIso: string | null;
  *  status: string;
  *  shop_image_url?: string | null;
+ *  referralCode: string | null;
+ *  payoutSummary: ReturnType<typeof formatShopOwnerPayoutSummary>;
  * }} ShopOwnerRow */
 
 function formatJoinLabel(iso) {
@@ -90,10 +92,37 @@ export default function AdminShopOwnerManagementPage() {
     const errs = [];
 
     try {
-      const { data: owners, error: oErr } = await supabase
+      const PAYOUT_COLS =
+        'bank_name, bank_account_name, bank_account_number, bank_branch, payout_method, mobile_money_provider, mobile_money_phone, mobile_money_account_name';
+      let { data: owners, error: oErr } = await supabase
         .from('shop_owners')
-        .select('id, business_name, owner_full_name, phone, email, business_type, business_address, shop_image_url, created_at')
+        .select(
+          `id, business_name, owner_full_name, phone, email, business_type, business_address, shop_image_url, referral_code, created_at, ${PAYOUT_COLS}`,
+        )
         .order('created_at', { ascending: false });
+
+      if (
+        oErr &&
+        /payout_method|mobile_money|bank_name|bank_account_name|bank_account_number|bank_branch|column/i.test(
+          oErr.message || '',
+        )
+      ) {
+        const BANK_ONLY = 'bank_name, bank_account_name, bank_account_number, bank_branch';
+        ({ data: owners, error: oErr } = await supabase
+          .from('shop_owners')
+          .select(
+            `id, business_name, owner_full_name, phone, email, business_type, business_address, shop_image_url, referral_code, created_at, ${BANK_ONLY}`,
+          )
+          .order('created_at', { ascending: false }));
+        if (oErr && /bank_name|column/i.test(oErr.message || '')) {
+          ({ data: owners, error: oErr } = await supabase
+            .from('shop_owners')
+            .select(
+              'id, business_name, owner_full_name, phone, email, business_type, business_address, shop_image_url, referral_code, created_at',
+            )
+            .order('created_at', { ascending: false }));
+        }
+      }
 
       if (oErr) {
         errs.push(oErr.message);
@@ -180,6 +209,8 @@ export default function AdminShopOwnerManagementPage() {
           createdIso: r.created_at ?? null,
           status: 'Active',
           shop_image_url: r.shop_image_url,
+          referralCode: r.referral_code?.trim() || null,
+          payoutSummary: formatShopOwnerPayoutSummary(r),
         };
       });
 
@@ -321,6 +352,7 @@ export default function AdminShopOwnerManagementPage() {
               <tr>
                 <th>Shop</th>
                 <th>Email</th>
+                <th>Referral code</th>
                 <th>Business type</th>
                 <th>Area</th>
                 <th>Orders</th>
@@ -334,13 +366,13 @@ export default function AdminShopOwnerManagementPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="admDim" style={{ padding: '1.2rem', textAlign: 'center' }}>
+                  <td colSpan={11} className="admDim" style={{ padding: '1.2rem', textAlign: 'center' }}>
                     Loading shop owners…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="admDim" style={{ padding: '1.2rem', textAlign: 'center' }}>
+                  <td colSpan={11} className="admDim" style={{ padding: '1.2rem', textAlign: 'center' }}>
                     No shop owners match your filters. Registrations appear here after signup.
                   </td>
                 </tr>
@@ -359,6 +391,7 @@ export default function AdminShopOwnerManagementPage() {
                     <td className="admDim" style={{ maxWidth: '14rem', wordBreak: 'break-all', fontSize: '0.82rem' }} title={item.email}>
                       {item.email}
                     </td>
+                    <td className="admDim">{item.referralCode || '—'}</td>
                     <td>
                       <span className="admBadgeStatus admBlue">{item.type}</span>
                     </td>
@@ -380,14 +413,7 @@ export default function AdminShopOwnerManagementPage() {
                         <button
                           type="button"
                           aria-label={`Delete ${item.shop}`}
-                          style={{
-                            padding: '0 0.25rem',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: '#d34444',
-                            display: 'inline-flex',
-                          }}
+                          style={{ color: '#d34444' }}
                           onClick={() => {
                             setPendingDelete({ id: item.id, shop: item.shop, ordersLinked: item.ordersLinked });
                             setDeleteErr('');
@@ -467,6 +493,14 @@ export default function AdminShopOwnerManagementPage() {
                 <p className="admDim" style={{ margin: '0.35rem 0 0', wordBreak: 'break-all' }}>
                   {selected.email}
                 </p>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.88rem' }}>
+                  <span className="admDim">Referral code:</span>{' '}
+                  {selected.referralCode ? (
+                    <span className="admBadgeStatus admBlue">{selected.referralCode}</span>
+                  ) : (
+                    <span className="admDim">None</span>
+                  )}
+                </p>
               </section>
 
               <section className="admPanelBlock">
@@ -475,6 +509,50 @@ export default function AdminShopOwnerManagementPage() {
                 <p className="admDim" style={{ margin: 0, lineHeight: 1.45 }}>
                   {selected.addressFull}
                 </p>
+              </section>
+
+              <section className="admPanelBlock">
+                <h4 style={{ marginTop: 0 }}>Payout account</h4>
+                {selected.payoutSummary ? (
+                  <div style={{ display: 'grid', gap: '0.4rem', fontSize: '0.88rem' }}>
+                    <div>
+                      <span className="admDim">Method:</span>{' '}
+                      <span className="admBadgeStatus admBlue">{selected.payoutSummary.method}</span>
+                    </div>
+                    {selected.payoutSummary.method === 'Mobile money' ? (
+                      <>
+                        <div>
+                          <span className="admDim">Provider:</span> {selected.payoutSummary.provider}
+                        </div>
+                        <div>
+                          <span className="admDim">Name on account:</span> {selected.payoutSummary.accountName}
+                        </div>
+                        <div style={{ wordBreak: 'break-all' }}>
+                          <span className="admDim">Mobile money phone:</span> {selected.payoutSummary.phone}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="admDim">Bank:</span> {selected.payoutSummary.bankName}
+                        </div>
+                        <div>
+                          <span className="admDim">Account name:</span> {selected.payoutSummary.accountName}
+                        </div>
+                        <div style={{ wordBreak: 'break-all' }}>
+                          <span className="admDim">Account number:</span> {selected.payoutSummary.accountNumber}
+                        </div>
+                        <div>
+                          <span className="admDim">Branch / code:</span> {selected.payoutSummary.branch}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p className="admDim" style={{ margin: 0 }}>
+                    No payout details on file.
+                  </p>
+                )}
               </section>
 
               <section className="admGrid2" style={{ marginBottom: '0.75rem' }}>
@@ -502,31 +580,6 @@ export default function AdminShopOwnerManagementPage() {
                     Registered
                   </p>
                 </div>
-              </section>
-
-              <section className="admPanelActions" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'stretch' }}>
-                <Link
-                  className="admOutlineBtn"
-                  to="/admin/shop-orders"
-                  style={{ textAlign: 'center', textDecoration: 'none', display: 'inline-block' }}
-                >
-                  View shop orders
-                </Link>
-                <button
-                  className="admDangerBtn"
-                  type="button"
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
-                  onClick={() => {
-                    if (!selected) return;
-                    setPendingDelete({ id: selected.id, shop: selected.shop, ordersLinked: selected.ordersLinked });
-                    setDeleteErr('');
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', color: 'inherit', opacity: 0.95 }} aria-hidden>
-                    <IconTrash />
-                  </span>
-                  Delete shop owner
-                </button>
               </section>
             </>
           )}

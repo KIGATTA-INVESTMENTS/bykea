@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useShopCart } from '../context/ShopCartContext';
+import { buildLiveTrackingState } from '../lib/liveTrackingState';
 import { writeShopOrderConfirmationState } from '../lib/shopOrderConfirmationSession';
 import {
   stripeEdgeFinalizeCheckoutSession,
@@ -47,6 +48,15 @@ export default function StripeReturnPage() {
           } catch {
             // ignore
           }
+          writeShopOrderConfirmationState(ctx.state);
+          navigate('/order-confirmation', { replace: true, state: ctx.state });
+          return;
+        }
+        const ltState = buildLiveTrackingState(ctx.state);
+        if (ltState) {
+          writeShopOrderConfirmationState(ctx.state);
+          navigate('/live-tracking', { replace: true, state: ltState });
+          return;
         }
         writeShopOrderConfirmationState(ctx.state);
         navigate('/order-confirmation', { replace: true, state: ctx.state });
@@ -67,6 +77,14 @@ export default function StripeReturnPage() {
 
       if (ctx?.flow === 'driver_wallet') {
         navigate('/driver/wallet', { replace: true });
+        return;
+      }
+
+      if (ctx?.flow === 'customer_wallet') {
+        navigate('/wallet', {
+          replace: true,
+          state: { walletTopupPaid: true, walletTopupId: ctx.topupId || null },
+        });
         return;
       }
 

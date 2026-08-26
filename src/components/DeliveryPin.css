@@ -1,0 +1,52 @@
+.dpin {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: nowrap;
+  margin: 0.35rem 0 0.45rem;
+}
+
+.dpin__box {
+  width: 2.35rem;
+  height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-align: center;
+  box-sizing: border-box;
+  caret-color: #0a58a6;
+}
+
+.dpin__box:focus {
+  outline: none;
+  border-color: #0a58a6;
+  box-shadow: 0 0 0 3px rgba(10, 88, 166, 0.18);
+}
+
+.dpin__box:disabled {
+  opacity: 0.65;
+}
+
+.dpin--view .dpin__box {
+  border-color: #bbd3ea;
+  background: #f4f8fc;
+  color: #0a58a6;
+  pointer-events: none;
+}
+
+@media (max-width: 360px) {
+  .dpin__box {
+    width: 2.05rem;
+    height: 2.5rem;
+    font-size: 1.05rem;
+  }
+}

@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import DeliveryPin from '../components/DeliveryPin';
+import PackagePhotoCapture from '../components/PackagePhotoCapture';
 import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
 import { formatGBP } from '../lib/currency';
 import './driverDelivery.css';
@@ -38,16 +40,10 @@ export default function DriverDeliveryStatusPage() {
   const activeStep = 4;
   const [showModal, setShowModal] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [photo, setPhoto] = useState(false);
+  const [photo, setPhoto] = useState('');
   const [note, setNote] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '']);
+  const [otp, setOtp] = useState('');
 
-  const onO = (i, v) => {
-    const d = v.replace(/\D/g, '').slice(0, 1);
-    const n = [...otp];
-    n[i] = d;
-    setOtp(n);
-  };
   const confirm = useCallback(() => {
     if (!photo) return;
     setShowModal(false);
@@ -212,14 +208,16 @@ export default function DriverDeliveryStatusPage() {
         <div className="ds-mod" role="presentation" onClick={() => setShowModal(false)}>
           <div className="ds-mod2" role="dialog" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '90vh' }}>
             <h2>Confirm Delivery</h2>
-            <button type="button" className="ms-pic" onClick={() => setPhoto(true)} style={{ margin: '0.2rem 0.6rem' }}>
-              <span>📷</span>
-              <br />
-              <span className="ms-req">Required</span>
-              <br />
-              <span style={{ color: '#F18631', fontSize: 12, fontWeight: 800 }}>Take proof of delivery photo</span>
-              {photo && <p style={{ color: '#1a7a32', fontSize: 11, margin: 4 }}>Photo added (demo)</p>}
-            </button>
+            <div style={{ margin: '0.35rem 0.6rem 0.5rem' }}>
+              <PackagePhotoCapture
+                compact
+                required
+                value={photo}
+                onChange={(url) => setPhoto(url || '')}
+                label="Proof of delivery"
+                hint="Take or upload a photo of the delivered package."
+              />
+            </div>
             <p style={{ fontSize: 10, color: '#6b6b6b', margin: '0.1rem 0.6rem' }}>Delivery note (optional)</p>
             <input
               className="dd-inp"
@@ -228,18 +226,9 @@ export default function DriverDeliveryStatusPage() {
               style={{ maxWidth: '92%', textAlign: 'left', display: 'block', margin: '0 auto' }}
               placeholder="Leave with guard…"
             />
-            <p style={{ textAlign: 'center', fontSize: 9, color: '#888', margin: 6 }}>Or verify with customer OTP</p>
+            <p style={{ textAlign: 'center', fontSize: 9, color: '#888', margin: 6 }}>Or verify with the customer 6-digit PIN</p>
             <div className="ms-otp" style={{ marginBottom: 4 }}>
-              {otp.map((d, i) => (
-                <input
-                  key={i}
-                  className="dd-inp"
-                  value={d}
-                  onChange={(e) => onO(i, e.target.value)}
-                  inputMode="numeric"
-                  maxLength={1}
-                />
-              ))}
+              <DeliveryPin idPrefix="dropoff-pin" value={otp} onChange={setOtp} ariaLabel="Enter 6-digit delivery PIN from customer" />
             </div>
             <div style={{ padding: '0 0.3rem' }}>
               <button type="button" className="ds-bt2" onClick={confirm} disabled={!photo}>

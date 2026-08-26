@@ -225,7 +225,8 @@ export default function ShopOwnerLayout() {
   const portalChatRoutes = ['/shop-owner/chat', '/shop-owner/support/chat'];
   const isPortalChat = portalChatRoutes.includes(loc.pathname);
   const isPortalProfile = loc.pathname === '/shop-owner/profile';
-  const isPortalPremium = portalPremiumRoutes.includes(loc.pathname);
+  const isPortalPremium =
+    portalPremiumRoutes.includes(loc.pathname) || loc.pathname.startsWith('/shop-owner/orders/');
   const isPortalPadded =
     !isPortalChat && !isPortalProfile && loc.pathname !== '/shop-owner/dashboard';
 

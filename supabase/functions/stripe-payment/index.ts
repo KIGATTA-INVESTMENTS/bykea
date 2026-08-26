@@ -17,7 +17,9 @@
  *   { "action": "create_checkout_session", "orderKind": "...", "orderId": "<uuid>", "returnOrigin": "http://localhost:3000", "cancelPath": "/shop/cart" }
  *   { "action": "finalize_checkout_session", "sessionId": "cs_..." }
  *
- * Optional secret `STRIPE_PUBLIC_SITE_URL` (e.g. https://app.example.com) ??? required for non-localhost return origins.
+ * Production return origins (comma-separated OK):
+ *   supabase secrets set STRIPE_PUBLIC_SITE_URL=https://ingo-92d5f.web.app
+ * Also accepts `PUBLIC_APP_URL`. Defaults include this project's Firebase Hosting origins.
  *
  * `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are auto-injected on hosted Supabase.
  *
@@ -40,7 +42,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
-type OrderKind = 'shop' | 'delivery' | 'taxi' | 'tuk' | 'driver_deposit';
+type OrderKind = 'shop' | 'delivery' | 'taxi' | 'tuk' | 'driver_deposit' | 'customer_wallet';
 
 type StripeErr = { error?: { message?: string; type?: string } };
 
@@ -81,18 +83,42 @@ function penceToGbp(pence: number): number {
   return Math.round(pence) / 100;
 }
 
+/** Built-in Firebase Hosting origins for this repo (see `.firebaserc` / `server/index.js`). */
+const DEFAULT_PUBLIC_ORIGINS = [
+  'https://ingo-92d5f.web.app',
+  'https://ingo-92d5f.firebaseapp.com',
+];
+
+function parseOriginAllowlist(): string[] {
+  const fromEnv = [
+    Deno.env.get('STRIPE_PUBLIC_SITE_URL') || '',
+    Deno.env.get('PUBLIC_APP_URL') || '',
+  ]
+    .join(',')
+    .split(/[\s,]+/)
+    .map((s) => s.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+  const origins = new Set<string>([...DEFAULT_PUBLIC_ORIGINS, ...fromEnv]);
+  const normalized: string[] = [];
+  for (const raw of origins) {
+    try {
+      normalized.push(new URL(raw).origin);
+    } catch {
+      // skip invalid entries
+    }
+  }
+  return normalized;
+}
+
 function isAllowedReturnOrigin(origin: string): boolean {
-  const fixed = Deno.env.get('STRIPE_PUBLIC_SITE_URL')?.trim().replace(/\/$/, '');
   try {
     const u = new URL(origin);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
     const host = u.hostname.toLowerCase();
     if (host === 'localhost' || host === '127.0.0.1') return true;
-    if (fixed) {
-      const f = new URL(fixed);
-      return u.origin === f.origin;
-    }
-    return false;
+    const allowed = parseOriginAllowlist();
+    return allowed.includes(u.origin);
   } catch {
     return false;
   }
@@ -103,6 +129,7 @@ function checkoutProductName(orderKind: OrderKind): string {
   if (orderKind === 'delivery') return 'Delivery';
   if (orderKind === 'taxi') return 'Taxi booking';
   if (orderKind === 'tuk') return 'Tuk-tuk booking';
+  if (orderKind === 'customer_wallet') return 'Wallet top-up';
   return 'Driver deposit';
 }
 
@@ -158,6 +185,15 @@ async function readExpectedAmountGbp(
     if (error || !data) return { ok: false, reason: error?.message || 'top-up row not found' };
     return { ok: true, amountGbp: Math.round(Number(data.amount_gbp) * 100) / 100 };
   }
+  if (orderKind === 'customer_wallet') {
+    const { data, error } = await supabase
+      .from('customer_wallet_topups')
+      .select('amount_gbp')
+      .eq('id', orderId)
+      .maybeSingle();
+    if (error || !data) return { ok: false, reason: error?.message || 'customer wallet top-up not found' };
+    return { ok: true, amountGbp: Math.round(Number(data.amount_gbp) * 100) / 100 };
+  }
   return { ok: false, reason: 'unknown orderKind' };
 }
 
@@ -181,6 +217,46 @@ async function incrementDriverDepositAfterTopup(
     .update({ driver_deposit_balance_gbp: next, deposit_paid: depositPaid })
     .eq('id', driverId);
 }
+
+async function creditCustomerWalletAfterTopup(
+  supabase: ReturnType<typeof createClient>,
+  topupId: string,
+) {
+  if (!topupId) return;
+  const { error } = await supabase.rpc('credit_customer_wallet_from_topup', { p_topup_id: topupId });
+  if (!error) return;
+
+  // Fallback if RPC is missing: credit inline (still idempotent via credited_at).
+  const { data: top } = await supabase
+    .from('customer_wallet_topups')
+    .select('id, user_id, amount_gbp, payment_status, credited_at, package_label, km_credits')
+    .eq('id', topupId)
+    .maybeSingle();
+  if (!top || String(top.payment_status || '').toLowerCase() !== 'paid' || top.credited_at) return;
+  const addAmt = Number(top.amount_gbp);
+  const userId = String(top.user_id || '');
+  if (!Number.isFinite(addAmt) || addAmt <= 0 || !userId) return;
+
+  await supabase.from('customer_wallets').upsert({ user_id: userId, balance_gbp: 0 }, { onConflict: 'user_id', ignoreDuplicates: true });
+  const { data: w } = await supabase.from('customer_wallets').select('balance_gbp').eq('user_id', userId).maybeSingle();
+  const cur = Number(w?.balance_gbp) || 0;
+  const next = Math.round((cur + addAmt) * 100) / 100;
+  await supabase.from('customer_wallets').update({ balance_gbp: next, updated_at: new Date().toISOString() }).eq('user_id', userId);
+  await supabase.from('customer_wallet_transactions').insert({
+    user_id: userId,
+    entry_type: 'credit',
+    amount_gbp: addAmt,
+    balance_after: next,
+    label: String(top.package_label || 'Wallet top-up'),
+    package_label: top.package_label || null,
+    km_credits: top.km_credits ?? null,
+    ref_type: 'topup',
+    ref_id: top.id,
+  });
+  await supabase.from('customer_wallet_topups').update({ credited_at: new Date().toISOString() }).eq('id', topupId);
+}
+
+const ORDER_KINDS = ['shop', 'delivery', 'taxi', 'tuk', 'driver_deposit', 'customer_wallet'] as const;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -246,7 +322,7 @@ serve(async (req) => {
     const meta = session.metadata || {};
     const orderKind = String(meta.order_kind || '') as OrderKind;
     const orderId = String(meta.order_id || '').trim();
-    if (!orderId || !['shop', 'delivery', 'taxi', 'tuk', 'driver_deposit'].includes(orderKind)) {
+    if (!orderId || !ORDER_KINDS.includes(orderKind as (typeof ORDER_KINDS)[number])) {
       return json({ error: 'Checkout session is missing order metadata.' }, 400);
     }
 
@@ -299,6 +375,15 @@ serve(async (req) => {
       }
       const { error } = await supabase.from('customer_delivery_orders').update(paidPatch).eq('id', orderId);
       if (error) return json({ error: error.message }, 500);
+      void fetch(`${supabaseUrl}/functions/v1/driver-offer-push`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ table: 'customer_delivery_orders', orderId }),
+      }).catch(() => {});
       return json({ ok: true, orderKind, orderId });
     }
 
@@ -310,6 +395,15 @@ serve(async (req) => {
       }
       const { error } = await supabase.from(table).update(paidPatch).eq('id', orderId);
       if (error) return json({ error: error.message }, 500);
+      void fetch(`${supabaseUrl}/functions/v1/driver-offer-push`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ table, orderId }),
+      }).catch(() => {});
       return json({ ok: true, orderKind, orderId });
     }
 
@@ -330,6 +424,23 @@ serve(async (req) => {
       return json({ ok: true, orderKind, orderId });
     }
 
+    if (orderKind === 'customer_wallet') {
+      const { data: top } = await supabase
+        .from('customer_wallet_topups')
+        .select('id, payment_status')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (!top) return json({ error: 'Customer wallet top-up not found.' }, 404);
+      if (String(top.payment_status || '').toLowerCase() === 'paid') {
+        await creditCustomerWalletAfterTopup(supabase, orderId);
+        return json({ ok: true, alreadyPaid: true, orderKind, orderId });
+      }
+      const { error } = await supabase.from('customer_wallet_topups').update(paidPatch).eq('id', orderId);
+      if (error) return json({ error: error.message }, 500);
+      await creditCustomerWalletAfterTopup(supabase, orderId);
+      return json({ ok: true, orderKind, orderId });
+    }
+
     return json({ error: 'Unsupported orderKind in session metadata.' }, 400);
   }
 
@@ -337,7 +448,7 @@ serve(async (req) => {
   const orderId = String(body.orderId || '').trim();
   const paymentIntentId = String(body.paymentIntentId || '').trim();
 
-  if (!orderId || !['shop', 'delivery', 'taxi', 'tuk', 'driver_deposit'].includes(orderKind)) {
+  if (!orderId || !ORDER_KINDS.includes(orderKind as (typeof ORDER_KINDS)[number])) {
     return json({ error: 'orderKind and orderId are required.' }, 400);
   }
 
@@ -345,10 +456,11 @@ serve(async (req) => {
     const returnOrigin = String(body.returnOrigin || '').trim().replace(/\/$/, '');
     const cancelPathRaw = String(body.cancelPath || '/').trim() || '/';
     if (!returnOrigin || !isAllowedReturnOrigin(returnOrigin)) {
+      const allowed = parseOriginAllowlist();
       return json(
         {
           error:
-            'Invalid returnOrigin. Use http://localhost:3000 (or https) for local dev. For production, set Supabase secret STRIPE_PUBLIC_SITE_URL to your exact app origin (e.g. https://app.example.com).',
+            `Invalid returnOrigin (${returnOrigin || 'missing'}). Localhost is allowed; for production set Supabase secret STRIPE_PUBLIC_SITE_URL (or PUBLIC_APP_URL) to your app origin. Allowed: ${allowed.join(', ') || '(none configured)'}.`,
         },
         400,
       );
@@ -415,6 +527,9 @@ serve(async (req) => {
     } else if (orderKind === 'driver_deposit') {
       const { error } = await supabase.from('driver_wallet_topups').update(patch).eq('id', orderId);
       updErr = error;
+    } else if (orderKind === 'customer_wallet') {
+      const { error } = await supabase.from('customer_wallet_topups').update(patch).eq('id', orderId);
+      updErr = error;
     }
 
     if (updErr) {
@@ -473,6 +588,9 @@ serve(async (req) => {
       updErr = error;
     } else if (orderKind === 'driver_deposit') {
       const { error } = await supabase.from('driver_wallet_topups').update(patch).eq('id', orderId);
+      updErr = error;
+    } else if (orderKind === 'customer_wallet') {
+      const { error } = await supabase.from('customer_wallet_topups').update(patch).eq('id', orderId);
       updErr = error;
     }
 
@@ -548,6 +666,15 @@ serve(async (req) => {
       }
       const { error } = await supabase.from('customer_delivery_orders').update(paidPatch).eq('id', orderId);
       if (error) return json({ error: error.message }, 500);
+      void fetch(`${supabaseUrl}/functions/v1/driver-offer-push`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ table: 'customer_delivery_orders', orderId }),
+      }).catch(() => {});
       return json({ ok: true });
     }
 
@@ -559,6 +686,15 @@ serve(async (req) => {
       }
       const { error } = await supabase.from(table).update(paidPatch).eq('id', orderId);
       if (error) return json({ error: error.message }, 500);
+      void fetch(`${supabaseUrl}/functions/v1/driver-offer-push`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ table, orderId }),
+      }).catch(() => {});
       return json({ ok: true });
     }
 
@@ -576,6 +712,23 @@ serve(async (req) => {
       if (error) return json({ error: error.message }, 500);
       const addAmt = penceToGbp(received);
       await incrementDriverDepositAfterTopup(supabase, String(top.driver_id), addAmt);
+      return json({ ok: true });
+    }
+
+    if (orderKind === 'customer_wallet') {
+      const { data: top } = await supabase
+        .from('customer_wallet_topups')
+        .select('id, payment_status')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (!top) return json({ error: 'Customer wallet top-up not found.' }, 404);
+      if (String(top.payment_status || '').toLowerCase() === 'paid') {
+        await creditCustomerWalletAfterTopup(supabase, orderId);
+        return json({ ok: true, alreadyPaid: true });
+      }
+      const { error } = await supabase.from('customer_wallet_topups').update(paidPatch).eq('id', orderId);
+      if (error) return json({ error: error.message }, 500);
+      await creditCustomerWalletAfterTopup(supabase, orderId);
       return json({ ok: true });
     }
 

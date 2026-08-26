@@ -1,23 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatGBP } from '../lib/currency';
+import { notifyDriversOfNewOffer } from '../lib/driverOfferPushNotify';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
+import { shopOwnerOrderStatusLabel } from '../lib/shopOrderStatus';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
 import './shopOwnerDashboardPremium.css';
 import './shopOwnerOrdersPremium.css';
 
-const STEPS = ['Order placed', 'Processing', 'Ready for delivery', 'Picked up', 'In transit', 'Delivered'];
-
-const TABS = ['All', 'Pending', 'Processing', 'Ready for delivery', 'Picked up', 'In transit', 'Delivered', 'Cancelled'];
-
-/** DB values for fulfillment (shop owner–controlled). */
-const FULFILLMENT_STATUS_OPTIONS = [
-  { db: 'processing', label: 'Processing' },
-  { db: 'ready for delivery', label: 'Ready for delivery' },
-  { db: 'picked up', label: 'Picked up' },
-  { db: 'in transit', label: 'In transit' },
-  { db: 'delivered', label: 'Delivered' },
-];
+const TABS = ['All', 'New order', 'Preparing', 'Ready for pickup', 'Picked up', 'In transit', 'Delivered', 'Cancelled'];
 
 function formatDt(iso) {
   if (!iso) return '—';
@@ -31,28 +23,15 @@ function formatDt(iso) {
   }
 }
 
-/** Map DB status to shop-owner UI tab labels */
-function displayStatus(raw) {
-  const s = String(raw || 'placed').toLowerCase().replace(/_/g, ' ');
-  if (s === 'placed') return 'Pending';
-  if (s === 'cancelled') return 'Cancelled';
-  if (s === 'delivered') return 'Delivered';
-  if (s === 'processing') return 'Processing';
-  if (s === 'ready for delivery') return 'Ready for delivery';
-  if (s === 'in transit') return 'In transit';
-  if (s === 'picked up') return 'Picked up';
-  return raw ? String(raw).replace(/^\w/, (c) => c.toUpperCase()) : 'Pending';
-}
-
 function bdg(s) {
   const x = String(s || '').toLowerCase();
   if (x === 'delivered') return 'soo-badge soo-badge--delivered';
   if (x === 'in transit') return 'soo-badge soo-badge--transit';
   if (x === 'picked up') return 'soo-badge soo-badge--picked';
-  if (x === 'ready for delivery') return 'soo-badge soo-badge--ready';
-  if (x === 'processing') return 'soo-badge soo-badge--processing';
+  if (x === 'ready for pickup' || x === 'ready for delivery') return 'soo-badge soo-badge--ready';
+  if (x === 'preparing' || x === 'processing') return 'soo-badge soo-badge--processing';
   if (x === 'cancelled') return 'soo-badge soo-badge--cancelled';
-  if (x === 'pending' || x === 'placed') return 'soo-badge soo-badge--pending';
+  if (x === 'new order' || x === 'pending' || x === 'placed') return 'soo-badge soo-badge--pending';
   return 'soo-badge soo-badge--pending';
 }
 
@@ -89,22 +68,13 @@ function IcEmptyBox() {
   );
 }
 
-function stepIndex(status) {
-  const x = String(status || '').toLowerCase();
-  if (x === 'pending' || x === 'placed') return 0;
-  if (x === 'cancelled') return 0;
-  if (x === 'processing') return 1;
-  if (x === 'ready for delivery') return 2;
-  if (x === 'picked up') return 3;
-  if (x === 'in transit') return 4;
-  if (x === 'delivered') return 5;
-  return 0;
-}
-
 function mapGroupedToRow({ order, lines }, session) {
   const amt = lines.reduce((s, l) => s + (Number(l.line_total) || 0), 0);
   const itemsStr = lines.map((l) => `${l.product_name} ×${l.quantity}`).join(', ');
-  const st = displayStatus(order.status);
+  const statusRaw = String(order.status || 'placed')
+    .toLowerCase()
+    .trim();
+  const st = shopOwnerOrderStatusLabel(statusRaw);
   return {
     orderDbId: order.id,
     id: order.order_number,
@@ -116,9 +86,7 @@ function mapGroupedToRow({ order, lines }, session) {
     amountNum: amt,
     date: formatDt(order.placed_at),
     status: st,
-    statusRaw: String(order.status || 'placed')
-      .toLowerCase()
-      .trim(),
+    statusRaw,
     phone: order.customer_phone,
     email: order.customer_email || '',
     notes: order.customer_notes || '',
@@ -126,50 +94,85 @@ function mapGroupedToRow({ order, lines }, session) {
   };
 }
 
-function IcView() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden>
-      <path
-        d="M2 12s4-5.2 10-5.2S22 12 22 12s-4 5.2-10 5.2S2 12 2 12Z"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        fill="none"
-      />
-      <circle cx="12" cy="12" r="2.2" fill="currentColor" />
-    </svg>
-  );
-}
-function IcTr() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden>
-      <path d="M3 7h18M5 3l-2 4M19 3l2 4M3 7v12h18V7" stroke="currentColor" strokeWidth="1.1" fill="none" />
-    </svg>
-  );
-}
-function IcX() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden>
-      <path
-        d="M5 5.5L18.2 19M5 18.5L18.2 4"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 export default function ShopOwnerOrdersPage() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('All');
   const [q, setQ] = useState('');
-  const [sel, setSel] = useState(null);
-  const [cancelBusy, setCancelBusy] = useState(false);
-  const [cancelErr, setCancelErr] = useState('');
-  const [statusBusy, setStatusBusy] = useState(false);
-  const [statusErr, setStatusErr] = useState('');
+  const [actionBusyId, setActionBusyId] = useState('');
+  const [actionErr, setActionErr] = useState('');
+
+  const openOrder = (orderDbId) => {
+    navigate(`/shop-owner/orders/${encodeURIComponent(orderDbId)}`);
+  };
+
+  const confirmOrder = async (e, orderDbId) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!supabase || !orderDbId) return;
+    setActionErr('');
+    setActionBusyId(orderDbId);
+    try {
+      const sid = getShopOwnerSession()?.id;
+      const { data: all } = await supabase
+        .from('shop_customer_order_lines')
+        .select('shop_owner_id')
+        .eq('order_id', orderDbId);
+      if (!sid || !all?.length || !all.every((l) => l.shop_owner_id === sid)) {
+        setActionErr('This order includes other shops. Open the order for details, or ask an admin.');
+        return;
+      }
+      const { error } = await supabase
+        .from('shop_customer_orders')
+        .update({ status: 'processing' })
+        .eq('id', orderDbId);
+      if (error) {
+        setActionErr(error.message);
+        return;
+      }
+      await load();
+      navigate(`/shop-owner/orders/${encodeURIComponent(orderDbId)}`);
+    } catch {
+      setActionErr('Could not confirm order. Try again.');
+    } finally {
+      setActionBusyId('');
+    }
+  };
+
+  const markReady = async (e, orderDbId) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!supabase || !orderDbId) return;
+    setActionErr('');
+    setActionBusyId(orderDbId);
+    try {
+      const sid = getShopOwnerSession()?.id;
+      const { data: all } = await supabase
+        .from('shop_customer_order_lines')
+        .select('shop_owner_id')
+        .eq('order_id', orderDbId);
+      if (!sid || !all?.length || !all.every((l) => l.shop_owner_id === sid)) {
+        setActionErr('This order includes other shops. Open the order for details, or ask an admin.');
+        return;
+      }
+      const { error } = await supabase
+        .from('shop_customer_orders')
+        .update({ status: 'ready for delivery' })
+        .eq('id', orderDbId);
+      if (error) {
+        setActionErr(error.message);
+        return;
+      }
+      notifyDriversOfNewOffer('shop_customer_orders', orderDbId);
+      await load();
+    } catch {
+      setActionErr('Could not update order. Try again.');
+    } finally {
+      setActionBusyId('');
+    }
+  };
 
   const load = useCallback(async () => {
     setLoadError('');
@@ -236,11 +239,6 @@ export default function ShopOwnerOrdersPage() {
     load();
   }, [load]);
 
-  useEffect(() => {
-    setCancelErr('');
-    setStatusErr('');
-  }, [sel]);
-
   const filtered = useMemo(() => {
     let list = rows;
     if (tab !== 'All') {
@@ -260,73 +258,6 @@ export default function ShopOwnerOrdersPage() {
     return list;
   }, [tab, q, rows]);
 
-  const o = useMemo(() => rows.find((x) => x.orderDbId === sel) || null, [rows, sel]);
-  const si = o ? stepIndex(o.status) : 0;
-
-  const soleSellerForOrder = async (orderId) => {
-    if (!supabase) return false;
-    const sid = getShopOwnerSession()?.id;
-    if (!sid) return false;
-    const { data: all } = await supabase.from('shop_customer_order_lines').select('shop_owner_id').eq('order_id', orderId);
-    if (!all?.length) return false;
-    return all.every((l) => l.shop_owner_id === sid);
-  };
-
-  const updateFulfillmentStatus = async (nextDb) => {
-    const sid = getShopOwnerSession()?.id;
-    if (!o || !sid || !supabase || !nextDb) return;
-    const cur = o.statusRaw;
-    if (cur === nextDb) return;
-    setStatusErr('');
-    setStatusBusy(true);
-    try {
-      const ok = await soleSellerForOrder(o.orderDbId);
-      if (!ok) {
-        setStatusErr('This order includes other shops. Only an admin can change status for the whole order.');
-        setStatusBusy(false);
-        return;
-      }
-      const { error } = await supabase.from('shop_customer_orders').update({ status: nextDb }).eq('id', o.orderDbId);
-      if (error) {
-        setStatusErr(error.message);
-        setStatusBusy(false);
-        return;
-      }
-      await load();
-    } catch {
-      setStatusErr('Could not update status. Try again.');
-    } finally {
-      setStatusBusy(false);
-    }
-  };
-
-  const cancelOrder = async () => {
-    const sid = getShopOwnerSession()?.id;
-    if (!o || !sid || !supabase) return;
-    setCancelErr('');
-    setCancelBusy(true);
-    try {
-      const ok = await soleSellerForOrder(o.orderDbId);
-      if (!ok) {
-        setCancelErr('This order includes other shops. Only an admin can cancel the whole order.');
-        setCancelBusy(false);
-        return;
-      }
-      const { error } = await supabase.from('shop_customer_orders').update({ status: 'cancelled' }).eq('id', o.orderDbId);
-      if (error) {
-        setCancelErr(error.message);
-        setCancelBusy(false);
-        return;
-      }
-      await load();
-      setSel(null);
-    } catch {
-      setCancelErr('Could not cancel. Try again.');
-    } finally {
-      setCancelBusy(false);
-    }
-  };
-
   const showEmpty = !loading && filtered.length === 0;
   const emptyNoOrders = rows.length === 0;
 
@@ -343,6 +274,12 @@ export default function ShopOwnerOrdersPage() {
       {loadError ? (
         <div className="soo-error" role="alert">
           <p>{loadError}</p>
+        </div>
+      ) : null}
+
+      {actionErr ? (
+        <div className="soo-error" role="alert">
+          <p>{actionErr}</p>
         </div>
       ) : null}
 
@@ -410,7 +347,7 @@ export default function ShopOwnerOrdersPage() {
                   filtered.map((r) => (
                     <tr key={r.orderDbId}>
                       <td>
-                        <button type="button" className="soo-order-link" onClick={() => setSel(r.orderDbId)}>
+                        <button type="button" className="soo-order-link" onClick={() => openOrder(r.orderDbId)}>
                           {r.id}
                         </button>
                       </td>
@@ -425,22 +362,29 @@ export default function ShopOwnerOrdersPage() {
                       </td>
                       <td>
                         <div className="soo-actions">
-                          <button type="button" className="soo-icon-btn" aria-label="View" onClick={() => setSel(r.orderDbId)}>
-                            <IcView />
-                          </button>
-                          <button type="button" className="soo-icon-btn" aria-label="View details" onClick={() => setSel(r.orderDbId)}>
-                            <IcTr />
-                          </button>
-                          {r.status !== 'Cancelled' && r.status !== 'Delivered' && (
+                          {r.statusRaw === 'placed' ? (
                             <button
                               type="button"
-                              className="soo-icon-btn soo-icon-btn--danger"
-                              aria-label="Cancel order"
-                              onClick={() => setSel(r.orderDbId)}
+                              className="soo-cta-btn"
+                              disabled={actionBusyId === r.orderDbId}
+                              onClick={(e) => confirmOrder(e, r.orderDbId)}
                             >
-                              <IcX />
+                              {actionBusyId === r.orderDbId ? 'Confirming…' : 'Confirm'}
                             </button>
-                          )}
+                          ) : null}
+                          {r.statusRaw === 'processing' ? (
+                            <button
+                              type="button"
+                              className="soo-cta-btn soo-cta-btn--ready"
+                              disabled={actionBusyId === r.orderDbId}
+                              onClick={(e) => markReady(e, r.orderDbId)}
+                            >
+                              {actionBusyId === r.orderDbId ? 'Updating…' : 'Mark ready'}
+                            </button>
+                          ) : null}
+                          <button type="button" className="soo-text-btn" onClick={() => openOrder(r.orderDbId)}>
+                            View
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -455,138 +399,6 @@ export default function ShopOwnerOrdersPage() {
       <p className="soo-count" aria-live="polite">
         {filtered.length} order{filtered.length === 1 ? '' : 's'} shown
       </p>
-
-      <div className={o ? 'sopPan sopPan--on' : 'sopPan'} role="dialog" aria-modal="true" aria-label="Order details" style={{ zIndex: 300 }}>
-        {o && (
-          <>
-            <div className="sopPanH" style={{ alignItems: 'flex-start' }}>
-              <div>
-                <h2 style={{ fontSize: '0.9rem' }}>{o.id}</h2>
-                <p style={{ margin: 0, fontSize: '0.72rem', color: '#6b6b6b' }}>{o.date}</p>
-              </div>
-              <button type="button" className="sopI2" onClick={() => setSel(null)} style={{ lineHeight: 1 }} aria-label="Close">
-                ✕
-              </button>
-            </div>
-            <div className="sopPanB">
-              <div className="sopPanC">
-                <h3>Customer</h3>
-                <strong>{o.customer}</strong>
-                <div style={{ fontSize: '0.72rem', color: '#555', marginTop: 4 }}>{o.phone}</div>
-                {o.email ? <div style={{ fontSize: '0.72rem', color: '#555', marginTop: 2 }}>{o.email}</div> : null}
-              </div>
-              <div className="sopPanC">
-                <h3>Items ordered (your shop)</h3>
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.78rem' }}>
-                  {o.myLines.map((l) => (
-                    <li key={l.id}>
-                      {l.product_name} ×{l.quantity} — {formatGBP(Number(l.line_total) || 0)}
-                    </li>
-                  ))}
-                </ul>
-                <div style={{ marginTop: 6, fontSize: '0.72rem', color: '#555' }}>Your portion of this checkout (other shops may appear on the same customer order).</div>
-              </div>
-              <div className="sopPanC">
-                <h3>Delivery address</h3>
-                {o.drop}
-                {o.notes ? (
-                  <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem' }}>
-                    <strong>Customer notes:</strong> {o.notes}
-                  </p>
-                ) : null}
-              </div>
-              <div>
-                <h3 style={{ margin: '0.2rem 0' }}>Status</h3>
-                <div className="sopStep">
-                  {STEPS.map((s, i) => {
-                    const st = o.status.toLowerCase();
-                    if (st === 'cancelled') {
-                      return (
-                        <div key={s} className="sopStL">
-                          <span className="sopStPend">○ {s}</span>
-                        </div>
-                      );
-                    }
-                    if (st === 'delivered') {
-                      return (
-                        <div key={s} className="sopStL" style={i > 0 ? { borderLeft: '2px solid #e0e0e0', paddingLeft: 8, marginLeft: 4 } : {}}>
-                          <span className="sopStDone">✓ {s}</span>
-                        </div>
-                      );
-                    }
-                    const done = i < si;
-                    return (
-                      <div key={s} className="sopStL" style={i > 0 ? { borderLeft: '2px solid #e0e0e0', paddingLeft: 8, marginLeft: 4 } : {}}>
-                        <span className={done || i === si ? 'sopStDone' : 'sopStPend'}>
-                          {done ? '✓' : '○'} {s}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                {o.status.toLowerCase() === 'cancelled' && <p style={{ color: '#c62828', fontSize: '0.78rem' }}>This order was cancelled.</p>}
-              </div>
-
-              {!['cancelled', 'delivered'].includes(o.statusRaw) ? (
-                <div className="sopPanC sopPanC--statusPick">
-                  <h3>Change status</h3>
-                  <p style={{ margin: '0 0 0.45rem', fontSize: '0.72rem', color: '#666', lineHeight: 1.35 }}>
-                    Select the current stage for this order. Customers see updates on their order history.
-                  </p>
-                  <fieldset className="sopStatPick" disabled={statusBusy}>
-                    <legend className="sopStatPick__leg">Fulfillment</legend>
-                    {FULFILLMENT_STATUS_OPTIONS.map(({ db, label }) => (
-                      <label key={db} className="sopStatPick__row">
-                        <input
-                          type="radio"
-                          name={`fulfill-${o.orderDbId}`}
-                          checked={o.statusRaw === db}
-                          onChange={() => updateFulfillmentStatus(db)}
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
-                  </fieldset>
-                  {statusBusy ? <p className="sopStatPick__hint">Updating…</p> : null}
-                  {statusErr ? (
-                    <p role="alert" style={{ color: '#c62828', fontSize: '0.72rem', margin: '0.35rem 0 0' }}>
-                      {statusErr}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-              <div className="sopPanC">
-                <h3>Payment</h3>
-                <div>
-                  Total for your items: <strong style={{ color: '#0A58A6' }}>{o.amount}</strong>
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#666', marginTop: 4 }}>Demo: payment on delivery / as agreed with customer.</div>
-              </div>
-              {cancelErr ? (
-                <p role="alert" style={{ color: '#c62828', fontSize: '0.78rem', margin: 0 }}>
-                  {cancelErr}
-                </p>
-              ) : null}
-              {o.status.toLowerCase() !== 'cancelled' && o.status.toLowerCase() !== 'delivered' && (
-                <button type="button" className="sopBtn3" disabled={cancelBusy} onClick={cancelOrder}>
-                  {cancelBusy ? 'Cancelling…' : 'Cancel order'}
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-      {o && (
-        <div
-          className="sopOvl sopOvl--on"
-          onClick={() => {
-            setSel(null);
-            setCancelErr('');
-          }}
-          role="presentation"
-          style={{ zIndex: 250 }}
-        />
-      )}
     </div>
   );
 }

@@ -522,17 +522,24 @@
 
 .admActions {
   display: inline-flex;
+  align-items: center;
   gap: 0.35rem;
 }
 
 .admActions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 30px;
   height: 30px;
+  padding: 0;
   border-radius: 8px;
   border: 1px solid var(--adm-border);
   background: #fff;
   cursor: pointer;
   color: #3d3d3d;
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
 .admWdActionsHead {
@@ -582,6 +589,52 @@
 }
 
 .admWdBtn--reject {
+  color: #c83535;
+  border-color: #f3d0d0;
+  background: #fff5f5;
+}
+
+.admProdActionsHead {
+  min-width: 220px;
+}
+
+.admProdActionsCell {
+  min-width: 220px;
+}
+
+.admProdActions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.admProdActionBtn {
+  height: 32px;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  border: 1px solid #d9e2ef;
+  background: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.admProdActionBtn:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.admProdActionBtn--image {
+  color: #8a4b00;
+  border-color: #f0dcc0;
+  background: #fffaf2;
+}
+
+.admProdActionBtn--product {
   color: #c83535;
   border-color: #f3d0d0;
   background: #fff5f5;
@@ -651,6 +704,11 @@
   display: flex;
   gap: 0.45rem;
   flex-wrap: wrap;
+}
+
+.admFilters.admFilters--row {
+  flex-wrap: nowrap;
+  align-items: center;
 }
 
 .admSmallCard p {
@@ -735,6 +793,20 @@
   border-radius: 11px;
   padding: 0.8rem;
   margin-bottom: 0.75rem;
+}
+
+.admDeliveryCodeBlock {
+  border-color: #c7daf5;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+}
+
+.admDeliveryCode__value {
+  margin: 0.15rem 0 0;
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+  color: #07408f;
 }
 
 .admPanelActions {

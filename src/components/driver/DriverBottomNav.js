@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom';
+import { isCompanyOwnerMode } from '../../lib/driverCompany';
+import { getDriverSession } from '../../lib/driverSession';
 import './DriverApp.css';
 
 const cOn = '#EC6C23';
@@ -61,16 +63,41 @@ function IconWallet({ isOn }) {
     </svg>
   );
 }
-
-const items = [
-  { to: '/driver/home', end: true, label: 'Home', Icon: IconHome },
-  { to: '/driver/orders', label: 'Orders', Icon: IconList },
-  { to: '/driver/earnings', label: 'Earnings', Icon: IconEarnings },
-  { to: '/driver/wallet', label: 'Wallet', Icon: IconWallet },
-  { to: '/driver/profile', label: 'Profile', Icon: IconUser },
-];
+function IconFleet({ isOn }) {
+  const c = isOn ? cOn : cOff;
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
+      <path
+        d="M4 16h16M6 16V9l3-3h6l3 3v7M8.5 16.5a1.5 1.5 0 1 0 0.01 0M15.5 16.5a1.5 1.5 0 1 0 0.01 0"
+        stroke={c}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default function DriverBottomNav() {
+  const session = getDriverSession();
+  const showFleet = isCompanyOwnerMode(session?.account_mode) || Boolean(session?.company_id);
+
+  const items = showFleet
+    ? [
+        { to: '/driver/home', end: true, label: 'Home', Icon: IconHome },
+        { to: '/driver/fleet', label: 'Fleet', Icon: IconFleet },
+        { to: '/driver/orders', label: 'Orders', Icon: IconList },
+        { to: '/driver/earnings', label: 'Earnings', Icon: IconEarnings },
+        { to: '/driver/profile', label: 'Profile', Icon: IconUser },
+      ]
+    : [
+        { to: '/driver/home', end: true, label: 'Home', Icon: IconHome },
+        { to: '/driver/orders', label: 'Orders', Icon: IconList },
+        { to: '/driver/earnings', label: 'Earnings', Icon: IconEarnings },
+        { to: '/driver/wallet', label: 'Wallet', Icon: IconWallet },
+        { to: '/driver/profile', label: 'Profile', Icon: IconUser },
+      ];
+
   return (
     <nav className="dnav" aria-label="Driver main">
       {items.map(({ to, end, label, Icon }) => (

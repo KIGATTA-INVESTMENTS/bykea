@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminHeaderOutlineBtn, AdminHeaderRefresh, useSetAdminHeaderActions } from '../components/admin/adminHeaderActions';
 import { formatGBP } from '../lib/currency';
+import { formatDeliveryCodeDisplay, storedDeliveryPin } from '../lib/deliveryConfirmationCode';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
 
@@ -25,18 +26,20 @@ function formatDt(iso) {
 }
 
 function paymentLabel(method) {
-  if (method === 'ecocash') return 'Bank transfer';
-  if (method === 'card') return 'Paynow';
+  if (method === 'ecocash') return 'EcoCash';
+  if (method === 'card') return 'Card';
   if (method === 'stripe') return 'Card';
   if (method === 'cod') return 'Cash on delivery';
+  if (method === 'wallet') return 'Wallet';
   return method || '—';
 }
 
 function paymentShort(method) {
-  if (method === 'ecocash') return 'Bank';
-  if (method === 'card') return 'Paynow';
+  if (method === 'ecocash') return 'EcoCash';
+  if (method === 'card') return 'Card';
   if (method === 'stripe') return 'Card';
   if (method === 'cod') return 'Cash';
+  if (method === 'wallet') return 'Wallet';
   return paymentLabel(method);
 }
 
@@ -74,6 +77,10 @@ function driverDisplayName(row) {
   return '';
 }
 
+function deliveryCodeLabel(row) {
+  return formatDeliveryCodeDisplay(storedDeliveryPin(row?.delivery_confirmation_code));
+}
+
 function initials(name) {
   const n = String(name || '').trim();
   if (!n || n === 'Guest') return 'GU';
@@ -106,8 +113,13 @@ export default function AdminDeliveryOrdersPage() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleteWorking, setDeleteWorking] = useState(false);
   const [deleteErr, setDeleteErr] = useState('');
+  const [approvedDrivers, setApprovedDrivers] = useState([]);
+  const [driversLoading, setDriversLoading] = useState(false);
+  const [driverPickId, setDriverPickId] = useState('');
+  const [assignWorking, setAssignWorking] = useState(false);
+  const [assignErr, setAssignErr] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ silent = false } = {}) => {
     setError('');
     if (!isSupabaseConfigured || !supabase) {
       setOrders([]);
@@ -116,7 +128,7 @@ export default function AdminDeliveryOrdersPage() {
       return;
     }
 
-    setLoading(true);
+    if (!silent) setLoading(true);
 
     let query = supabase
       .from('customer_delivery_orders')
@@ -187,6 +199,44 @@ export default function AdminDeliveryOrdersPage() {
     load();
   }, [load]);
 
+  // Live refresh so a driver accepting an order shows up here without a manual reload.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return undefined;
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      load({ silent: true });
+    }, 10000);
+    return () => window.clearInterval(id);
+  }, [load]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setApprovedDrivers([]);
+      return;
+    }
+    let cancelled = false;
+    setDriversLoading(true);
+    (async () => {
+      const { data, error: dErr } = await supabase
+        .from('driver_registrations')
+        .select('id, full_name, phone, phone_country_code, vehicle_type, vehicle_plate')
+        .eq('status', 'approved')
+        .order('full_name', { ascending: true });
+      if (!cancelled) {
+        setApprovedDrivers(dErr ? [] : Array.isArray(data) ? data : []);
+        setDriversLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setDriverPickId(selectedOrder?.assigned_driver_id || '');
+    setAssignErr('');
+  }, [selectedOrder?.id, selectedOrder?.assigned_driver_id]);
+
   useEffect(() => {
     if (!pendingDelete) return undefined;
     const onKey = (e) => {
@@ -195,6 +245,67 @@ export default function AdminDeliveryOrdersPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [pendingDelete, deleteWorking]);
+
+  const assignDriverToOrder = async () => {
+    if (!selectedOrder?.id || !driverPickId || !isSupabaseConfigured || !supabase) {
+      setAssignErr(!driverPickId ? 'Choose a driver first.' : 'Database is not configured.');
+      return;
+    }
+    setAssignWorking(true);
+    setAssignErr('');
+    const st = String(selectedOrder.status || '').toLowerCase();
+    const assignedAt = new Date().toISOString();
+    /** @type {{ assigned_driver_id: string; assigned_at: string; status?: string }} */
+    const patch = { assigned_driver_id: driverPickId, assigned_at: assignedAt };
+    if (st === 'placed' || st === 'paid') patch.status = 'assigned';
+    const existingDriverId = selectedOrder?.assigned_driver_id || null;
+
+    if (existingDriverId && String(existingDriverId) !== String(driverPickId)) {
+      const { error: clearErr } = await supabase
+        .from('customer_delivery_orders')
+        .update({ assigned_driver_id: null })
+        .eq('id', selectedOrder.id)
+        .eq('assigned_driver_id', existingDriverId);
+      if (clearErr) {
+        setAssignWorking(false);
+        setAssignErr(clearErr.message || 'Could not reassign this order.');
+        return;
+      }
+    }
+
+    const { data, error: uErr } = await supabase
+      .from('customer_delivery_orders')
+      .update(patch)
+      .eq('id', selectedOrder.id)
+      .select(
+        `
+        *,
+        app_users (
+          id,
+          full_name,
+          phone,
+          email,
+          created_at
+        )
+      `,
+      )
+      .maybeSingle();
+
+    setAssignWorking(false);
+    if (uErr) {
+      setAssignErr(uErr.message || 'Could not assign driver. Check update policy on customer_delivery_orders.');
+      return;
+    }
+    if (!data?.id) {
+      setAssignErr('Order was not updated. It may have been removed.');
+      return;
+    }
+
+    const driver = approvedDrivers.find((d) => d.id === driverPickId) ?? null;
+    const enriched = { ...data, driver_profile: driver };
+    setOrders((prev) => prev.map((o) => (o.id === enriched.id ? enriched : o)));
+    setSelectedOrder(enriched);
+  };
 
   const confirmDeleteOrder = async () => {
     if (!pendingDelete?.id || !isSupabaseConfigured || !supabase) {
@@ -238,6 +349,7 @@ export default function AdminDeliveryOrdersPage() {
       const pickup = (row.pickup_location || '').toLowerCase();
       const dropoff = (row.dropoff_location || '').toLowerCase();
       const driverName = driverDisplayName(row).toLowerCase();
+      const deliveryCode = String(row.delivery_confirmation_code || '').replace(/\D/g, '');
       const matchQ =
         !q ||
         ref.includes(q) ||
@@ -246,7 +358,8 @@ export default function AdminDeliveryOrdersPage() {
         phone.includes(q) ||
         pickup.includes(q) ||
         dropoff.includes(q) ||
-        driverName.includes(q);
+        driverName.includes(q) ||
+        deliveryCode.includes(q.replace(/\s/g, ''));
 
       const st = String(row.status || '').toLowerCase();
       const matchTab =
@@ -256,7 +369,7 @@ export default function AdminDeliveryOrdersPage() {
 
       const matchPay =
         paymentFilter === 'All' ||
-        (paymentFilter === 'Bank' && row.payment_method === 'ecocash') ||
+        (paymentFilter === 'EcoCash' && row.payment_method === 'ecocash') ||
         (paymentFilter === 'Card' && (row.payment_method === 'card' || row.payment_method === 'stripe')) ||
         (paymentFilter === 'Cash' && row.payment_method === 'cod');
 
@@ -347,7 +460,7 @@ export default function AdminDeliveryOrdersPage() {
           <div className="admFilters">
             <select className="admSelect" value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)}>
               <option>All</option>
-              <option>Bank</option>
+              <option>EcoCash</option>
               <option>Card</option>
               <option>Cash</option>
             </select>
@@ -377,6 +490,7 @@ export default function AdminDeliveryOrdersPage() {
                   <th>Dropoff</th>
                   <th>Amount</th>
                   <th>Payment</th>
+                  <th>Delivery code</th>
                   <th>Date &amp; Time</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -413,6 +527,9 @@ export default function AdminDeliveryOrdersPage() {
                       <td className="admDim">{row.dropoff_location ?? '—'}</td>
                       <td style={{ fontWeight: 700 }}>{formatGBP(row.total_amount)}</td>
                       <td>{paymentShort(row.payment_method)}</td>
+                      <td style={{ fontWeight: 700, letterSpacing: '0.08em', fontVariantNumeric: 'tabular-nums' }}>
+                        {deliveryCodeLabel(row)}
+                      </td>
                       <td className="admDim">{formatDt(row.created_at)}</td>
                       <td>
                         <span className={statusBadgeClass(row.status)}>{row.status ?? '—'}</span>
@@ -469,6 +586,35 @@ export default function AdminDeliveryOrdersPage() {
                 <p className="admDim" style={{ marginBottom: 0 }}>
                   {formatDt(sel.created_at)}
                 </p>
+              </section>
+
+              <section className="admPanelBlock admDeliveryCodeBlock">
+                <h4 style={{ marginTop: 0 }}>Delivery PIN</h4>
+                {sel.delivery_confirmation_code ? (
+                  <>
+                    <p className="admDeliveryCode__value">{deliveryCodeLabel(sel)}</p>
+                    <p className="admDim" style={{ margin: '0.35rem 0 0' }}>
+                      The customer sees this on live tracking and shares it with the driver at drop-off.
+                    </p>
+                    {sel.delivery_confirmed_at ? (
+                      <p className="admDim" style={{ margin: '0.35rem 0 0', color: '#1a7f37', fontWeight: 600 }}>
+                        Verified by driver · {formatDt(sel.delivery_confirmed_at)}
+                      </p>
+                    ) : String(sel.status || '').toLowerCase() === 'delivered' ? (
+                      <p className="admDim" style={{ margin: '0.35rem 0 0' }}>
+                        Marked delivered without code verification.
+                      </p>
+                    ) : (
+                      <p className="admDim" style={{ margin: '0.35rem 0 0' }}>
+                        Awaiting driver verification at delivery.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="admDim" style={{ margin: 0 }}>
+                    No PIN on this order (placed before delivery PINs were enabled).
+                  </p>
+                )}
               </section>
 
               <section className="admPanelBlock">
@@ -552,13 +698,63 @@ export default function AdminDeliveryOrdersPage() {
                     ) : null}
                   </>
                 ) : (
-                  <>
-                    <p className="admUnassigned">Unassigned</p>
-                    <button className="admBtn" type="button" disabled style={{ opacity: 0.65 }}>
-                      Assign driver (soon)
-                    </button>
-                  </>
+                  <p className="admUnassigned">Unassigned</p>
                 )}
+                {String(sel.status || '').toLowerCase() !== 'delivered' &&
+                String(sel.status || '').toLowerCase() !== 'cancelled' ? (
+                  <div style={{ marginTop: '0.65rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    <label className="admDim" style={{ fontSize: '0.78rem' }} htmlFor="adm-del-driver-pick">
+                      {sel.assigned_driver_id ? 'Change driver' : 'Assign driver'}
+                    </label>
+                    <select
+                      id="adm-del-driver-pick"
+                      className="admSelect"
+                      value={driverPickId}
+                      disabled={driversLoading || assignWorking}
+                      onChange={(e) => setDriverPickId(e.target.value)}
+                    >
+                      <option value="">{driversLoading ? 'Loading drivers…' : 'Select approved driver'}</option>
+                      {approvedDrivers.map((d) => {
+                        const name = String(d.full_name || '').trim() || 'Driver';
+                        const vehicle = [d.vehicle_type, d.vehicle_plate].filter(Boolean).join(' · ');
+                        const phone = [d.phone_country_code, d.phone].filter(Boolean).join(' ').trim();
+                        const label = [name, vehicle, phone].filter(Boolean).join(' — ');
+                        return (
+                          <option key={d.id} value={d.id}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {!driversLoading && approvedDrivers.length === 0 ? (
+                      <p className="admDim" style={{ margin: 0, fontSize: '0.78rem' }}>
+                        No approved drivers. Approve drivers under Admin → Drivers first.
+                      </p>
+                    ) : null}
+                    {assignErr ? (
+                      <p style={{ margin: 0, color: '#b42318', fontSize: '0.82rem' }} role="alert">
+                        {assignErr}
+                      </p>
+                    ) : null}
+                    <button
+                      className="admBtn"
+                      type="button"
+                      disabled={
+                        assignWorking ||
+                        !driverPickId ||
+                        driversLoading ||
+                        Boolean(sel.assigned_driver_id && driverPickId === sel.assigned_driver_id)
+                      }
+                      onClick={() => assignDriverToOrder()}
+                    >
+                      {assignWorking
+                        ? 'Saving…'
+                        : sel.assigned_driver_id
+                          ? 'Save driver change'
+                          : 'Assign driver'}
+                    </button>
+                  </div>
+                ) : null}
               </section>
 
               <section className="admPanelBlock">
@@ -587,6 +783,31 @@ export default function AdminDeliveryOrdersPage() {
                 <p style={{ margin: '0.2rem 0' }}>Category: {sel.package_category ?? '—'}</p>
                 <p className="admDim">Notes: {sel.package_notes ?? '—'}</p>
                 <p className="admDim">Photo: {sel.package_photo_filename ?? '—'}</p>
+                {typeof sel.package_photo_data_url === 'string' && sel.package_photo_data_url.startsWith('data:image/') ? (
+                  <>
+                    <p className="admDim" style={{ marginTop: 8 }}>
+                      Customer photo
+                    </p>
+                    <img
+                      src={sel.package_photo_data_url}
+                      alt="Customer package"
+                      style={{ display: 'block', width: '100%', maxHeight: 180, objectFit: 'contain', marginTop: 4, borderRadius: 8 }}
+                    />
+                  </>
+                ) : null}
+                {typeof sel.driver_package_photo_data_url === 'string' &&
+                sel.driver_package_photo_data_url.startsWith('data:image/') ? (
+                  <>
+                    <p className="admDim" style={{ marginTop: 8 }}>
+                      Driver photo at pickup
+                    </p>
+                    <img
+                      src={sel.driver_package_photo_data_url}
+                      alt="Driver package"
+                      style={{ display: 'block', width: '100%', maxHeight: 180, objectFit: 'contain', marginTop: 4, borderRadius: 8 }}
+                    />
+                  </>
+                ) : null}
               </section>
 
               <section className="admPanelBlock">
@@ -608,25 +829,6 @@ export default function AdminDeliveryOrdersPage() {
                     Prior request: {sel.delivery_request_id}
                   </p>
                 ) : null}
-              </section>
-
-              <section className="admPanelActions">
-                <button className="admOutlineBtn" type="button">
-                  Reassign driver
-                </button>
-                <button
-                  className="admDangerBtn"
-                  type="button"
-                  onClick={() => {
-                    setPendingDelete(sel);
-                    setDeleteErr('');
-                  }}
-                >
-                  Delete order
-                </button>
-                <button className="admInfoBtn" type="button">
-                  Send notification
-                </button>
               </section>
             </>
           )}

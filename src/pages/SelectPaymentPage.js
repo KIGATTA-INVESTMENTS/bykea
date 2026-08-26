@@ -5,9 +5,15 @@ import {
   buildCustomerDeliveryOrderRow,
   deliveryOrderDisplayRef,
 } from '../lib/customerDeliveryOrderPayload';
-import { getCustomerSession } from '../lib/customerSession';
-import { writeShopOrderConfirmationState } from '../lib/shopOrderConfirmationSession';
-import { postLocalPaynowInitiate, resolveShopPaynowLocalInitiateUrl } from '../lib/shopPaynowLocal';
+import { friendlyAppUserFkError, getCustomerSession, resolveValidAppUserId } from '../lib/customerSession';
+import { debitCustomerWallet, fetchCustomerWalletBalance } from '../lib/customerWallet';
+import {
+  computeIngoKilometreFare,
+  resolveIngoVehicleFromDelivery,
+} from '../lib/ingoKilometres';
+import { notifyDriversOfNewOffer } from '../lib/driverOfferPushNotify';
+import { postEcocashCharge } from '../lib/ecocashLocal';
+import { buildLiveTrackingState } from '../lib/liveTrackingState';
 import {
   isStripePaymentsConfigured,
   setStripeHostedReturnContext,
@@ -31,24 +37,6 @@ function BackArrow() {
   );
 }
 
-function IconPaynow() {
-  return (
-    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="#333" strokeWidth="1.3" aria-hidden>
-      <rect x="3" y="7" width="26" height="18" rx="2" fill="#fff" />
-      <path d="M3 12h26" stroke="#F18631" strokeWidth="2" />
-      <rect x="5" y="18" width="7" height="2" rx="0.5" fill="#ccc" />
-    </svg>
-  );
-}
-function IconStripeCard() {
-  return (
-    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden>
-      <rect x="3" y="7" width="26" height="18" rx="2" fill="#635bff" />
-      <path d="M3 12h26" fill="#0a2540" opacity="0.25" />
-      <rect x="6" y="17" width="10" height="3" rx="0.5" fill="#c4f4ff" opacity="0.9" />
-    </svg>
-  );
-}
 function IconCash() {
   return (
     <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden>
@@ -78,142 +66,259 @@ function IconCash() {
   );
 }
 
+function IconWallet() {
+  return (
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" aria-hidden>
+      <rect x="4" y="8" width="24" height="16" rx="2.5" stroke="#0A58A6" strokeWidth="1.8" fill="#e8f1fb" />
+      <path d="M4 13h24" stroke="#0A58A6" strokeWidth="1.5" />
+      <circle cx="22" cy="18.5" r="1.6" fill="#F18631" />
+    </svg>
+  );
+}
+
+function IconEcoCash() {
+  return (
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" aria-hidden>
+      <rect x="5" y="4" width="22" height="24" rx="3" fill="#ecfdf5" stroke="#059669" strokeWidth="1.7" />
+      <path d="M11 12h10M11 16h7M11 20h9" stroke="#059669" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="21" cy="21" r="3.2" fill="#10b981" />
+    </svg>
+  );
+}
+
+function IconCard() {
+  return (
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" aria-hidden>
+      <rect x="3" y="8" width="26" height="16" rx="2.5" fill="#eef2ff" stroke="#4338ca" strokeWidth="1.6" />
+      <path d="M3 13h26" stroke="#4338ca" strokeWidth="1.5" />
+      <rect x="7" y="17.5" width="8" height="2.2" rx="1" fill="#6366f1" />
+      <rect x="18" y="17.5" width="7" height="2.2" rx="1" fill="#a5b4fc" />
+    </svg>
+  );
+}
+
+function initialPaymentMethod(order) {
+  const raw = String(order?.preferredPayment || 'cod').toLowerCase();
+  if (raw === 'ecocash') return 'ecocash';
+  if (raw === 'stripe' || raw === 'card') return isStripePaymentsConfigured() ? 'stripe' : 'cod';
+  if (raw === 'wallet') return 'wallet';
+  return 'cod';
+}
+
 export default function SelectPaymentPage() {
   const navigate = useNavigate();
   const { state: order = {} } = useLocation();
-  const paynowConfigured = useMemo(() => Boolean(resolveShopPaynowLocalInitiateUrl()), []);
-  const stripeConfigured = useMemo(() => isStripePaymentsConfigured(), []);
-  const showPaymentMethods = paynowConfigured || stripeConfigured;
-  const preferred = order?.preferredPayment;
-  const [method, setMethod] = useState(() => {
-    let p =
-      preferred === 'cod' || preferred === 'ecocash' || preferred === 'card' || preferred === 'stripe'
-        ? preferred
-        : 'cod';
-    if (p === 'ecocash') p = 'cod';
-    if (p === 'card' && !paynowConfigured) p = stripeConfigured ? 'stripe' : 'cod';
-    if (p === 'stripe' && !stripeConfigured) p = paynowConfigured ? 'card' : 'cod';
-    if (!paynowConfigured && !stripeConfigured) return 'cod';
-    return p;
-  });
+  const session = getCustomerSession();
+  const stripeOk = useMemo(() => isStripePaymentsConfigured(), []);
+  const [paymentMethod, setPaymentMethod] = useState(() => initialPaymentMethod(order));
   const [placing, setPlacing] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [walletError, setWalletError] = useState('');
+  const [ecoPhone, setEcoPhone] = useState(() => String(getCustomerSession()?.phone || '').trim());
 
-  const methodRows = useMemo(() => {
-    const rows = [{ id: 'cod', label: 'Cash on delivery', Icon: IconCash, balance: null }];
-    if (paynowConfigured) rows.push({ id: 'card', label: 'Paynow', Icon: IconPaynow, balance: null });
-    if (stripeConfigured) rows.push({ id: 'stripe', label: 'Card', Icon: IconStripeCard, balance: null });
-    return rows;
-  }, [paynowConfigured, stripeConfigured]);
+  const cashTotal = typeof order.priceNum === 'number' ? order.priceNum : 2.5;
+
+  const ingoVehicle = useMemo(() => resolveIngoVehicleFromDelivery(order), [order]);
+  const walletEligible = Boolean(ingoVehicle);
+  const ingoFare = useMemo(() => {
+    if (!ingoVehicle) return null;
+    const km = Number(order.distanceKm);
+    if (!Number.isFinite(km) || km < 0) return null;
+    return computeIngoKilometreFare({ vehicle: ingoVehicle, distanceKm: km });
+  }, [ingoVehicle, order.distanceKm]);
+
+  const total =
+    paymentMethod === 'wallet' && ingoFare != null ? ingoFare.fare : cashTotal;
+  const priceStr = useMemo(() => formatGBP(total), [total]);
+  const remainingAfter = Math.round((walletBalance - total) * 100) / 100;
+  const canPayWithWallet = walletEligible && ingoFare != null && walletBalance + 0.001 >= total;
 
   useEffect(() => {
-    if (method === 'card' && !paynowConfigured) setMethod(stripeConfigured ? 'stripe' : 'cod');
-    if (method === 'stripe' && !stripeConfigured) setMethod(paynowConfigured ? 'card' : 'cod');
-  }, [method, paynowConfigured, stripeConfigured]);
+    if (paymentMethod === 'wallet' && !walletEligible) setPaymentMethod('cod');
+    if ((paymentMethod === 'stripe' || paymentMethod === 'card') && !stripeOk) setPaymentMethod('cod');
+  }, [paymentMethod, walletEligible, stripeOk]);
 
-  const total = typeof order.priceNum === 'number' ? order.priceNum : 2.5;
-  const priceStr = formatGBP(total);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setWalletLoading(true);
+      const userId = session?.id || null;
+      if (!userId || !walletEligible) {
+        if (!cancelled) {
+          setWalletBalance(0);
+          setWalletError('');
+          setWalletLoading(false);
+        }
+        return;
+      }
+      const { balance, error } = await fetchCustomerWalletBalance(userId);
+      if (cancelled) return;
+      setWalletBalance(balance);
+      setWalletError(error || '');
+      setWalletLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.id, walletEligible]);
 
   const placeOrder = async (e) => {
     e.preventDefault();
     setSubmitError('');
 
-    const session = getCustomerSession();
-    const row = buildCustomerDeliveryOrderRow(order, method === 'stripe' ? 'stripe' : method);
-    if (method === 'stripe') {
-      row.payment_gateway = 'stripe';
-      row.payment_status = 'pending';
+    const method =
+      paymentMethod === 'wallet'
+        ? 'wallet'
+        : paymentMethod === 'ecocash'
+          ? 'ecocash'
+          : paymentMethod === 'stripe' || paymentMethod === 'card'
+            ? 'stripe'
+            : 'cod';
+
+    if (method === 'stripe' && !stripeOk) {
+      setSubmitError('Card payments are not configured yet.');
+      return;
     }
 
-    if (method === 'card' && paynowConfigured) {
-      if (!isSupabaseConfigured || !supabase) {
-        setSubmitError('Paynow requires Supabase to be configured.');
+    if (method === 'wallet') {
+      if (!session?.id) {
+        setSubmitError('Sign in to pay with Ingo Kilometres.');
+        return;
+      }
+      if (!walletEligible || !ingoFare) {
+        setSubmitError('Ingo Kilometres is only available for bike and tuktuk deliveries.');
+        return;
+      }
+      if (!canPayWithWallet) {
+        setSubmitError('Insufficient Ingo Kilometres balance. Top up or pay with cash.');
         return;
       }
     }
-    if (method === 'stripe' && stripeConfigured) {
-      if (!isSupabaseConfigured || !supabase) {
-        setSubmitError('Card payment requires Supabase to be configured.');
-        return;
-      }
+
+    if (method === 'ecocash' && !String(ecoPhone || '').trim()) {
+      setSubmitError('Enter the EcoCash mobile number that will approve payment.');
+      return;
     }
 
+    const orderForSave =
+      method === 'wallet' && ingoFare
+        ? {
+            ...order,
+            priceNum: total,
+            priceLabel: formatGBP(total),
+            minimumFareAmount: total,
+            customerOfferAmount: total,
+            priceBreakdownBase: ingoFare.minFare,
+            priceBreakdownDistance: ingoFare.extraFare,
+            priceBreakdownTime: 0,
+            priceBreakdownService: 0,
+            paymentRateType: 'ingo_kilometres',
+          }
+        : order;
+
+    let row = buildCustomerDeliveryOrderRow(orderForSave, method);
     let supabaseOrderId = null;
     let displayOrderId = 'ING-00234';
+    let deliveryConfirmationCode = row.delivery_confirmation_code || null;
 
     if (isSupabaseConfigured && supabase) {
       setPlacing(true);
       try {
-        const { data, error } = await supabase
+        const appUserId = await resolveValidAppUserId(supabase, row.app_user_id);
+        row = buildCustomerDeliveryOrderRow(orderForSave, method, appUserId);
+
+        let { data, error } = await supabase
           .from('customer_delivery_orders')
           .insert(row)
-          .select('id')
+          .select('id, delivery_confirmation_code')
           .single();
+
+        if (error && /app_user_id_fkey|foreign key constraint.*app_user/i.test(error.message || '')) {
+          if (method === 'wallet' || method === 'ecocash' || method === 'stripe') {
+            setSubmitError('Your login session is out of date. Sign in again to continue.');
+            return;
+          }
+          row = buildCustomerDeliveryOrderRow(orderForSave, method, null);
+          ({ data, error } = await supabase
+            .from('customer_delivery_orders')
+            .insert(row)
+            .select('id, delivery_confirmation_code')
+            .single());
+        }
+
         if (error) {
-          setSubmitError(error.message || 'Could not save your order.');
-          setPlacing(false);
+          if (/payment_method|payment_chk|wallet|ecocash|stripe/i.test(error.message || '')) {
+            setSubmitError(
+              `${friendlyAppUserFkError(error.message)} — Run supabase/customer_wallet_checkout.sql in the SQL editor.`,
+            );
+          } else {
+            setSubmitError(friendlyAppUserFkError(error.message));
+          }
           return;
         }
         supabaseOrderId = data?.id ?? null;
+        if (data?.delivery_confirmation_code) {
+          deliveryConfirmationCode = data.delivery_confirmation_code;
+        }
         if (supabaseOrderId) {
           displayOrderId = deliveryOrderDisplayRef(supabaseOrderId);
         }
 
-        if (method === 'stripe' && stripeConfigured && supabaseOrderId) {
-          const confirmState = {
-            ...order,
-            orderId: displayOrderId,
-            supabaseOrderId,
-            placedAt: new Date().toISOString(),
-            priceLabel: priceStr,
-            priceNum: total,
-            from: order.from,
-            to: order.to,
-            deliveryTitle: order.deliveryTitle || 'Delivery',
-            eta: order.eta || 'Varies by route',
-            package: order.package,
-            customer: session
-              ? {
-                  fullName: session.full_name || session.name || '',
-                  phone: session.phone || '',
-                  email: session.email || '',
-                  address: order.to || '',
-                }
-              : undefined,
-          };
-          setStripeHostedReturnContext({ flow: 'order_confirmation', state: confirmState });
-          const go = await stripeHostedCheckoutRedirect({
-            orderKind: 'delivery',
-            orderId: supabaseOrderId,
-            cancelPath: '/stripe-cancel',
+        if (method === 'wallet' && supabaseOrderId && appUserId) {
+          const debit = await debitCustomerWallet({
+            userId: appUserId,
+            amount: total,
+            label: `Delivery ${displayOrderId}`,
+            refType: 'delivery',
+            refId: supabaseOrderId,
           });
-          if (!go.ok) {
-            await supabase.from('customer_delivery_orders').delete().eq('id', supabaseOrderId);
-            setSubmitError(go.error || 'Could not start card checkout.');
-            setPlacing(false);
-          }
-          return;
-        }
-
-        if (method === 'card' && paynowConfigured && supabaseOrderId) {
-          const payRes = await postLocalPaynowInitiate({
-            orderKind: 'delivery',
-            orderNumber: displayOrderId,
-            orderId: supabaseOrderId,
-            amount: Number(Number(total).toFixed(2)),
-            customerEmail: session?.email != null ? String(session.email) : '',
-            customerPhone: session?.phone != null ? String(session.phone) : '',
-            customerName:
-              String(session?.full_name || session?.name || '')
-                .trim()
-                .slice(0, 120) || 'Customer',
-          });
-          if (!payRes.ok || !payRes.redirectUrl) {
-            setSubmitError(payRes.error || 'Could not start Paynow.');
-            setPlacing(false);
+          if (!debit.ok) {
+            try {
+              await supabase.from('customer_delivery_orders').delete().eq('id', supabaseOrderId);
+            } catch {
+              // ignore
+            }
+            setSubmitError(debit.error || 'Could not pay with Ingo Kilometres.');
             return;
           }
-          writeShopOrderConfirmationState({
+          try {
+            await supabase
+              .from('customer_delivery_orders')
+              .update({
+                payment_status: 'paid',
+                payment_completed_at: new Date().toISOString(),
+                payment_gateway: 'wallet',
+              })
+              .eq('id', supabaseOrderId);
+          } catch {
+            // payment_status columns may be optional on older schemas
+          }
+        }
+
+        if (method === 'ecocash' && supabaseOrderId) {
+          const charge = await postEcocashCharge({
+            orderId: supabaseOrderId,
+            orderNumber: displayOrderId,
+            amount: total,
+            phone: ecoPhone,
+            orderKind: 'delivery',
+            customerName: session?.full_name || session?.email || 'Customer',
+            remarks: `Delivery ${displayOrderId}`,
+          });
+          if (!charge?.ok) {
+            try {
+              await supabase.from('customer_delivery_orders').delete().eq('id', supabaseOrderId);
+            } catch {
+              // ignore
+            }
+            setSubmitError(charge?.error || 'Could not start EcoCash payment.');
+            return;
+          }
+
+          const trackingPayload = {
+            ...orderForSave,
             source: 'delivery',
             orderId: displayOrderId,
             supabaseOrderId,
@@ -224,117 +329,317 @@ export default function SelectPaymentPage() {
             to: order.to,
             deliveryTitle: order.deliveryTitle || 'Delivery',
             eta: order.eta || 'Varies by route',
-            package: order.package,
-            customer: session
-              ? {
-                  fullName: session.full_name || session.name || '',
-                  phone: session.phone || '',
-                  email: session.email || '',
-                  address: order.to || '',
-                }
-              : undefined,
+            deliveryConfirmationCode,
+            payment_method: 'ecocash',
+            payment_status: 'pending',
+          };
+          const ltState = buildLiveTrackingState(trackingPayload);
+          navigate('/ecocash-waiting', {
+            replace: true,
+            state: {
+              clientCorrelation: charge.clientCorrelation,
+              phone: charge.phone || ecoPhone,
+              orderId: supabaseOrderId,
+              orderKind: 'delivery',
+              orderNumber: displayOrderId,
+              notifyTable: 'customer_delivery_orders',
+              nextPath: ltState ? '/live-tracking' : '/order-confirmation',
+              nextState: ltState || trackingPayload,
+            },
           });
-          window.location.href = payRes.redirectUrl;
           return;
+        }
+
+        if (method === 'stripe' && supabaseOrderId) {
+          const trackingPayload = {
+            ...orderForSave,
+            source: 'delivery',
+            orderId: displayOrderId,
+            supabaseOrderId,
+            placedAt: new Date().toISOString(),
+            priceLabel: priceStr,
+            priceNum: total,
+            from: order.from,
+            to: order.to,
+            deliveryTitle: order.deliveryTitle || 'Delivery',
+            eta: order.eta || 'Varies by route',
+            deliveryConfirmationCode,
+            payment_method: 'stripe',
+            payment_status: 'pending',
+          };
+          const ltState = buildLiveTrackingState(trackingPayload);
+          setStripeHostedReturnContext({
+            flow: ltState ? 'live_tracking' : 'order_confirmation',
+            state: ltState || trackingPayload,
+          });
+          const go = await stripeHostedCheckoutRedirect({
+            orderKind: 'delivery',
+            orderId: supabaseOrderId,
+            cancelPath: '/stripe-cancel',
+          });
+          if (!go.ok) {
+            try {
+              await supabase.from('customer_delivery_orders').delete().eq('id', supabaseOrderId);
+            } catch {
+              // ignore
+            }
+            setSubmitError(go.error || 'Could not start card checkout.');
+            return;
+          }
+          return;
+        }
+
+        if (supabaseOrderId && method !== 'ecocash' && method !== 'stripe') {
+          notifyDriversOfNewOffer('customer_delivery_orders', supabaseOrderId);
         }
       } catch {
         setSubmitError('Network error while placing order.');
-        setPlacing(false);
         return;
+      } finally {
+        setPlacing(false);
       }
-      setPlacing(false);
+    } else if (method === 'wallet' || method === 'ecocash' || method === 'stripe') {
+      setSubmitError(
+        method === 'ecocash'
+          ? 'EcoCash requires Supabase. Configure the backend, or pay with cash.'
+          : method === 'stripe'
+            ? 'Card payments require Supabase. Configure the backend, or pay with cash.'
+            : 'Ingo Kilometres payments require Supabase. Pay with cash, or configure the app backend.',
+      );
+      return;
     }
 
-    navigate('/order-confirmation', {
+    const trackingPayload = {
+      ...orderForSave,
+      source: 'delivery',
+      orderId: displayOrderId,
+      supabaseOrderId,
+      placedAt: new Date().toISOString(),
+      priceLabel: priceStr,
+      priceNum: total,
+      from: order.from,
+      to: order.to,
+      deliveryTitle: order.deliveryTitle || 'Delivery',
+      eta: order.eta || 'Varies by route',
+      deliveryConfirmationCode,
+      payment_method: method,
+    };
+    const ltState = buildLiveTrackingState(trackingPayload);
+    navigate(ltState ? '/live-tracking' : '/order-confirmation', {
       replace: true,
-      state: {
-        ...order,
-        orderId: displayOrderId,
-        supabaseOrderId,
-        placedAt: new Date().toISOString(),
-        priceLabel: priceStr,
-        priceNum: total,
-        from: order.from,
-        to: order.to,
-      },
+      state: ltState || trackingPayload,
     });
   };
 
   return (
     <form className="pay-page" onSubmit={placeOrder}>
-        <div className="pay-header">
-          <div className="pay-header__row">
-            <Link to="/price-estimate" state={order} className="flow-back" aria-label="Back">
-              <BackArrow />
-            </Link>
-            <h1>Select Payment</h1>
-          </div>
+      <div className="pay-header">
+        <div className="pay-header__row">
+          <Link to="/price-estimate" state={order} className="flow-back" aria-label="Back">
+            <BackArrow />
+          </Link>
+          <h1>Select Payment</h1>
         </div>
-        <div className="pay-scroll">
-          {submitError ? (
-            <div
-              role="alert"
-              style={{
-                border: '1px solid #f0c7c7',
-                marginBottom: '0.75rem',
-                padding: '0.65rem 0.85rem',
-                borderRadius: 10,
-                background: '#fff',
-              }}
-            >
-              <p style={{ margin: 0, color: '#b42318', fontSize: '0.9rem' }}>{submitError}</p>
-            </div>
-          ) : null}
-          {showPaymentMethods ? (
-            <div className="pay-list" role="radiogroup" aria-label="Payment method">
-              {methodRows.map((m) => {
-                const isOn = method === m.id;
-                const I = m.Icon;
-                return (
-                  <label
-                    key={m.id}
-                    className={`pay-row${isOn ? ' pay-row--on' : ''}`}
-                    htmlFor={`pay-${m.id}`}
-                  >
-                    <span className="pay-row__icon" aria-hidden>
-                      <I />
-                    </span>
-                    <span className="pay-row__body">
-                      <span className="pay-row__label">{m.label}</span>
-                      {m.balance ? <span className="pay-row__sub">Balance: {m.balance}</span> : null}
-                    </span>
-                    <input
-                      type="radio"
-                      id={`pay-${m.id}`}
-                      name="payment"
-                      className="pay-row__radio"
-                      checked={isOn}
-                      onChange={() => setMethod(m.id)}
-                      disabled={placing}
-                    />
-                  </label>
-                );
-              })}
-            </div>
+      </div>
+      <div className="pay-scroll">
+        {submitError ? (
+          <div
+            role="alert"
+            style={{
+              border: '1px solid #f0c7c7',
+              marginBottom: '0.75rem',
+              padding: '0.65rem 0.85rem',
+              borderRadius: 10,
+              background: '#fff',
+            }}
+          >
+            <p style={{ margin: 0, color: '#b42318', fontSize: '0.9rem' }}>{submitError}</p>
+          </div>
+        ) : null}
+
+        <div className="pay-list" role="radiogroup" aria-label="Payment method">
+          {walletEligible ? (
+            <label className={paymentMethod === 'wallet' ? 'pay-row pay-row--on' : 'pay-row'} htmlFor="pay-wallet">
+              <span className="pay-row__icon" aria-hidden>
+                <IconWallet />
+              </span>
+              <span className="pay-row__body">
+                <span className="pay-row__label">Pay with Ingo Kilometres</span>
+                <span className="pay-row__sub">
+                  {walletLoading
+                    ? 'Loading balance…'
+                    : ingoFare
+                      ? `Balance ${formatGBP(walletBalance)} · fare ${formatGBP(ingoFare.fare)}`
+                      : `Balance ${formatGBP(walletBalance)}`}
+                </span>
+              </span>
+              <input
+                type="radio"
+                id="pay-wallet"
+                name="payment"
+                className="pay-row__radio"
+                checked={paymentMethod === 'wallet'}
+                onChange={() => setPaymentMethod('wallet')}
+              />
+            </label>
           ) : null}
 
-          <div className="pay-summary" aria-label="Order summary">
-            <h3>Order Summary</h3>
-            <div className="pay-summary__total">
-              <span>Total amount</span>
-              <span className="pay-summary__val">{priceStr}</span>
-            </div>
-            <div className="pay-summary__row">
-              <span>Delivery type</span>
-              <span>{order.deliveryTitle || 'Delivery'}</span>
-            </div>
-            <div className="pay-summary__row">
-              <span>Estimated time</span>
-              <span style={{ textAlign: 'right' }}>{order.eta || '45 - 60 mins'}</span>
-            </div>
+          <label className={paymentMethod === 'cod' ? 'pay-row pay-row--on' : 'pay-row'} htmlFor="pay-cod">
+            <span className="pay-row__icon" aria-hidden>
+              <IconCash />
+            </span>
+            <span className="pay-row__body">
+              <span className="pay-row__label">Pay with Cash</span>
+              <span className="pay-row__sub">Pay the rider when your parcel arrives</span>
+            </span>
+            <input
+              type="radio"
+              id="pay-cod"
+              name="payment"
+              className="pay-row__radio"
+              checked={paymentMethod === 'cod'}
+              onChange={() => setPaymentMethod('cod')}
+            />
+          </label>
+
+          <label className={paymentMethod === 'ecocash' ? 'pay-row pay-row--on' : 'pay-row'} htmlFor="pay-eco">
+            <span className="pay-row__icon" aria-hidden>
+              <IconEcoCash />
+            </span>
+            <span className="pay-row__body">
+              <span className="pay-row__label">Pay with EcoCash</span>
+              <span className="pay-row__sub">Approve on your phone (USD / ZWG)</span>
+            </span>
+            <input
+              type="radio"
+              id="pay-eco"
+              name="payment"
+              className="pay-row__radio"
+              checked={paymentMethod === 'ecocash'}
+              onChange={() => setPaymentMethod('ecocash')}
+            />
+          </label>
+
+          {stripeOk ? (
+            <label className={paymentMethod === 'stripe' ? 'pay-row pay-row--on' : 'pay-row'} htmlFor="pay-card">
+              <span className="pay-row__icon" aria-hidden>
+                <IconCard />
+              </span>
+              <span className="pay-row__body">
+                <span className="pay-row__label">Pay with Card</span>
+                <span className="pay-row__sub">Secure checkout on Stripe</span>
+              </span>
+              <input
+                type="radio"
+                id="pay-card"
+                name="payment"
+                className="pay-row__radio"
+                checked={paymentMethod === 'stripe'}
+                onChange={() => setPaymentMethod('stripe')}
+              />
+            </label>
+          ) : null}
+        </div>
+
+        {paymentMethod === 'ecocash' ? (
+          <div className="pay-wallet-box" aria-label="EcoCash phone">
+            <h3>EcoCash number</h3>
+            <label htmlFor="eco-phone" style={{ display: 'block', fontSize: '0.85rem', color: '#64748b', marginBottom: 6 }}>
+              Mobile that will receive the payment prompt
+            </label>
+            <input
+              id="eco-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="0771234567"
+              value={ecoPhone}
+              onChange={(e) => setEcoPhone(e.target.value)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                height: 46,
+                borderRadius: 10,
+                border: '1px solid #dbe3ef',
+                padding: '0 0.85rem',
+                fontSize: '1rem',
+                fontFamily: 'inherit',
+              }}
+              required
+            />
           </div>
-        <button type="submit" className="pay-btn" disabled={placing}>
-          {placing ? 'Placing…' : method === 'stripe' ? 'Continue with card' : 'Place Order'}
+        ) : null}
+
+        {paymentMethod === 'wallet' && walletEligible ? (
+          <div className="pay-wallet-box" aria-label="Ingo Kilometres payment summary">
+            <h3>Ingo Kilometres</h3>
+            <div className="pay-wallet-box__row">
+              <span>Ingo Kilometre fare</span>
+              <span>{priceStr}</span>
+            </div>
+            {ingoFare ? (
+              <div className="pay-wallet-box__row">
+                <span>Cash market offer</span>
+                <span>{formatGBP(cashTotal)}</span>
+              </div>
+            ) : null}
+            <div className="pay-wallet-box__row">
+              <span>Current balance</span>
+              <span>{walletLoading ? '…' : formatGBP(walletBalance)}</span>
+            </div>
+            <div className="pay-wallet-box__row pay-wallet-box__row--emph">
+              <span>Remaining after trip</span>
+              <span className={remainingAfter < 0 ? 'pay-wallet-box__neg' : undefined}>
+                {walletLoading ? '…' : formatGBP(Math.max(0, remainingAfter))}
+              </span>
+            </div>
+            {!walletLoading && !canPayWithWallet ? (
+              <p className="pay-wallet-box__warn" role="status">
+                Not enough balance. Top up or choose cash.
+              </p>
+            ) : null}
+            {walletError ? (
+              <p className="pay-wallet-box__warn" role="status">
+                {walletError}
+              </p>
+            ) : null}
+            <Link to="/wallet/top-up" className="pay-wallet-box__link">
+              Top up Ingo Kilometres
+            </Link>
+          </div>
+        ) : null}
+
+        <div className="pay-summary" aria-label="Order summary">
+          <h3>Order Summary</h3>
+          <div className="pay-summary__total">
+            <span>Total amount</span>
+            <span className="pay-summary__val">{priceStr}</span>
+          </div>
+          <div className="pay-summary__row">
+            <span>Delivery type</span>
+            <span>{order.deliveryTitle || 'Delivery'}</span>
+          </div>
+          <div className="pay-summary__row">
+            <span>Estimated time</span>
+            <span style={{ textAlign: 'right' }}>{order.eta || '45 - 60 mins'}</span>
+          </div>
+        </div>
+        <button
+          type="submit"
+          className="pay-btn"
+          disabled={placing || (paymentMethod === 'wallet' && !canPayWithWallet)}
+        >
+          {placing
+            ? paymentMethod === 'stripe'
+              ? 'Preparing card…'
+              : 'Placing…'
+            : paymentMethod === 'wallet'
+              ? `Pay ${priceStr} with Ingo Km`
+              : paymentMethod === 'ecocash'
+                ? `Pay ${priceStr} with EcoCash`
+                : paymentMethod === 'stripe'
+                  ? `Pay ${priceStr} with Card`
+                  : 'Place Order'}
         </button>
       </div>
     </form>

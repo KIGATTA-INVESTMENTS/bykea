@@ -23,6 +23,71 @@ export function shopOrderStatusLabel(raw) {
   return String(raw).replace(/^\w/, (c) => c.toUpperCase());
 }
 
+/** Shop-owner portal badge / filter labels (action-oriented). */
+export function shopOwnerOrderStatusLabel(raw) {
+  const s = normalizeShopOrderStatus(raw);
+  if (s === 'placed') return 'New order';
+  if (s === 'processing') return 'Preparing';
+  if (s === 'ready for delivery') return 'Ready for pickup';
+  if (s === 'picked up') return 'Picked up';
+  if (s === 'in transit') return 'In transit';
+  if (s === 'delivered') return 'Delivered';
+  if (s === 'cancelled') return 'Cancelled';
+  return shopOrderStatusLabel(raw);
+}
+
+/**
+ * Guided next step for the shop owner (primary CTA).
+ * @returns {{
+ *   nextStatus: string | null,
+ *   buttonLabel: string | null,
+ *   title: string,
+ *   hint: string,
+ * } | null}
+ */
+export function shopOwnerNextAction(raw) {
+  const s = normalizeShopOrderStatus(raw);
+  if (s === 'cancelled' || s === 'delivered') return null;
+  if (s === 'placed') {
+    return {
+      nextStatus: 'processing',
+      buttonLabel: 'Confirm & start preparing',
+      title: 'New order — confirm to start',
+      hint: 'Confirm this order to accept it, then prepare the items for the customer.',
+    };
+  }
+  if (s === 'processing') {
+    return {
+      nextStatus: 'ready for delivery',
+      buttonLabel: 'Mark ready for pickup',
+      title: 'Preparing this order',
+      hint: 'When everything is packed, mark it ready so a delivery driver can pick it up from your shop.',
+    };
+  }
+  if (s === 'ready for delivery') {
+    return {
+      nextStatus: null,
+      buttonLabel: null,
+      title: 'Waiting for a driver',
+      hint: 'Drivers can see this order now. You’ll get updates when it’s picked up and on the way.',
+    };
+  }
+  if (s === 'picked up' || s === 'in transit') {
+    return {
+      nextStatus: null,
+      buttonLabel: null,
+      title: 'Out for delivery',
+      hint: 'The courier has your order. Track progress below — no action needed unless something goes wrong.',
+    };
+  }
+  return {
+    nextStatus: 'processing',
+    buttonLabel: 'Confirm & start preparing',
+    title: 'New order — confirm to start',
+    hint: 'Confirm this order to accept it, then prepare the items for the customer.',
+  };
+}
+
 /**
  * Key for customer list/badge + filter (matches mockOrders / OrderHistoryPage).
  * - active: order placed, processing, or picked up

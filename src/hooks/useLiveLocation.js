@@ -1,11 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { readDeviceGpsPosition } from '../lib/devicePickupLocation';
-import { isReliableGpsLatLng } from '../lib/googleMapsConfig';
+import {
+  GEO_CACHE_MAX_AGE_MS,
+  isAcceptableDeviceFix,
+  isReliableGpsLatLng,
+} from '../lib/googleMapsConfig';
 import { whenMedianGeolocationReady } from '../lib/medianGeolocation';
 
 const GEO_LOG = '[geolocation]';
 
-const LAST_FIX_KEY = 'ingo_last_geo_fix';
+const LAST_FIX_KEY = 'ingo_last_geo_fix_v2';
+
+function clearCachedFix() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.removeItem(LAST_FIX_KEY);
+    localStorage.removeItem('ingo_last_geo_fix');
+  } catch {
+    // ignore
+  }
+}
 
 function readCachedFix() {
   try {
@@ -16,8 +30,14 @@ function readCachedFix() {
     const lat = Number(parsed?.lat);
     const lng = Number(parsed?.lng);
     const ts = Number(parsed?.ts);
-    if (!isReliableGpsLatLng(lat, lng)) return null;
-    if (!Number.isFinite(ts)) return null;
+    if (!isAcceptableDeviceFix(lat, lng)) {
+      clearCachedFix();
+      return null;
+    }
+    if (!Number.isFinite(ts) || Date.now() - ts > GEO_CACHE_MAX_AGE_MS) {
+      clearCachedFix();
+      return null;
+    }
     return { lat, lng, ts };
   } catch {
     return null;
@@ -25,6 +45,7 @@ function readCachedFix() {
 }
 
 function saveCachedFix(lat, lng) {
+  if (!isAcceptableDeviceFix(lat, lng)) return;
   try {
     if (typeof localStorage === 'undefined') return;
     localStorage.setItem(LAST_FIX_KEY, JSON.stringify({ lat, lng, ts: Date.now() }));
@@ -52,9 +73,9 @@ function metersApart(a, b) {
 
 /**
  * Live geolocation + optional compass heading for map overlays.
- * `mapCenter` is throttled so embed iframes are not constantly reloaded, but we always
- * publish a new center when the device moves meaningfully or after a forced refresh
- * (tab focus / mount) so returning to the app does not stick on last session’s coords.
+ * `mapCenter` only updates on first fix, forced refresh, or meaningful movement
+ * (throttled while moving). Time alone must not refresh embeds — that reloads
+ * iframes endlessly while a rider is stationary.
  *
  * `refreshFromUserGesture()` — call from a click handler (e.g. “Use my current location”).
  * Updates lat/lng/map immediately; helps installed PWAs / iOS where watch-only is slow.
@@ -74,12 +95,21 @@ export function useLiveLocation(options = {}) {
   const lastMapTick = useRef(0); /* 0 => first fix always updates map center */
   const lastPublishedMapCenterRef = useRef(null);
   const gpsHeadingRef = useRef(null);
+  const refreshInFlightRef = useRef(null);
 
   const ingestPosition = useCallback(
     (position, opts = {}) => {
       const { forceMapUpdate = false } = opts;
       const { latitude, longitude, heading, accuracy: acc } = position.coords;
       if (!isReliableGpsLatLng(latitude, longitude)) {
+        return false;
+      }
+      if (!isAcceptableDeviceFix(latitude, longitude)) {
+        console.warn(`${GEO_LOG} ignoring fix outside Zimbabwe service area`, {
+          lat: latitude,
+          lng: longitude,
+          accuracy: acc,
+        });
         return false;
       }
       setGeoError(null);
@@ -96,9 +126,12 @@ export function useLiveLocation(options = {}) {
       const nextCenter = { lat: latitude, lng: longitude };
       const now = Date.now();
       const prev = lastPublishedMapCenterRef.current;
-      const movedEnough = prev == null || metersApart(prev, nextCenter) >= movePublishM;
-      const dueByTime = forceMapUpdate || now - lastMapTick.current >= throttleMs;
-      if (dueByTime || movedEnough) {
+      const firstFix = prev == null;
+      const movedEnough = firstFix || metersApart(prev, nextCenter) >= movePublishM;
+      // Never refresh the map on a timer alone — that reloads embed iframes endlessly while idle.
+      // Update only on first fix, user force, or meaningful movement (with throttle while moving).
+      const dueByTime = now - lastMapTick.current >= throttleMs;
+      if (forceMapUpdate || firstFix || (movedEnough && dueByTime)) {
         lastMapTick.current = now;
         lastPublishedMapCenterRef.current = nextCenter;
         setMapCenter(nextCenter);
@@ -112,16 +145,37 @@ export function useLiveLocation(options = {}) {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       const e = new Error('unsupported');
       e.code = 0;
+      setGeoError('unsupported');
       throw e;
     }
-    const pos = await readDeviceGpsPosition();
-    const ok = ingestPosition(pos, { forceMapUpdate: true });
-    if (!ok) {
-      const e = new Error('invalid');
-      e.code = 2;
-      throw e;
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
     }
-    return pos.coords;
+    const run = (async () => {
+      try {
+        const pos = await readDeviceGpsPosition({ interactive: true });
+        const ok = ingestPosition(pos, { forceMapUpdate: true });
+        if (!ok) {
+          setGeoError('out_of_area');
+          const e = new Error('out_of_area');
+          e.code = 4;
+          throw e;
+        }
+        setGeoError(null);
+        return pos.coords;
+      } catch (err) {
+        const code = typeof err?.code === 'number' ? err.code : 2;
+        if (code === 1) setGeoError('denied');
+        else if (code === 4) setGeoError('out_of_area');
+        else if (code === 0) setGeoError('unsupported');
+        else setGeoError('unavailable');
+        throw err;
+      } finally {
+        refreshInFlightRef.current = null;
+      }
+    })();
+    refreshInFlightRef.current = run;
+    return run;
   }, [ingestPosition]);
 
   useEffect(() => {
@@ -144,20 +198,22 @@ export function useLiveLocation(options = {}) {
               code: err.code,
               message: err.message,
             });
-            setGeoError(err.code === 1 ? 'denied' : 'unavailable');
+            // Don't overwrite a successful fix with a later watch timeout.
+            setGeoError((prev) => {
+              if (prev === 'denied') return prev;
+              return err.code === 1 ? 'denied' : prev || 'unavailable';
+            });
           },
           {
             enableHighAccuracy: true,
-            /* Prefer fresh fixes after reopen / travel; cache still used only until first callback */
-            maximumAge: 0,
-            /* Mobile / PWA: allow slow first fix instead of constant timeout errors */
-            timeout: 90000,
+            maximumAge: 15_000,
+            timeout: 25_000,
           },
         );
         console.log(`${GEO_LOG} watchPosition started`);
       } catch (e) {
         console.error(`${GEO_LOG} watchPosition setup failed`, e);
-        setGeoError('unavailable');
+        setGeoError((prev) => prev || 'unavailable');
       }
     })();
     return () => {
@@ -166,7 +222,7 @@ export function useLiveLocation(options = {}) {
     };
   }, [ingestPosition]);
 
-  /** Fresh read on mount so we do not stay on localStorage / last session until watch catches up. */
+  /** Soft background refresh only — never compete with the Allow-location button. */
   useEffect(() => {
     if (!navigator.geolocation) return undefined;
     let cancelled = false;
@@ -175,7 +231,7 @@ export function useLiveLocation(options = {}) {
         if (!cancelled) ingestPosition(pos, { forceMapUpdate: true });
       })
       .catch(() => {
-        /* watchPosition may still deliver; permission may need a gesture */
+        /* watch / Allow button may still deliver */
       });
     return () => {
       cancelled = true;
@@ -226,21 +282,6 @@ export function useLiveLocation(options = {}) {
       if (perm) perm.removeEventListener('change', onChange);
     };
   }, [refreshFromUserGesture]);
-
-  useEffect(() => {
-    if (lat != null || lng != null) return undefined;
-    const once = () => {
-      refreshFromUserGesture().catch(() => {});
-      window.removeEventListener('pointerdown', once, true);
-      window.removeEventListener('touchstart', once, true);
-    };
-    window.addEventListener('pointerdown', once, true);
-    window.addEventListener('touchstart', once, true);
-    return () => {
-      window.removeEventListener('pointerdown', once, true);
-      window.removeEventListener('touchstart', once, true);
-    };
-  }, [lat, lng, refreshFromUserGesture]);
 
   useEffect(() => {
     const onOrient = (e) => {

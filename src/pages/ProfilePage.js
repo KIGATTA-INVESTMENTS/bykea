@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   clearCustomerSession,
@@ -7,7 +7,10 @@ import {
   isCustomerMarkedSignedIn,
   saveCustomerSession,
 } from '../lib/customerSession';
+import { fetchCustomerUnifiedOrders } from '../lib/customerOrderFeed';
+import { statusLabel } from '../data/mockOrders';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
+import '../components/customer/CustomerApp.css';
 import './profilePremium.css';
 
 const TABS = [
@@ -137,6 +140,120 @@ function MenuRow({ icon, label, meta, onClick }) {
       {meta ? <span className="prf-row__meta">{meta}</span> : null}
       <RowChevron />
     </button>
+  );
+}
+
+function orderDisplayName(order) {
+  if (order.subtitle) return order.subtitle;
+  if (order.kind === 'shop') return 'Shop order';
+  if (order.kind === 'taxi' || order.kind === 'tuk') return 'Ride';
+  if (order.kind === 'delivery') return 'Delivery';
+  return order.id || 'Order';
+}
+
+function orderStatusBadgeClass(status, statusText) {
+  const text = String(statusText || statusLabel(status) || '').toLowerCase();
+  if (status === 'cancelled' || text.includes('cancel')) return 'ch-ro__badge ch-ro__badge--cancelled';
+  if (status === 'delivered' || text.includes('delivered')) return 'ch-ro__badge ch-ro__badge--delivered';
+  if (text.includes('finding') || text.includes('placed') || text.includes('pending') || text.includes('awaiting')) {
+    return 'ch-ro__badge ch-ro__badge--finding';
+  }
+  return 'ch-ro__badge ch-ro__badge--active';
+}
+
+function IconFood() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path d="M8 4v8M6 4v2M10 4v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M14 4c1.5 2 2 4 2 7v9H12V11c0-3 .5-5 2-7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconOrderCar() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path d="M5 11h14l-1.5-5H6.5L5 11Zm1 0v5h12v-5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx="8" cy="16" r="1.2" fill="currentColor" />
+      <circle cx="16" cy="16" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconOrderShop() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path d="M5 10h14l-1-4H6L5 10Zm0 0v8h14v-8" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ProfileRecentOrders({ navigate }) {
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadRecentOrders = useCallback(async () => {
+    setLoading(true);
+    const session = getCustomerSession();
+    const { orders } = await fetchCustomerUnifiedOrders(session);
+    setRecentOrders((orders || []).slice(0, 4));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadRecentOrders();
+  }, [loadRecentOrders]);
+
+  const orderKindIcon = (kind) => {
+    if (kind === 'taxi' || kind === 'tuk') return <IconOrderCar />;
+    if (kind === 'shop') return <IconOrderShop />;
+    return <IconFood />;
+  };
+
+  const orderKindIconClass = (kind) => {
+    if (kind === 'taxi' || kind === 'tuk') return 'ch-ro__icon ch-ro__icon--blue';
+    if (kind === 'shop') return 'ch-ro__icon ch-ro__icon--green';
+    return 'ch-ro__icon ch-ro__icon--orange';
+  };
+
+  return (
+    <section className="prf-recent" aria-label="Recent orders">
+      <div className="prf-recent__head">
+        <h2 className="prf-recent__title">Recent Orders</h2>
+        <button type="button" className="prf-recent__viewall" onClick={() => navigate('/orders')}>
+          View all
+        </button>
+      </div>
+      {loading ? (
+        <p className="ch-recent__empty">Loading orders…</p>
+      ) : recentOrders.length === 0 ? (
+        <p className="ch-recent__empty">No orders yet.</p>
+      ) : (
+        <ul className="ch-recent__list">
+          {recentOrders.map((o) => (
+            <li key={o.navKey}>
+              <button
+                type="button"
+                className="ch-ro"
+                onClick={() => navigate(`/order/${encodeURIComponent(o.navKey)}`)}
+              >
+                <span className={orderKindIconClass(o.kind)} aria-hidden>
+                  {orderKindIcon(o.kind)}
+                </span>
+                <span className="ch-ro__body">
+                  <span className="ch-ro__name">{orderDisplayName(o)}</span>
+                  <span className="ch-ro__date">{o.date}</span>
+                  <span className={orderStatusBadgeClass(o.status, o.statusText)}>
+                    {o.statusText || statusLabel(o.status)}
+                  </span>
+                </span>
+                <span className="ch-ro__price">{o.price}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -362,6 +479,7 @@ export default function ProfilePage() {
           aria-labelledby={`prf-tab-${activeTab}`}
           className="prf-panel"
         >
+          {activeTab === 'activity' ? <ProfileRecentOrders navigate={navigate} /> : null}
           <div className="prf-card">
             {panelRows.map((row) => (
               <MenuRow

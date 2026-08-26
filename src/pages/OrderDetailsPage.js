@@ -4,7 +4,20 @@ import ShopOrderTrackingSteps from '../components/ShopOrderTrackingSteps';
 import { getOrderById, statusLabel } from '../data/mockOrders';
 import { fetchCustomerOrderDetail, mapDriverRegistrationRow, parseOrderNavKey } from '../lib/customerOrderFeed';
 import { getCustomerSession } from '../lib/customerSession';
+import { sweepAutoCancelStaleBookings, cancelCustomerBooking, canCustomerCancelBooking, CANCEL_REASON_CUSTOMER } from '../lib/customerOrderCancel';
+import {
+  isDriverSearchTimedOut,
+  noDriverAvailableDetail,
+  noDriverAvailableHeadline,
+} from '../lib/driverSearchWait';
+import { buildLiveTrackingStateFromDetail, isCustomerOrderTrackable } from '../lib/liveTrackingState';
+import DeliveryPin from '../components/DeliveryPin';
+import PackagePhotoCapture from '../components/PackagePhotoCapture';
+import { DELIVERY_PIN_CUSTOMER_HINT, storedDeliveryPin } from '../lib/deliveryConfirmationCode';
+import { isPackagePhotoSrc, persistParcelPackagePhoto } from '../lib/packagePhoto';
 import { shopOrderCustomerBadgeKey, shopOrderProgressMessage, shopOrderStatusLabel } from '../lib/shopOrderStatus';
+import ConfirmDialog from '../components/ConfirmDialog';
+import '../components/ConfirmDialog.css';
 import './customerAccount.css';
 
 function badgeClass(status) {
@@ -38,11 +51,17 @@ function uiStatusDelivery(db) {
 }
 
 /** Customer-facing copy for live delivery rows (Supabase). */
-function deliveryProgressMessage(row) {
+function deliveryProgressMessage(row, timedOut = false) {
   const st = String(row?.status || '')
     .toLowerCase()
     .trim();
-  if (st === 'cancelled') return 'This delivery was cancelled.';
+  if (st === 'cancelled') {
+    const reason = String(row?.cancel_reason || '').trim();
+    const by = String(row?.cancelled_by || '').toLowerCase();
+    const who = by === 'driver' ? ' by the driver' : by === 'customer' ? ' by you' : '';
+    if (reason) return `This delivery was cancelled${who} — ${reason}.`;
+    return `This delivery was cancelled${who}.`;
+  }
   if (st === 'delivered') return 'Your parcel has been delivered.';
   if (st === 'assigned' && row?.assigned_driver_id) {
     const leg = String(row?.driver_nav_leg || '')
@@ -51,8 +70,26 @@ function deliveryProgressMessage(row) {
     if (leg === 'to_dropoff') return 'Driver picked up your parcel and is on the way to the drop-off.';
     return 'Driver assigned — heading to the pickup.';
   }
+  if ((st === 'paid' || st === 'placed') && timedOut) {
+    return `${noDriverAvailableHeadline()}. ${noDriverAvailableDetail({ isRide: false })}`;
+  }
   if (st === 'paid' || st === 'placed') return 'Waiting for a driver to accept your delivery.';
   return 'Your order is being processed.';
+}
+
+function rideProgressMessage(row, timedOut = false) {
+  const st = String(row?.status || '').toLowerCase().trim();
+  if (st === 'cancelled') {
+    const reason = String(row?.cancel_reason || '').trim();
+    const by = String(row?.cancelled_by || '').toLowerCase();
+    const who = by === 'driver' ? ' by the driver' : by === 'customer' ? ' by you' : '';
+    if (reason) return `This ride was cancelled${who} — ${reason}.`;
+    return `This ride was cancelled${who}.`;
+  }
+  if (st === 'completed') return 'Ride completed.';
+  if (row?.assigned_driver_id) return 'Driver assigned — heading to pickup.';
+  if (timedOut) return `${noDriverAvailableHeadline()}. ${noDriverAvailableDetail({ isRide: true })}`;
+  return 'Waiting for a driver to accept your ride.';
 }
 
 function uiStatusRide(db) {
@@ -80,11 +117,12 @@ function taxiRideTypeLabel(row) {
   return row?.ride_type || '—';
 }
 
-function liveOrderFromBundle(bundle) {
+function liveOrderFromBundle(bundle, driverSearchTimedOut = false) {
   if (!bundle) return null;
   const { kind, row, lines } = bundle;
 
   if (kind === 'delivery') {
+    const code = storedDeliveryPin(row.delivery_confirmation_code);
     return {
       source: 'live',
       kind: 'delivery',
@@ -96,6 +134,7 @@ function liveOrderFromBundle(bundle) {
       breakdown: {
         base: Number(row.base_fare_amount) || 0,
         distance: Number(row.distance_fee_amount) || 0,
+        time: Number(row.time_fee_amount) || 0,
         service: Number(row.service_fee_amount) || 0,
         total: Number(row.total_amount) || 0,
       },
@@ -106,7 +145,15 @@ function liveOrderFromBundle(bundle) {
         packageSize: row.package_size,
         packageWeight: row.package_weight,
         deliveryType: row.delivery_type,
-        deliveryProgress: deliveryProgressMessage(row),
+        deliveryProgress: deliveryProgressMessage(row, driverSearchTimedOut),
+        cancelReason: row.cancel_reason?.trim() || null,
+        cancelledBy: row.cancelled_by?.trim() || null,
+        deliveryConfirmationCode: code || null,
+        packagePhotoDataUrl: isPackagePhotoSrc(row.package_photo_data_url) ? row.package_photo_data_url : null,
+        driverPackagePhotoDataUrl: isPackagePhotoSrc(row.driver_package_photo_data_url)
+          ? row.driver_package_photo_data_url
+          : null,
+        supabaseOrderId: row.id,
       },
     };
   }
@@ -129,6 +176,9 @@ function liveOrderFromBundle(bundle) {
         rideType: taxiRideTypeLabel(row),
         estDist: row.estimated_distance_label,
         estDur: row.estimated_duration_label,
+        rideProgress: rideProgressMessage(row, driverSearchTimedOut),
+        cancelReason: row.cancel_reason?.trim() || null,
+        cancelledBy: row.cancelled_by?.trim() || null,
       },
     };
   }
@@ -150,6 +200,9 @@ function liveOrderFromBundle(bundle) {
       meta: {
         estDist: row.estimated_distance_label,
         estDur: row.estimated_duration_label,
+        rideProgress: rideProgressMessage(row, driverSearchTimedOut),
+        cancelReason: row.cancel_reason?.trim() || null,
+        cancelledBy: row.cancelled_by?.trim() || null,
       },
     };
   }
@@ -158,6 +211,7 @@ function liveOrderFromBundle(bundle) {
     const sub = Number(row.subtotal) || 0;
     const del = Number(row.delivery_fee) || 0;
     const hasDriver = Boolean(row.assigned_driver_id);
+    const code = storedDeliveryPin(row.delivery_confirmation_code);
     return {
       source: 'live',
       kind: 'shop',
@@ -176,6 +230,7 @@ function liveOrderFromBundle(bundle) {
         shopStatusRaw: row.status,
         shopProgress: shopOrderProgressMessage(row.status, { hasDriver }),
         shopHasDriver: hasDriver,
+        deliveryConfirmationCode: code || null,
       },
       shopLines: lines || [],
     };
@@ -206,6 +261,10 @@ export default function OrderDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [liveBundle, setLiveBundle] = useState(null);
+  const [waitTick, setWaitTick] = useState(0);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelErr, setCancelErr] = useState('');
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const mockOrder = useMemo(() => {
     if (!raw || parseOrderNavKey(raw)) return null;
@@ -255,7 +314,7 @@ export default function OrderDetailsPage() {
       if (!cancelled) setLoading(false);
     })();
 
-    const pollMs = parsed.kind === 'shop' ? 3000 : 0;
+    const pollMs = parsed.kind === 'shop' || parsed.kind === 'delivery' || parsed.kind === 'taxi' || parsed.kind === 'tuk' ? 3000 : 0;
     const timer = pollMs ? window.setInterval(() => loadDetail(false), pollMs) : null;
 
     return () => {
@@ -264,12 +323,76 @@ export default function OrderDetailsPage() {
     };
   }, [raw]);
 
+  const trackableLive = isCustomerOrderTrackable(liveBundle);
+  const liveTrackingState = useMemo(
+    () => buildLiveTrackingStateFromDetail(liveBundle),
+    [liveBundle],
+  );
+
+  const awaitingDriver =
+    liveBundle?.row &&
+    !liveBundle.row.assigned_driver_id &&
+    !['cancelled', 'delivered', 'completed'].includes(String(liveBundle.row.status || '').toLowerCase());
+
+  const driverSearchTimedOut = useMemo(
+    () =>
+      isDriverSearchTimedOut({
+        liveRow: liveBundle?.row,
+        hasDriver: Boolean(liveBundle?.row?.assigned_driver_id),
+      }),
+    [liveBundle, waitTick],
+  );
+
+  useEffect(() => {
+    if (!awaitingDriver) return undefined;
+    const id = window.setInterval(() => setWaitTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [awaitingDriver]);
+
+  const parsedNav = parseOrderNavKey(raw);
+
+  const canCancelOrder = useMemo(() => {
+    if (!liveBundle?.row || !parsedNav) return false;
+    if (!['delivery', 'taxi', 'tuk'].includes(parsedNav.kind)) return false;
+    return canCustomerCancelBooking(liveBundle.row, parsedNav.kind);
+  }, [liveBundle, parsedNav]);
+
+  const onCancelOrder = () => {
+    if (!parsedNav || !liveBundle?.row || cancelBusy) return;
+    const session = getCustomerSession();
+    if (!session?.id) return;
+    setCancelErr('');
+    setCancelConfirmOpen(true);
+  };
+
+  const confirmCancelOrder = async () => {
+    if (!parsedNav || !liveBundle?.row || cancelBusy) return;
+    const session = getCustomerSession();
+    if (!session?.id) return;
+    setCancelBusy(true);
+    setCancelErr('');
+    const result = await cancelCustomerBooking({
+      kind: parsedNav.kind,
+      id: parsedNav.id,
+      appUserId: session.id,
+      reason: CANCEL_REASON_CUSTOMER,
+    });
+    setCancelBusy(false);
+    if (!result.ok) {
+      setCancelErr(result.error || 'Could not cancel.');
+      return;
+    }
+    setCancelConfirmOpen(false);
+    const { data } = await fetchCustomerOrderDetail(raw, session);
+    if (data) setLiveBundle(data);
+  };
+
   const order = useMemo(() => {
     if (parseOrderNavKey(raw)) {
-      return liveOrderFromBundle(liveBundle);
+      return liveOrderFromBundle(liveBundle, driverSearchTimedOut);
     }
     return mockOrder;
-  }, [raw, liveBundle, mockOrder]);
+  }, [raw, liveBundle, mockOrder, driverSearchTimedOut]);
 
   if (!raw) {
     return (
@@ -352,7 +475,7 @@ export default function OrderDetailsPage() {
     );
   }
 
-  const { base, distance, service, total } = order.breakdown;
+  const { base, distance, time = 0, service, total } = order.breakdown;
   const showRate = order.rated === false && order.status === 'delivered' && !parseOrderNavKey(raw);
   const isShop = order.kind === 'shop';
 
@@ -381,6 +504,17 @@ export default function OrderDetailsPage() {
               {order.meta.deliveryProgress}
             </p>
           ) : null}
+          {(order.kind === 'taxi' || order.kind === 'tuk') &&
+          order.source === 'live' &&
+          order.meta?.rideProgress ? (
+            <p
+              className="od-deliveryStatusMsg"
+              style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.45, color: '#2a2a2a', fontWeight: 650 }}
+              role="status"
+            >
+              {order.meta.rideProgress}
+            </p>
+          ) : null}
           {order.kind === 'shop' && order.source === 'live' && order.meta?.shopProgress ? (
             <p
               className="od-deliveryStatusMsg"
@@ -389,6 +523,49 @@ export default function OrderDetailsPage() {
             >
               {order.meta.shopProgress}
             </p>
+          ) : null}
+          {order.source === 'live' && (order.meta?.cancelReason || order.status === 'cancelled') ? (
+            <div className="od-cancelNotice" role="status">
+              <p className="od-cancelNotice__title">
+                {order.meta?.cancelledBy === 'driver'
+                  ? 'Cancelled by driver'
+                  : order.meta?.cancelledBy === 'customer'
+                    ? 'Cancelled by you'
+                    : 'Cancelled'}
+              </p>
+              {order.meta?.cancelReason ? (
+                <p className="od-cancelNotice__reason">Reason: {order.meta.cancelReason}</p>
+              ) : null}
+            </div>
+          ) : null}
+          {order.source === 'live' &&
+          order.meta?.deliveryConfirmationCode &&
+          order.status !== 'delivered' &&
+          order.status !== 'cancelled' ? (
+            <div className="od-deliveryCode" aria-label="Delivery PIN">
+              <p className="od-deliveryCode__label">Your delivery PIN</p>
+              <DeliveryPin value={order.meta.deliveryConfirmationCode} readOnly ariaLabel="Your delivery PIN" />
+              <p className="od-deliveryCode__hint">{DELIVERY_PIN_CUSTOMER_HINT}</p>
+            </div>
+          ) : null}
+          {cancelErr ? (
+            <p style={{ margin: 0, color: '#b42318', fontSize: '0.85rem' }} role="alert">
+              {cancelErr}
+            </p>
+          ) : null}
+          {canCancelOrder ? (
+            <button type="button" className="od-cancelOrderBtn" disabled={cancelBusy} onClick={onCancelOrder}>
+              {cancelBusy ? 'Cancelling…' : 'Cancel order'}
+            </button>
+          ) : null}
+          {trackableLive && liveTrackingState ? (
+            <button
+              type="button"
+              className="od-trackLiveBtn"
+              onClick={() => navigate('/live-tracking', { state: liveTrackingState })}
+            >
+              Track live on map
+            </button>
           ) : null}
         </div>
 
@@ -457,6 +634,42 @@ export default function OrderDetailsPage() {
                 <strong>Package</strong>{' '}
                 {[order.meta.packageSize, order.meta.packageWeight].filter(Boolean).join(' · ')}
               </p>
+            ) : null}
+            {order.source === 'live' && order.meta?.supabaseOrderId ? (
+              <div style={{ marginTop: '0.65rem' }}>
+                <PackagePhotoCapture
+                  value={order.meta.packagePhotoDataUrl || ''}
+                  onChange={async (url, name) => {
+                    setLiveBundle((prev) =>
+                      prev?.row
+                        ? {
+                            ...prev,
+                            row: {
+                              ...prev.row,
+                              package_photo_data_url: url,
+                              package_photo_filename: name || prev.row.package_photo_filename,
+                            },
+                          }
+                        : prev,
+                    );
+                    const saved = await persistParcelPackagePhoto('customer', order.meta.supabaseOrderId, url, name);
+                    if (!saved.ok) setCancelErr(saved.error || 'Could not save package photo.');
+                  }}
+                  label="Your package photo"
+                  hint="Take or upload a photo of the parcel. Your driver will see this at pickup."
+                  disabled={order.status === 'delivered' || order.status === 'cancelled'}
+                />
+                {order.meta.driverPackagePhotoDataUrl ? (
+                  <figure className="da-packagePhotoWrap" style={{ marginTop: '0.75rem' }}>
+                    <figcaption className="da-packagePhotoCap">Driver photo at pickup</figcaption>
+                    <img
+                      className="da-packagePhotoImg"
+                      src={order.meta.driverPackagePhotoDataUrl}
+                      alt="Package photographed by driver"
+                    />
+                  </figure>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -563,6 +776,12 @@ export default function OrderDetailsPage() {
                 <span>Distance</span>
                 <span>{formatMoney(distance)}</span>
               </div>
+              {time > 0 ? (
+                <div className="od-rowB">
+                  <span>Time fee</span>
+                  <span>{formatMoney(time)}</span>
+                </div>
+              ) : null}
               <div className="od-rowB">
                 <span>Service &amp; fees</span>
                 <span>{formatMoney(service)}</span>
@@ -581,6 +800,19 @@ export default function OrderDetailsPage() {
           </button>
         )}
       </div>
+
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        title="Cancel this order?"
+        message="You can place a new delivery or ride anytime. This cannot be undone."
+        confirmLabel="Yes, cancel"
+        cancelLabel="Keep order"
+        busy={cancelBusy}
+        onCancel={() => {
+          if (!cancelBusy) setCancelConfirmOpen(false);
+        }}
+        onConfirm={confirmCancelOrder}
+      />
     </div>
   );
 }

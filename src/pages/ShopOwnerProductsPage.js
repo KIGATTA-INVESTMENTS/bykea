@@ -1,22 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import ProductCategoryField from '../components/shopOwner/ProductCategoryField';
+import ProductTagsInput from '../components/shopOwner/ProductTagsInput';
 import { formatGBP } from '../lib/currency';
 import { compressImageToDataUrl } from '../lib/compressImageToDataUrl';
+import {
+  normalizeProductCategory,
+  normalizeProductTags,
+  productMatchesSearch,
+} from '../lib/shopProductCategories';
 import { mapShopProductRow } from '../lib/shopProductMap';
+import { resolveShopMediaUrl } from '../lib/shopMediaUpload';
+import { fetchShopOwnerAdminNotificationItems } from '../lib/shopOwnerAdminNotifications';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
+import {
+  getShopOwnerNotificationsReadSet,
+  markShopOwnerNotificationsRead,
+} from '../lib/shopOwnerNotifications';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
 import './shopOwnerDashboardPremium.css';
 import './shopOwnerProductsPremium.css';
 
-const CATS = ['All', 'Dairy', 'Bakery', 'Produce', 'Pantry', 'Beverages'];
 const STOCK_FILT = [
   { id: 'all', label: 'All' },
   { id: 'in', label: 'In stock' },
   { id: 'out', label: 'Out of stock' },
 ];
 const SORTS = ['Name (A–Z)', 'Name (Z–A)', 'Price: low to high', 'Price: high to low', 'Stock: low to high'];
-const CATS2 = ['Dairy', 'Bakery', 'Produce', 'Pantry', 'Beverages', 'Other'];
 
 function IcPlus() {
   return (
@@ -80,7 +91,9 @@ function IcChevronDown() {
 
 const emptyForm = () => ({
   name: '',
-  category: CATS2[0],
+  category: 'Other',
+  brandName: '',
+  tags: [],
   description: '',
   price: '',
   compare: '',
@@ -88,6 +101,7 @@ const emptyForm = () => ({
   sku: '',
   weight: '',
   active: true,
+  offersFreeDelivery: false,
   hasVariants: false,
   variants: [],
 });
@@ -116,6 +130,7 @@ export default function ShopOwnerProductsPage() {
   const [deletePrompt, setDeletePrompt] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [toast, setToast] = useState(null);
+  const [adminAlerts, setAdminAlerts] = useState([]);
 
   const loadProducts = useCallback(async () => {
     setLoadError('');
@@ -123,28 +138,35 @@ export default function ShopOwnerProductsPage() {
     const session = getShopOwnerSession();
     if (!session?.id) {
       setList([]);
+      setAdminAlerts([]);
       setLoadError('Sign in as a shop owner to see your catalog.');
       setLoading(false);
       return;
     }
     if (!isSupabaseConfigured || !supabase) {
       setList([]);
+      setAdminAlerts([]);
       setLoadError('Supabase is not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.');
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
-      .from('shop_products')
-      .select('*')
-      .eq('shop_owner_id', session.id)
-      .order('created_at', { ascending: false });
+    const readSet = getShopOwnerNotificationsReadSet();
+    const [{ data, error }, adminRes] = await Promise.all([
+      supabase
+        .from('shop_products')
+        .select('*')
+        .eq('shop_owner_id', session.id)
+        .order('created_at', { ascending: false }),
+      fetchShopOwnerAdminNotificationItems(session.id, readSet),
+    ]);
     setLoading(false);
     if (error) {
       setList([]);
       setLoadError(error.message);
-      return;
+    } else {
+      setList((data || []).map(mapShopProductRow));
     }
-    setList((data || []).map(mapShopProductRow));
+    setAdminAlerts((adminRes.items || []).filter((n) => !n.read).slice(0, 5));
   }, []);
 
   useEffect(() => {
@@ -178,12 +200,19 @@ export default function ShopOwnerProductsPage() {
     navigate('/shop-owner/products', { replace: true });
   }, [location.state, navigate, loadProducts]);
 
+  const dismissAdminAlert = (alertId) => {
+    markShopOwnerNotificationsRead([alertId]);
+    setAdminAlerts((prev) => prev.filter((a) => a.id !== alertId));
+  };
+
   const openEdit = (p) => {
     setEditError('');
     setEditId(p.id);
     setF({
       name: p.name,
-      category: p.category,
+      category: p.category || 'Other',
+      brandName: p.brandName || '',
+      tags: normalizeProductTags(p.tags),
       description: p.description ?? '',
       price: String(p.price),
       compare: p.compareAt ?? '',
@@ -191,6 +220,7 @@ export default function ShopOwnerProductsPage() {
       sku: p.sku ?? '',
       weight: p.weight ?? '',
       active: p.active,
+      offersFreeDelivery: Boolean(p.offersFreeDelivery),
       hasVariants: Boolean(p.hasVariants),
       variants: Array.isArray(p.variants) ? [...p.variants] : [],
     });
@@ -221,10 +251,10 @@ export default function ShopOwnerProductsPage() {
     const i = slotEditRef.current;
     setImageEditBusy(true);
     try {
-      const dataUrl = await compressImageToDataUrl(file);
+      const dataUrl = await compressImageToDataUrl(file, 960, 0.78);
       setImages((m) => {
         const n = [...m];
-        n[i] = { dataUrl, name: file.name };
+        n[i] = { dataUrl, name: file.name, file };
         return n;
       });
     } catch {
@@ -258,18 +288,29 @@ export default function ShopOwnerProductsPage() {
     const price = parseFloat(f.price) || 0;
     const st = parseInt(f.stock, 10);
     const session = getShopOwnerSession();
-    const primary =
-      images[0] && typeof images[0] === 'object' && images[0].dataUrl ? images[0].dataUrl : null;
-    const galleryUrls = [1, 2, 3, 4]
-      .map((i) => (images[i] && typeof images[i] === 'object' && images[i].dataUrl ? images[i].dataUrl : null))
-      .filter(Boolean);
 
     if (isSupabaseConfigured && supabase && session?.id) {
-      const { error } = await supabase
-        .from('shop_products')
-        .update({
+      try {
+        const slots = await Promise.all(
+          [0, 1, 2, 3, 4].map((idx) => {
+            const slot = images[idx];
+            if (!slot || typeof slot !== 'object') return Promise.resolve(null);
+            return resolveShopMediaUrl({
+              ownerId: session.id,
+              productKey: editId,
+              slotIndex: idx,
+              file: slot.file || null,
+              url: slot.dataUrl || null,
+            });
+          }),
+        );
+        const primary = slots[0] || null;
+        const galleryUrls = slots.slice(1).filter(Boolean);
+        const tags = normalizeProductTags(f.tags);
+        const payload = {
           name: f.name.trim(),
-          category: f.category,
+          category: normalizeProductCategory(f.category),
+          brand_name: f.brandName.trim() || null,
           description: f.description.trim() || null,
           price,
           compare_at_price: f.compare ? parseFloat(f.compare) : null,
@@ -277,21 +318,52 @@ export default function ShopOwnerProductsPage() {
           sku: f.sku.trim() || null,
           weight: f.weight.trim() || null,
           is_active: f.active,
+          offers_free_delivery: Boolean(f.offersFreeDelivery),
           has_variants: f.hasVariants,
           variants: f.variants,
           image_primary_url: primary,
           image_urls: galleryUrls,
-        })
-        .eq('id', editId)
-        .eq('shop_owner_id', session.id);
-      if (error) {
-        setEditError(error.message);
-        return;
+          tags,
+        };
+
+        let { error } = await supabase
+          .from('shop_products')
+          .update(payload)
+          .eq('id', editId)
+          .eq('shop_owner_id', session.id);
+        if (error && /brand_name|offers_free_delivery|schema cache/i.test(error.message || '')) {
+          const { brand_name: _b, offers_free_delivery: _f, ...withoutMarketplace } = payload;
+          ({ error } = await supabase
+            .from('shop_products')
+            .update(withoutMarketplace)
+            .eq('id', editId)
+            .eq('shop_owner_id', session.id));
+        }
+        if (error && /tags|column|schema cache/i.test(error.message || '')) {
+          const { tags: _omit, brand_name: _b2, offers_free_delivery: _f2, ...withoutTags } = payload;
+          ({ error } = await supabase
+            .from('shop_products')
+            .update(withoutTags)
+            .eq('id', editId)
+            .eq('shop_owner_id', session.id));
+        }
+        if (error) {
+          setEditError(error.message);
+          return;
+        }
+        await loadProducts();
+        closeP();
+      } catch (err) {
+        setEditError(err?.message || 'Could not save product images.');
       }
-      await loadProducts();
-      closeP();
       return;
     }
+
+    const primary =
+      images[0] && typeof images[0] === 'object' && images[0].dataUrl ? images[0].dataUrl : null;
+    const galleryUrls = [1, 2, 3, 4]
+      .map((i) => (images[i] && typeof images[i] === 'object' && images[i].dataUrl ? images[i].dataUrl : null))
+      .filter(Boolean);
 
     setList((L) =>
       L.map((p) =>
@@ -299,7 +371,9 @@ export default function ShopOwnerProductsPage() {
           ? {
               ...p,
               name: f.name,
-              category: f.category,
+              category: normalizeProductCategory(f.category),
+              brandName: f.brandName.trim(),
+              tags: normalizeProductTags(f.tags),
               description: f.description,
               price,
               compareAt: f.compare ? parseFloat(f.compare) : null,
@@ -307,6 +381,7 @@ export default function ShopOwnerProductsPage() {
               sku: f.sku,
               weight: f.weight,
               active: f.active,
+              offersFreeDelivery: Boolean(f.offersFreeDelivery),
               hasVariants: f.hasVariants,
               variants: f.variants,
               primaryImageUrl: primary,
@@ -370,11 +445,13 @@ export default function ShopOwnerProductsPage() {
     setList((L) => L.map((p) => (p.id === id ? { ...p, active: next } : p)));
   };
 
+  const categoryOptions = useMemo(() => {
+    const set = new Set(list.map((p) => p.category).filter(Boolean));
+    return ['All', ...[...set].sort((a, b) => a.localeCompare(b))];
+  }, [list]);
+
   const filtered = useMemo(() => {
-    let a = list.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q.toLowerCase()) && (cat === 'All' || p.category === cat)
-    );
+    let a = list.filter((p) => (cat === 'All' || p.category === cat) && productMatchesSearch(p, q));
     if (stockF === 'in') a = a.filter((p) => p.stock > 0);
     if (stockF === 'out') a = a.filter((p) => p.stock === 0);
     a = [...a];
@@ -411,6 +488,32 @@ export default function ShopOwnerProductsPage() {
         </div>
       ) : null}
 
+      {adminAlerts.length > 0 ? (
+        <div className="soprd-admin-alerts" role="region" aria-label="Admin notices">
+          {adminAlerts.map((alert) => (
+            <div
+              key={alert.id}
+              className={`soprd-admin-alert${alert.adminAction === 'admin_product_deleted' ? ' soprd-admin-alert--product' : ' soprd-admin-alert--image'}`}
+              role="alert"
+            >
+              <div className="soprd-admin-alert-body">
+                <strong>{alert.title}</strong>
+                <p>{alert.sub}</p>
+                <span className="soprd-admin-alert-time">{alert.ago}</span>
+              </div>
+              <button
+                type="button"
+                className="soprd-admin-alert-dismiss"
+                onClick={() => dismissAdminAlert(alert.id)}
+                aria-label="Dismiss notice"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div className="soprd-filters">
         <div className="soprd-search-wrap">
           <IcSearch />
@@ -424,7 +527,7 @@ export default function ShopOwnerProductsPage() {
         </div>
         <div className="soprd-select-wrap">
           <select className="soprd-select" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
-            {CATS.map((c) => (
+            {categoryOptions.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
@@ -654,20 +757,31 @@ export default function ShopOwnerProductsPage() {
                 required
               />
               <label className="sopL" htmlFor="p-cat">Category</label>
-              <select
-                className="sopSel"
+              <ProductCategoryField
                 id="p-cat"
                 value={f.category}
-                onChange={(e) => setF((x) => ({ ...x, category: e.target.value }))}
-              >
-                {CATS2.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <label className="sopL" htmlFor="p-desc">Description</label>
-              <textarea
+                onChange={(category) => setF((x) => ({ ...x, category }))}
+                selectClassName="sopSel"
+                inputClassName="sopI"
+              />
+              <label className="sopL" htmlFor="p-brand">Brand name (optional)</label>
+              <input
+                className="sopI"
+                id="p-brand"
+                value={f.brandName}
+                onChange={(e) => setF((x) => ({ ...x, brandName: e.target.value }))}
+                placeholder="e.g. Nike, Samsung"
+                maxLength={80}
+              />
+              <label className="sopL" htmlFor="p-tags">Search tags</label>
+              <ProductTagsInput
+                id="p-tags"
+                className="pti--compact"
+                tags={f.tags}
+                category={f.category}
+                onChange={(tags) => setF((x) => ({ ...x, tags }))}
+              />
+              <label className="sopL" htmlFor="p-desc">Description</label>              <textarea
                 id="p-desc"
                 value={f.description}
                 onChange={(e) => setF((x) => ({ ...x, description: e.target.value }))}
@@ -684,17 +798,26 @@ export default function ShopOwnerProductsPage() {
                 onChange={(e) => setF((x) => ({ ...x, price: e.target.value }))}
                 required
               />
-              <label className="sopL" htmlFor="p-cmp">Compare at price (optional)</label>
+              <label className="sopL" htmlFor="p-cmp">Original price — put on sale (optional)</label>
               <input
                 className="sopI"
                 id="p-cmp"
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder="Original / MSRP"
+                placeholder="Was / MSRP — higher than price"
                 value={f.compare}
                 onChange={(e) => setF((x) => ({ ...x, compare: e.target.value }))}
               />
+              <label className="sopRow" style={{ margin: '0.35rem 0', alignItems: 'center', gap: 8 }}>
+                <input
+                  id="p-free-del"
+                  type="checkbox"
+                  checked={f.offersFreeDelivery}
+                  onChange={(e) => setF((x) => ({ ...x, offersFreeDelivery: e.target.checked }))}
+                />
+                <span className="sopL" style={{ margin: 0 }}>Offer free delivery on this product</span>
+              </label>
               <label className="sopL" htmlFor="p-st">Stock quantity</label>
               <input
                 className="sopI"
@@ -757,7 +880,7 @@ export default function ShopOwnerProductsPage() {
               </div>
               {f.compare && f.price && (
                 <p style={{ fontSize: '0.75rem', color: '#888' }}>
-                  Compare: <s>{formatGBP(parseFloat(f.compare))}</s> now {formatGBP(parseFloat(f.price))}
+                  On sale: <s>{formatGBP(parseFloat(f.compare))}</s> now {formatGBP(parseFloat(f.price))}
                 </p>
               )}
               {editError ? (

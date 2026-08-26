@@ -4,6 +4,7 @@ create table if not exists public.service_pricing (
   id uuid primary key default gen_random_uuid(),
   service_type text not null unique,
   price_per_km numeric(12, 4) not null default 0,
+  price_per_minute numeric(12, 4) not null default 0,
   base_fare numeric(12, 4) not null default 0,
   service_fee numeric(12, 4) not null default 0,
   currency text not null default 'USD',
@@ -23,6 +24,7 @@ create table if not exists public.service_pricing (
 
 alter table public.service_pricing add column if not exists base_fare numeric(12, 4) not null default 0;
 alter table public.service_pricing add column if not exists service_fee numeric(12, 4) not null default 0;
+alter table public.service_pricing add column if not exists price_per_minute numeric(12, 4) not null default 0;
 
 -- Strip hourly columns from older schemas (safe to re-run)
 alter table public.service_pricing drop column if exists base_price_per_hour_off_peak;
@@ -61,6 +63,7 @@ alter table public.service_pricing
 
 comment on table public.service_pricing is 'Admin-set fare components per service';
 comment on column public.service_pricing.price_per_km is 'Amount charged per kilometre';
+comment on column public.service_pricing.price_per_minute is 'Amount charged per minute of estimated trip time';
 comment on column public.service_pricing.base_fare is 'Flat base fare before distance';
 comment on column public.service_pricing.service_fee is 'Platform / service fee';
 
@@ -82,17 +85,18 @@ on public.service_pricing for update to anon using (true) with check (true);
 insert into public.service_pricing (
   service_type,
   price_per_km,
+  price_per_minute,
   base_fare,
   service_fee,
   currency
 )
 values
-  ('delivery_motorbike', 0.50, 1.50, 0.20, 'USD'),
-  ('delivery_tuk_tuk', 0.55, 1.65, 0.22, 'USD'),
-  ('delivery_car', 0.60, 1.80, 0.24, 'USD'),
-  ('parcel', 0.45, 1.20, 0.15, 'USD'),
-  ('taxi', 1.20, 3.00, 0.50, 'USD'),
-  ('tuk_tuk', 0.80, 2.00, 0.35, 'USD')
+  ('delivery_motorbike', 0.50, 0.05, 1.50, 0.20, 'USD'),
+  ('delivery_tuk_tuk', 0.55, 0.06, 1.65, 0.22, 'USD'),
+  ('delivery_car', 0.60, 0.08, 1.80, 0.24, 'USD'),
+  ('parcel', 0.45, 0.04, 1.20, 0.15, 'USD'),
+  ('taxi', 1.20, 0.15, 3.00, 0.50, 'USD'),
+  ('tuk_tuk', 0.80, 0.10, 2.00, 0.35, 'USD')
 on conflict (service_type) do nothing;
 
 -- Legacy single delivery row (optional fallback for older app builds)

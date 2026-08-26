@@ -1,0 +1,101 @@
+.pti {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pti-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.55rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: text;
+}
+
+.pti-box:focus-within {
+  border-color: #07408f;
+  box-shadow: 0 0 0 3px rgba(7, 64, 143, 0.12);
+}
+
+.pti-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: 100%;
+  padding: 0.22rem 0.45rem 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: #eef4fb;
+  color: #07408f;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pti-chip-x {
+  border: 0;
+  background: transparent;
+  color: #54729a;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+  cursor: pointer;
+}
+
+.pti-input {
+  flex: 1 1 7rem;
+  min-width: 6rem;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #1f2937;
+  padding: 0.25rem 0.15rem;
+}
+
+.pti-input::placeholder {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.pti-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #6b7280;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.pti-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pti-suggest-btn {
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pti-suggest-btn:hover {
+  border-color: #07408f;
+  color: #07408f;
+  background: #eef4fb;
+}
+
+/* Compact variant for edit modal on products list */
+.pti--compact .pti-box {
+  min-height: 2.4rem;
+  border-radius: 8px;
+}

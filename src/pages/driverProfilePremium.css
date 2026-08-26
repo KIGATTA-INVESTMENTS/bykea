@@ -48,6 +48,14 @@
   height: 2.5rem;
   color: #fff;
   line-height: 0;
+  text-decoration: none;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dpr--premium a.dpr-settings:hover,
+.dpr--premium a.dpr-settings:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* Profile band on blue */

@@ -118,7 +118,7 @@ export default function AdminSettingsPage() {
           <div className="admCard admInsetCard">
             <h4>Card Payment</h4>
             <label className="admToggleRow" htmlFor="card-enabled"><span>Enabled</span><input id="card-enabled" type="checkbox" defaultChecked /></label>
-            <div className="admField"><label htmlFor="card-provider">Provider</label><select id="card-provider" className="admSelect"><option>Paynow</option><option>Card</option></select></div>
+            <div className="admField"><label htmlFor="card-provider">Provider</label><select id="card-provider" className="admSelect"><option>Stripe</option><option>Card</option></select></div>
             <div className="admField"><label htmlFor="card-public">Public Key</label><input id="card-public" className="admInput" defaultValue="pk_test_ingo" /></div>
             <div className="admField"><label htmlFor="card-secret">Secret Key</label><input id="card-secret" className="admInput" type="password" defaultValue="******" /></div>
             <button className="admBtnSmall" type="button">Test Connection</button>

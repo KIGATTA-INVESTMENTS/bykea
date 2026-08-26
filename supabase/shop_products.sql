@@ -8,6 +8,7 @@ create table if not exists public.shop_products (
 
   name text not null,
   category text not null,
+  brand_name text,
   description text,
   price numeric(12, 4) not null default 0,
   compare_at_price numeric(12, 4),
@@ -17,6 +18,7 @@ create table if not exists public.shop_products (
 
   currency text not null default 'USD',
   is_active boolean not null default true,
+  offers_free_delivery boolean not null default false,
 
   has_variants boolean not null default false,
   -- e.g. [{"type":"Size","name":"Large","price":"4.5","stock":"10"}]
@@ -25,6 +27,9 @@ create table if not exists public.shop_products (
   -- Optional: filenames or Storage paths when you wire uploads (nullable for now).
   image_primary_url text,
   image_urls jsonb not null default '[]'::jsonb,
+
+  -- Search keywords for customer product search (also see shop_products_tags.sql).
+  tags jsonb not null default '[]'::jsonb,
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

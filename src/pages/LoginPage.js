@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { getCustomerSession, isCustomerMarkedSignedIn, saveCustomerSession } from '../lib/customerSession';
+import { isDriverSignedIn } from '../lib/driverSession';
+import { isShopOwnerSignedIn } from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import InGoLogo from '../components/InGoLogo';
 import { LOGIN_HERO_ART, LOGIN_HERO_ICONS } from '../lib/ingoLogo';
@@ -147,8 +149,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [unverifiedEmail, setUnverifiedEmail] = useState('');
 
+  if (isDriverSignedIn()) {
+    return <Navigate to="/driver/home" replace />;
+  }
+  if (isShopOwnerSignedIn()) {
+    return <Navigate to="/shop-owner/dashboard" replace />;
+  }
   if (isCustomerMarkedSignedIn() && getCustomerSession()) {
     return <Navigate to="/home" replace />;
   }
@@ -160,7 +167,6 @@ export default function LoginPage() {
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
-    setUnverifiedEmail('');
     if (!isSupabaseConfigured || !supabase) {
       setErrorMessage('Supabase is not configured. Add env vars and restart npm start.');
       return;
@@ -175,7 +181,7 @@ export default function LoginPage() {
       const normalizedEmail = email.trim().toLowerCase();
       const { data: row, error } = await supabase
         .from('app_users')
-        .select('id, full_name, phone, email, password, email_verified_at')
+        .select('id, full_name, phone, email, password')
         .eq('email', normalizedEmail)
         .maybeSingle();
 
@@ -185,13 +191,6 @@ export default function LoginPage() {
       }
       if (!row || row.password !== password) {
         setErrorMessage('Invalid email or password.');
-        return;
-      }
-      if (row.email_verified_at === null) {
-        setUnverifiedEmail(normalizedEmail);
-        setErrorMessage(
-          'Please verify your email before logging in. Check your inbox or use the link below.',
-        );
         return;
       }
 
@@ -266,10 +265,7 @@ export default function LoginPage() {
                   autoComplete="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setUnverifiedEmail('');
-                  }}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>
@@ -323,16 +319,6 @@ export default function LoginPage() {
               {isSubmitting ? 'Logging in...' : 'Login'}
             </button>
             {errorMessage ? <p className="auth-message auth-message--error">{errorMessage}</p> : null}
-            {unverifiedEmail && unverifiedEmail === email.trim().toLowerCase() ? (
-              <p className="auth-login-verify">
-                <Link
-                  to={`/verify-email?realm=customer&email=${encodeURIComponent(unverifiedEmail)}`}
-                  className="auth-link-inline"
-                >
-                  Verify email or resend code
-                </Link>
-              </p>
-            ) : null}
           </form>
 
           <div className="auth-login-or" aria-hidden>
@@ -367,7 +353,7 @@ export default function LoginPage() {
                   <IconShop />
                 </span>
                 <span className="auth-login-role-text">
-                  <strong>Shop Owner Login</strong>
+                  <strong>Shop Owner</strong>
                   <small>Login as a shop owner</small>
                 </span>
               </Link>

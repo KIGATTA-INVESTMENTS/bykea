@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { compressImageToDataUrl } from '../lib/compressImageToDataUrl';
 import { clearShopOwnerSession, getShopOwnerSession, saveShopOwnerSession } from '../lib/shopOwnerAuth';
 import { SHOP_BUSINESS_TYPES } from '../lib/shopBusinessTypes';
+import { isRemoteMediaUrl, uploadShopOwnerLogo } from '../lib/shopMediaUpload';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
 import './shopOwnerDashboardPremium.css';
@@ -184,6 +185,7 @@ export default function ShopOwnerProfilePage() {
   const [showPass, setShowPass] = useState(false);
   const [showPass2, setShowPass2] = useState(false);
   const shopImgRef = useRef(null);
+  const shopImageFileRef = useRef(null);
   const [shopImageUrl, setShopImageUrl] = useState(null);
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState('');
@@ -257,7 +259,8 @@ export default function ShopOwnerProfilePage() {
     }
     setImageBusy(true);
     try {
-      const dataUrl = await compressImageToDataUrl(file);
+      const dataUrl = await compressImageToDataUrl(file, 720, 0.8);
+      shopImageFileRef.current = file;
       setShopImageUrl(dataUrl);
     } catch (err) {
       setImageError(err?.message || 'Could not process this image.');
@@ -267,6 +270,7 @@ export default function ShopOwnerProfilePage() {
   };
 
   const clearShopImage = () => {
+    shopImageFileRef.current = null;
     setShopImageUrl(null);
     setImageError('');
   };
@@ -303,8 +307,23 @@ export default function ShopOwnerProfilePage() {
       email: emailNorm,
       business_type: form.type,
       business_address: form.address.trim(),
-      shop_image_url: shopImageUrl || null,
     };
+    if (shopImageFileRef.current) {
+      try {
+        const nextImageUrl = await uploadShopOwnerLogo(s.id, shopImageFileRef.current);
+        shopImageFileRef.current = null;
+        setShopImageUrl(nextImageUrl);
+        payload.shop_image_url = nextImageUrl;
+      } catch (err) {
+        setSaveError(err?.message || 'Could not upload shop photo.');
+        return;
+      }
+    } else if (!shopImageUrl) {
+      payload.shop_image_url = null;
+    } else if (isRemoteMediaUrl(shopImageUrl)) {
+      payload.shop_image_url = shopImageUrl;
+    }
+    // Skip rewriting legacy data: URLs — keeps profile save light.
     if (form.pass.trim()) {
       payload.password = form.pass;
     }

@@ -8,18 +8,21 @@ const DEBOUNCE_MS = 100;
 /**
  * Address field with debounced suggestions (Google Places or Nominatim).
  * @param {boolean} [inline=false] — render the list under the field (good for /request-delivery). Default uses a body portal (avoids clipping on some layouts).
+ * @param {(suggestion: { id: string, label: string, lat?: number, lng?: number }) => void} [onSelectSuggestion]
  */
 export default function AddressSuggestInput({
   id,
   name,
   value,
   onChange,
+  onSelectSuggestion,
   placeholder,
   ariaLabel,
   autoComplete = 'off',
   debounceMs = DEBOUNCE_MS,
   minChars = 2,
   inline = false,
+  className = '',
 }) {
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
@@ -104,18 +107,35 @@ export default function AddressSuggestInput({
 
   const onInputChange = (e) => {
     onChange(e.target.value);
+    onSelectSuggestion?.(null);
     setOpen(true);
     setHighlight(-1);
   };
 
-  const pick = (label) => {
-    onChange(label);
+  const pick = (suggestion) => {
+    const label = typeof suggestion === 'string' ? suggestion : suggestion?.label;
+    onChange(label || '');
+    if (suggestion && typeof suggestion === 'object') {
+      onSelectSuggestion?.(suggestion);
+    } else {
+      onSelectSuggestion?.(null);
+    }
     setOpen(false);
     setSuggestions([]);
     setHighlight(-1);
   };
 
   const onKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      // Always stop Enter from submitting the parent Delivery/Taxi form while typing an address.
+      if (open || suggestions.length > 0 || highlight >= 0) {
+        e.preventDefault();
+      }
+      if (open && suggestions.length > 0 && highlight >= 0 && suggestions[highlight]) {
+        pick(suggestions[highlight]);
+      }
+      return;
+    }
     if (!open || suggestions.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -123,11 +143,6 @@ export default function AddressSuggestInput({
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlight((h) => Math.max(0, h - 1));
-    } else if (e.key === 'Enter') {
-      if (highlight >= 0 && suggestions[highlight]) {
-        e.preventDefault();
-        pick(suggestions[highlight].label);
-      }
     } else if (e.key === 'Escape') {
       setOpen(false);
       setHighlight(-1);
@@ -168,7 +183,7 @@ export default function AddressSuggestInput({
             className={`addr-suggest__item${highlight === i ? ' addr-suggest__item--active' : ''}`}
             onMouseDown={(ev) => {
               ev.preventDefault();
-              pick(s.label);
+              pick(s);
             }}
             onMouseEnter={() => setHighlight(i)}
           >
@@ -182,7 +197,7 @@ export default function AddressSuggestInput({
   const listEl = showList && (inline ? listInner : createPortal(listInner, document.body));
 
   return (
-    <div className={`flow-input-wrap addr-suggest${inline ? ' addr-suggest--inline' : ''}`} ref={wrapRef}>
+    <div className={`flow-input-wrap addr-suggest${inline ? ' addr-suggest--inline' : ''}${className ? ` ${className}` : ''}`} ref={wrapRef}>
       <input
         ref={inputRef}
         id={id}

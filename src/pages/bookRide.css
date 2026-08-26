@@ -417,6 +417,16 @@
   color: #111827;
 }
 
+.br-pe-ingo-hint {
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(10, 88, 166, 0.07);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: #1f2937;
+}
+
 .br-pe-service {
   display: flex;
   align-items: center;
@@ -599,10 +609,56 @@
   background: #e8eef5;
   box-shadow: 0 4px 16px rgba(7, 64, 143, 0.08);
   isolation: isolate;
+  touch-action: none;
 }
 
 .br-map--gmap {
   background: #dde4ec;
+}
+
+.br-map-nearby {
+  position: absolute;
+  left: 0.65rem;
+  bottom: 0.55rem;
+  z-index: 3;
+  padding: 0.28rem 0.6rem;
+  border-radius: 50rem;
+  background: rgba(7, 64, 143, 0.92);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(7, 64, 143, 0.25);
+  pointer-events: none;
+}
+
+.br-map-js-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.br-map--editable {
+  height: 17.5rem;
+}
+
+.br-map-hint {
+  position: absolute;
+  left: 0.55rem;
+  right: 0.55rem;
+  bottom: 0.5rem;
+  z-index: 3;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(7, 64, 143, 0.9);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(7, 64, 143, 0.25);
 }
 
 .br-map iframe,
@@ -921,6 +977,25 @@
   font-size: 0.85rem;
   font-weight: 700;
   color: #111827;
+}
+
+.br-fare__ingo-note {
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  color: #0a58a6;
+  font-weight: 600;
+}
+
+.br-pay-wallet-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #4b5563;
+}
+
+.br-pay-wallet-hint a {
+  color: #0a58a6;
+  font-weight: 600;
 }
 
 .br-error {

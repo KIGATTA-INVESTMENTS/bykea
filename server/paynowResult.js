@@ -111,6 +111,113 @@ async function processPaynowResult(rawBody, { integrationKey, supabaseUrl, servi
     return { ok: true, kind: 'shop', reference, paymentStatus, statusRaw };
   }
 
+  for (const table of ['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings']) {
+    const { data: rideRows, error: rideSelErr } = await supabase
+      .from(table)
+      .select('id')
+      .eq('paynow_reference', reference)
+      .limit(2);
+    if (rideSelErr) {
+      if (/does not exist|schema cache|column|paynow_reference/i.test(rideSelErr.message)) continue;
+      return { ok: false, reason: rideSelErr.message };
+    }
+    if (!rideRows?.length) continue;
+
+    const { error: rideUpdErr } = await supabase.from(table).update(update).eq('paynow_reference', reference);
+    if (rideUpdErr) return { ok: false, reason: rideUpdErr.message };
+
+    if (paymentStatus === 'paid' && supabaseUrl && serviceKey) {
+      for (const row of rideRows) {
+        const oid = String(row.id || '');
+        if (!oid) continue;
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/driver-offer-push`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${serviceKey}`,
+              apikey: serviceKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ table, orderId: oid }),
+          });
+        } catch {
+          // ignore push failures
+        }
+      }
+    }
+
+    return { ok: true, kind: table, reference, paymentStatus, statusRaw };
+  }
+
+  const { data: cwRows, error: cwSelErr } = await supabase
+    .from('customer_wallet_topups')
+    .select('id, user_id, amount_gbp')
+    .eq('paynow_reference', reference)
+    .limit(2);
+
+  if (cwSelErr) {
+    if (!/does not exist|schema cache|Could not find the table/i.test(cwSelErr.message)) {
+      return { ok: false, reason: cwSelErr.message };
+    }
+  } else if (cwRows?.length) {
+    const { error: cwUpdErr } = await supabase
+      .from('customer_wallet_topups')
+      .update(update)
+      .eq('paynow_reference', reference);
+    if (cwUpdErr) return { ok: false, reason: cwUpdErr.message };
+
+    if (paymentStatus === 'paid' && cwRows[0]?.id) {
+      const { error: rpcErr } = await supabase.rpc('credit_customer_wallet_from_topup', {
+        p_topup_id: cwRows[0].id,
+      });
+      if (rpcErr) {
+        // Best-effort fallback without RPC
+        const addAmt = Number(cwRows[0].amount_gbp);
+        const userId = String(cwRows[0].user_id || '');
+        if (Number.isFinite(addAmt) && addAmt > 0 && userId) {
+          const { data: top } = await supabase
+            .from('customer_wallet_topups')
+            .select('credited_at, package_label, km_credits')
+            .eq('id', cwRows[0].id)
+            .maybeSingle();
+          if (!top?.credited_at) {
+            await supabase
+              .from('customer_wallets')
+              .upsert({ user_id: userId, balance_gbp: 0 }, { onConflict: 'user_id', ignoreDuplicates: true });
+            const { data: w } = await supabase
+              .from('customer_wallets')
+              .select('balance_gbp')
+              .eq('user_id', userId)
+              .maybeSingle();
+            const cur = Number(w?.balance_gbp) || 0;
+            const next = Math.round((cur + addAmt) * 100) / 100;
+            await supabase
+              .from('customer_wallets')
+              .update({ balance_gbp: next, updated_at: new Date().toISOString() })
+              .eq('user_id', userId);
+            await supabase.from('customer_wallet_transactions').insert({
+              user_id: userId,
+              entry_type: 'credit',
+              amount_gbp: addAmt,
+              balance_after: next,
+              label: String(top?.package_label || 'Wallet top-up'),
+              package_label: top?.package_label || null,
+              km_credits: top?.km_credits ?? null,
+              ref_type: 'topup',
+              ref_id: cwRows[0].id,
+            });
+            await supabase
+              .from('customer_wallet_topups')
+              .update({ credited_at: new Date().toISOString() })
+              .eq('id', cwRows[0].id);
+          }
+        }
+      }
+    }
+
+    return { ok: true, kind: 'customer_wallet', reference, paymentStatus, statusRaw };
+  }
+
   const { data: depRows, error: depSelErr } = await supabase
     .from('driver_wallet_topups')
     .select('id, driver_id, amount_gbp')

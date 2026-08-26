@@ -29,9 +29,6 @@ export async function assertDriverCanWork(client, driverId) {
   if (!row) {
     return { ok: false, error: 'Driver account not found.' };
   }
-  if (!row.email_verified_at) {
-    return { ok: false, error: 'Please verify your email before you can work.' };
-  }
   if (!isDriverStatusApproved(row.status)) {
     return {
       ok: false,
@@ -46,5 +43,5 @@ export async function assertDriverCanWork(client, driverId) {
 export async function isCurrentDriverApprovedForWork(driverId) {
   if (!isSupabaseConfigured || !supabase || !driverId) return false;
   const row = await fetchDriverRegistrationStatus(supabase, driverId);
-  return Boolean(row?.email_verified_at && isDriverStatusApproved(row.status));
+  return Boolean(row && isDriverStatusApproved(row.status));
 }

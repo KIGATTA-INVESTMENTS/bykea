@@ -53,9 +53,11 @@ function formatPaymentLabel(raw, kind) {
   }
   const p = String(raw || '').trim().toLowerCase();
   if (!p) return '—';
-  if (p === 'ecocash') return 'Ecocash';
+  if (p === 'ecocash') return 'EcoCash';
   if (p === 'cod') return 'COD';
   if (p === 'card') return 'Card';
+  if (p === 'stripe') return 'Card';
+  if (p === 'wallet') return 'Wallet';
   return p.charAt(0).toUpperCase() + p.slice(1);
 }
 
@@ -748,19 +750,18 @@ export default function AdminPaymentsPage() {
                 <th>Amount</th>
                 <th>Method</th>
                 <th>Status</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="admDim" style={{ padding: '1rem', textAlign: 'center' }}>
+                  <td colSpan={8} className="admDim" style={{ padding: '1rem', textAlign: 'center' }}>
                     Loading…
                   </td>
                 </tr>
               ) : filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="admDim" style={{ padding: '1rem', textAlign: 'center' }}>
+                  <td colSpan={8} className="admDim" style={{ padding: '1rem', textAlign: 'center' }}>
                     Nothing in this slice for month-to-date. Try Refresh or widen filters.
                   </td>
                 </tr>
@@ -780,19 +781,6 @@ export default function AdminPaymentsPage() {
                     <td>{txRow.method}</td>
                     <td>
                       <span className={statusClass(txRow.status)}>{txRow.status}</span>
-                    </td>
-                    <td>
-                      <div className="admActions">
-                        <button type="button" disabled aria-disabled title="Coming soon">
-                          👁
-                        </button>
-                        <button type="button" disabled aria-disabled title="Coming soon">
-                          ⬇
-                        </button>
-                        <button type="button" disabled aria-disabled title="Coming soon" style={{ color: '#bbb' }}>
-                          ↺
-                        </button>
-                      </div>
                     </td>
                   </tr>
                 ))

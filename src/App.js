@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { getCustomerSession, isCustomerMarkedSignedIn } from './lib/customerSession';
+import { isDriverSignedIn } from './lib/driverSession';
+import { isShopOwnerSignedIn } from './lib/shopOwnerAuth';
 import { consumeDebugGeoQueryParam } from './lib/geoDebug';
 import OnboardingScreen from './components/OnboardingScreen';
 import './App.css';
@@ -12,10 +14,11 @@ import OrderDetailsPage from './pages/OrderDetailsPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import ProfilePage from './pages/ProfilePage';
 import ProfileEditPage from './pages/ProfileEditPage';
+import WalletPage from './pages/WalletPage';
+import WalletTopUpPage from './pages/WalletTopUpPage';
 import PackageDetailsPage from './pages/PackageDetailsPage';
 import PriceEstimatePage from './pages/PriceEstimatePage';
 import RegisterPage from './pages/RegisterPage';
-import VerifyEmailPage from './pages/VerifyEmailPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import HelpSupportPage from './pages/HelpSupportPage';
@@ -24,6 +27,7 @@ import RequestDeliveryPage from './pages/RequestDeliveryPage';
 import RequestServiceChoicePage from './pages/RequestServiceChoicePage';
 import StripeCancelPage from './pages/StripeCancelPage';
 import StripeReturnPage from './pages/StripeReturnPage';
+import EcocashWaitingPage from './pages/EcocashWaitingPage';
 import OrderConfirmationPage from './pages/OrderConfirmationPage';
 import LiveTrackingPage from './pages/LiveTrackingPage';
 import { ShopCartProvider } from './context/ShopCartContext';
@@ -31,6 +35,7 @@ import CustomerShopsPage from './pages/CustomerShopsPage';
 import ShopCartPage from './pages/ShopCartPage';
 import ShopCheckoutPage from './pages/ShopCheckoutPage';
 import ShopDetailPage from './pages/ShopDetailPage';
+import ProductDetailPage from './pages/ProductDetailPage';
 import TaxiBookingPage from './pages/TaxiBookingPage';
 import TukTukBookingPage from './pages/TukTukBookingPage';
 import ChatPage from './pages/ChatPage';
@@ -45,7 +50,9 @@ import DriverOrdersPage from './pages/DriverOrdersPage';
 import DriverEarningsPage from './pages/DriverEarningsPage';
 import DriverWalletPage from './pages/DriverWalletPage';
 import DriverProfilePage from './pages/DriverProfilePage';
+import DriverNotificationsPage from './pages/DriverNotificationsPage';
 import DriverSupportChatPage from './pages/DriverSupportChatPage';
+import DriverCompanyFleetPage from './pages/DriverCompanyFleetPage';
 import DriverActiveDeliveryPage from './pages/DriverActiveDeliveryPage';
 import DriverPickupConfirmPage from './pages/DriverPickupConfirmPage';
 import DriverNavigationPage from './pages/DriverNavigationPage';
@@ -57,6 +64,7 @@ import ShopOwnerLoginPage from './pages/ShopOwnerLoginPage';
 import ShopOwnerRegisterPage from './pages/ShopOwnerRegisterPage';
 import ShopOwnerDashboardPage from './pages/ShopOwnerDashboardPage';
 import ShopOwnerOrdersPage from './pages/ShopOwnerOrdersPage';
+import ShopOwnerOrderDetailPage from './pages/ShopOwnerOrderDetailPage';
 import ShopOwnerProductsPage from './pages/ShopOwnerProductsPage';
 import ShopOwnerAddProductPage from './pages/ShopOwnerAddProductPage';
 import ShopOwnerDeliveryDriverPage from './pages/ShopOwnerDeliveryDriverPage';
@@ -70,14 +78,18 @@ import AdminLoginPage from './pages/AdminLoginPage';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminCustomerManagementPage from './pages/AdminCustomerManagementPage';
+import AdminSearchPromoCodesPage from './pages/AdminSearchPromoCodesPage';
 import AdminDriverManagementPage from './pages/AdminDriverManagementPage';
 import AdminDriverRequestsPage from './pages/AdminDriverRequestsPage';
 import AdminOurDriversPage from './pages/AdminOurDriversPage';
+import AdminDriverLocationsPage from './pages/AdminDriverLocationsPage';
 import AdminOrderManagementPage from './pages/AdminOrderManagementPage';
 import AdminDeliveryOrdersPage from './pages/AdminDeliveryOrdersPage';
 import AdminShopOrdersPage from './pages/AdminShopOrdersPage';
 import AdminShopOrdersDeliveryPage from './pages/AdminShopOrdersDeliveryPage';
+import AdminProductsPage from './pages/AdminProductsPage';
 import AdminTaxiBookingsPage from './pages/AdminTaxiBookingsPage';
+import AdminCancelledRidesPage from './pages/AdminCancelledRidesPage';
 import AdminTukTukBookingsPage from './pages/AdminTukTukBookingsPage';
 import AdminPricingConfigurationPage from './pages/AdminPricingConfigurationPage';
 import AdminServiceRatesPage from './pages/AdminServiceRatesPage';
@@ -92,11 +104,13 @@ import AdminShopOwnerManagementPage from './pages/AdminShopOwnerManagementPage';
 import AdminNotificationManagementPage from './pages/AdminNotificationManagementPage';
 import AdminSystemHealthPage from './pages/AdminSystemHealthPage';
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
+import AdminBIPage from './pages/AdminBIPage';
 import AdminTransactionsPage from './pages/AdminTransactionsPage';
 import AdminSupportTicketsPage from './pages/AdminSupportTicketsPage';
 import AdminReviewsPage from './pages/AdminReviewsPage';
 import AdminDriverWithdrawalsPage from './pages/AdminDriverWithdrawalsPage';
 import AdminShopWithdrawalsPage from './pages/AdminShopWithdrawalsPage';
+import AdminWalletsPage from './pages/AdminWalletsPage';
 import MapsDebugPage from './pages/MapsDebugPage';
 import DesktopAdminOnlyGuard from './components/DesktopAdminOnlyGuard';
 
@@ -150,6 +164,13 @@ function RootFlow() {
   if (view === 'onboarding') {
     return <OnboardingScreen onComplete={finishOnboarding} />;
   }
+  // Prefer the last active portal session so reopening the app skips customer login.
+  if (isDriverSignedIn()) {
+    return <Navigate to="/driver/home" replace />;
+  }
+  if (isShopOwnerSignedIn()) {
+    return <Navigate to="/shop-owner/dashboard" replace />;
+  }
   if (isCustomerMarkedSignedIn() && getCustomerSession()) {
     return <Navigate to="/home" replace />;
   }
@@ -171,7 +192,6 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
             <Route path="/help-support" element={<HelpSupportPage />} />
@@ -190,6 +210,7 @@ function App() {
             />
             <Route path="/stripe-return" element={<StripeReturnPage />} />
             <Route path="/stripe-cancel" element={<StripeCancelPage />} />
+            <Route path="/ecocash-waiting" element={<EcocashWaitingPage />} />
             <Route path="/live-tracking" element={<LiveTrackingPage />} />
             <Route path="/maps" element={<MapsDebugPage />} />
             <Route path="/book-ride" element={<TaxiBookingPage />} />
@@ -255,7 +276,9 @@ function App() {
               <Route path="orders" element={<DriverOrdersPage />} />
               <Route path="earnings" element={<DriverEarningsPage />} />
               <Route path="wallet" element={<DriverWalletPage />} />
+              <Route path="fleet" element={<DriverCompanyFleetPage />} />
               <Route path="profile" element={<DriverProfilePage />} />
+              <Route path="notifications" element={<DriverNotificationsPage />} />
               <Route path="chat" element={<DriverSupportChatPage />} />
             </Route>
             <Route path="/shop-owner/login" element={<ShopOwnerLoginPage />} />
@@ -265,10 +288,13 @@ function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
               <Route path="customers" element={<AdminCustomerManagementPage />} />
+              <Route path="search-promo-codes" element={<AdminSearchPromoCodesPage />} />
               <Route path="drivers" element={<AdminDriverManagementPage />} />
               <Route path="driver-requests" element={<AdminDriverRequestsPage />} />
               <Route path="our-drivers" element={<AdminOurDriversPage />} />
+              <Route path="driver-locations" element={<AdminDriverLocationsPage />} />
               <Route path="analytics" element={<AdminAnalyticsPage />} />
+              <Route path="bi" element={<AdminBIPage />} />
               <Route
                 path="shop-owners"
                 element={<AdminShopOwnerManagementPage />}
@@ -276,10 +302,13 @@ function App() {
               <Route path="orders" element={<AdminOrderManagementPage />} />
               <Route path="delivery-orders" element={<AdminDeliveryOrdersPage />} />
               <Route path="shop-orders" element={<AdminShopOrdersPage />} />
+              <Route path="products" element={<AdminProductsPage />} />
               <Route path="shop-orders-delivery" element={<AdminShopOrdersDeliveryPage />} />
               <Route path="taxi-bookings" element={<AdminTaxiBookingsPage />} />
+              <Route path="cancelled-rides" element={<AdminCancelledRidesPage />} />
               <Route path="tuk-tuk-bookings" element={<AdminTukTukBookingsPage />} />
               <Route path="payments" element={<AdminPaymentsPage />} />
+              <Route path="wallets" element={<AdminWalletsPage />} />
               <Route path="driver-withdrawals" element={<AdminDriverWithdrawalsPage />} />
               <Route path="shop-withdrawals" element={<AdminShopWithdrawalsPage />} />
               <Route path="transactions" element={<AdminTransactionsPage />} />
@@ -318,6 +347,7 @@ function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<ShopOwnerDashboardPage />} />
               <Route path="orders" element={<ShopOwnerOrdersPage />} />
+              <Route path="orders/:orderId" element={<ShopOwnerOrderDetailPage />} />
               <Route path="delivery-driver" element={<ShopOwnerDeliveryDriverPage />} />
               <Route path="products/new" element={<ShopOwnerAddProductPage />} />
               <Route path="products" element={<ShopOwnerProductsPage />} />
@@ -343,10 +373,13 @@ function App() {
               <Route path="shop/cart" element={<ShopCartPage />} />
               <Route path="shop/checkout" element={<ShopCheckoutPage />} />
               <Route path="shops" element={<CustomerShopsPage />} />
+              <Route path="shop/:shopId/product/:productId" element={<ProductDetailPage />} />
               <Route path="shop/:shopId" element={<ShopDetailPage />} />
               <Route path="shop" element={<Navigate to="/shops" replace />} />
               <Route path="home" element={<CustomerHomePage />} />
               <Route path="orders" element={<OrderHistoryPage />} />
+              <Route path="wallet" element={<WalletPage />} />
+              <Route path="wallet/top-up" element={<WalletTopUpPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="profile/edit" element={<ProfileEditPage />} />
               <Route path="chat/support" element={<ChatPage support />} />

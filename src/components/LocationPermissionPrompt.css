@@ -37,6 +37,11 @@
   color: #444;
 }
 
+.loc-perm__text--err {
+  color: #b42318;
+  margin-top: -0.35rem;
+}
+
 .loc-perm__actions {
   display: flex;
   flex-wrap: wrap;

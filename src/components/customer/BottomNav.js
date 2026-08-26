@@ -62,10 +62,22 @@ function IconUser({ isOn }) {
   );
 }
 
+function IconWallet({ isOn }) {
+  const c = isOn ? active : inactive;
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden>
+      <rect x="3" y="6" width="18" height="13" rx="1.2" stroke={c} strokeWidth="1.6" fill="none" />
+      <path d="M3 9.5h18" stroke={c} strokeWidth="1.2" />
+      <circle cx="16.2" cy="12.2" r="0.85" fill={c} />
+    </svg>
+  );
+}
+
 const items = [
   { to: '/home', end: true, label: 'Home', Icon: IconHome },
   { to: '/orders', label: 'Orders', Icon: IconList },
   { to: '/shops', label: 'Shop', Icon: IconShop },
+  { to: '/wallet', label: 'Ingo Km', Icon: IconWallet },
   { to: '/profile', label: 'Profile', Icon: IconUser },
 ];
 
@@ -85,18 +97,19 @@ export default function BottomNav() {
           label === 'Profile' &&
           (location.pathname.startsWith('/profile') || onSupportChat);
         const shopExtra = label === 'Shop' && isShopRoute(location.pathname);
+        const walletExtra = label === 'Ingo Km' && location.pathname.startsWith('/wallet');
         return (
           <NavLink
             key={label}
             to={to}
             end={end}
             className={({ isActive }) => {
-              const on = profileExtra || shopExtra || isActive;
+              const on = profileExtra || shopExtra || walletExtra || isActive;
               return on ? 'bnav__item bnav__item--active' : 'bnav__item';
             }}
           >
             {({ isActive }) => {
-              const on = profileExtra || shopExtra || isActive;
+              const on = profileExtra || shopExtra || walletExtra || isActive;
               return (
                 <>
                   <span className="bnav__icon" aria-hidden>

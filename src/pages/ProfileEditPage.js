@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { uploadCustomerProfilePhoto } from '../lib/customerProfilePhoto';
+import { isProfilePhotoColumnError, profilePhotoSaveErrorMessage } from '../lib/profilePhotoSetup';
 import { getCustomerSession, saveCustomerSession } from '../lib/customerSession';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './profileEditPremium.css';
@@ -65,19 +66,43 @@ export default function ProfileEditPage() {
     if (!isSupabaseConfigured || !supabase) return;
 
     let cancelled = false;
-    (async () => {
+
+    const loadRow = async () => {
       const { data, error } = await supabase
         .from('app_users')
         .select('id, full_name, phone, email, profile_photo_url')
         .eq('id', s.id)
         .maybeSingle();
-      if (cancelled || error || !data) return;
-      setFullName((data.full_name || '').trim());
-      setPhone((data.phone || '').trim());
-      setEmail((data.email || '').trim());
-      setProfilePhotoUrl(data.profile_photo_url?.trim() || null);
-      saveCustomerSession(data);
-    })();
+
+      if (cancelled) return;
+
+      if (!error && data) {
+        setFullName((data.full_name || '').trim());
+        setPhone((data.phone || '').trim());
+        setEmail((data.email || '').trim());
+        setProfilePhotoUrl(data.profile_photo_url?.trim() || null);
+        saveCustomerSession(data);
+        return;
+      }
+
+      if (error && isProfilePhotoColumnError(error.message)) {
+        const { data: fallback } = await supabase
+          .from('app_users')
+          .select('id, full_name, phone, email')
+          .eq('id', s.id)
+          .maybeSingle();
+        if (cancelled || !fallback) return;
+        setFullName((fallback.full_name || '').trim());
+        setPhone((fallback.phone || '').trim());
+        setEmail((fallback.email || '').trim());
+        saveCustomerSession(fallback);
+        return;
+      }
+
+      if (error || !data) return;
+    };
+
+    loadRow();
 
     return () => {
       cancelled = true;
@@ -166,7 +191,7 @@ export default function ProfileEditPage() {
         .maybeSingle();
 
       if (error) {
-        if (/profile_photo_url|column|schema cache/i.test(error.message || '')) {
+        if (isProfilePhotoColumnError(error.message)) {
           const { data: fallback, error: err2 } = await supabase
             .from('app_users')
             .update({
@@ -186,9 +211,7 @@ export default function ProfileEditPage() {
             return;
           }
           if (fallback) saveCustomerSession(fallback);
-          setErrorMessage(
-            'Profile saved, but photo storage is not set up. Run supabase/app_users_profile_photo.sql in Supabase.',
-          );
+          setPhotoError(profilePhotoSaveErrorMessage(error.message));
           return;
         }
         if (error.code === '23505') {

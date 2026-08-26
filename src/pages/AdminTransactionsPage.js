@@ -44,9 +44,11 @@ function formatPaymentLabel(raw, kind) {
   }
   const p = String(raw || '').trim().toLowerCase();
   if (!p) return '—';
-  if (p === 'ecocash') return 'Ecocash';
+  if (p === 'ecocash') return 'EcoCash';
   if (p === 'cod') return 'COD';
   if (p === 'card') return 'Card';
+  if (p === 'stripe') return 'Card';
+  if (p === 'wallet') return 'Wallet';
   return p.charAt(0).toUpperCase() + p.slice(1);
 }
 
@@ -526,19 +528,18 @@ export default function AdminTransactionsPage() {
                 <th>Amount</th>
                 <th>Method</th>
                 <th>Status</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="admDim" style={{ padding: '1rem', textAlign: 'center' }}>
+                  <td colSpan={8} className="admDim" style={{ padding: '1rem', textAlign: 'center' }}>
                     Loading…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="admDim" style={{ padding: '1rem', textAlign: 'center' }}>
+                  <td colSpan={8} className="admDim" style={{ padding: '1rem', textAlign: 'center' }}>
                     No rows match this slice for month-to-date.
                   </td>
                 </tr>
@@ -560,19 +561,6 @@ export default function AdminTransactionsPage() {
                     <td>{row.method}</td>
                     <td>
                       <span className={statusClass(row.status)}>{row.status}</span>
-                    </td>
-                    <td>
-                      <div className="admActions">
-                        <button type="button" aria-label="View" disabled title="Coming soon">
-                          👁
-                        </button>
-                        <button type="button" aria-label="Download" disabled title="Coming soon">
-                          ⬇
-                        </button>
-                        <button type="button" aria-label="Reverse" disabled title="Coming soon" style={{ color: '#bbb' }}>
-                          ↺
-                        </button>
-                      </div>
                     </td>
                   </tr>
                 ))

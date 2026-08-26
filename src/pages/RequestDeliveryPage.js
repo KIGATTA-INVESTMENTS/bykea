@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import GoogleMapEmbed from '../components/GoogleMapEmbed';
 import LiveUserGoogleMap from '../components/LiveUserGoogleMap';
@@ -6,10 +6,12 @@ import LocationPermissionPrompt from '../components/LocationPermissionPrompt';
 import LiveUserMapPuck from '../components/LiveUserMapPuck';
 import { useLiveLocation } from '../hooks/useLiveLocation';
 import {
+  DEFAULT_MAP_FALLBACK,
   getGoogleMapsApiKey,
   publicDirectionsCoordsMapUrl,
   publicPlaceMapUrl,
   publicViewMapUrl,
+  trustedMapCenter,
 } from '../lib/googleMapsConfig';
 import {
   geolocationFailureMessage,
@@ -17,10 +19,10 @@ import {
 } from '../lib/devicePickupLocation';
 import { forwardGeocodeAddress } from '../lib/reverseGeocode';
 import { estimateRoadKm, haversineKm } from '../lib/routeEstimate';
+import { fetchNearbyDrivers } from '../lib/nearbyDrivers';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import AddressSuggestInput from '../components/AddressSuggestInput';
 import './bookRide.css';
-
-const LONDON_CENTER = { lat: 51.5074, lng: -0.1278 };
 
 function BackArrow() {
   return (
@@ -94,6 +96,12 @@ export default function RequestDeliveryPage() {
   };
 
   const [routeDistanceKm, setRouteDistanceKm] = useState(null);
+  const [nearbyDrivers, setNearbyDrivers] = useState([]);
+  const [pickupCoords, setPickupCoords] = useState(null);
+  const [dropoffCoords, setDropoffCoords] = useState(null);
+  const [pinBusy, setPinBusy] = useState('');
+  /** Skip one geocode cycle after a pin drag so we don't snap the pin back to a coarse place. */
+  const skipGeocodeFromDragRef = useRef(false);
 
   const onContinue = async (e) => {
     e.preventDefault();
@@ -153,30 +161,44 @@ export default function RequestDeliveryPage() {
     let cancelled = false;
     const p = debouncedPickup.trim();
     const stopTexts = debouncedStops.map((s) => (s?.value ?? '').trim()).filter(Boolean);
-    if (!p || stopTexts.length < 1) {
+    const destinationText = stopTexts[stopTexts.length - 1] || '';
+    const middleTexts = stopTexts.length > 1 ? stopTexts.slice(0, -1) : [];
+
+    if (!p && !destinationText) {
       setCoordsRouteSrc('');
       setRouteDistanceKm(null);
+      setPickupCoords(null);
+      setDropoffCoords(null);
       return undefined;
     }
 
-    const destinationText = stopTexts[stopTexts.length - 1];
-    const middleTexts = stopTexts.length > 1 ? stopTexts.slice(0, -1) : [];
+    if (skipGeocodeFromDragRef.current) {
+      skipGeocodeFromDragRef.current = false;
+      return undefined;
+    }
 
     (async () => {
       try {
-        const pickupGeo = await forwardGeocodeAddress(p);
-        const destGeo = await forwardGeocodeAddress(destinationText);
-        if (cancelled || !pickupGeo || !destGeo) {
-          if (!cancelled) {
-            setCoordsRouteSrc('');
-            setRouteDistanceKm(null);
-          }
+        const pickupGeo = p ? await forwardGeocodeAddress(p) : null;
+        const destGeo = destinationText ? await forwardGeocodeAddress(destinationText) : null;
+        if (cancelled) return;
+
+        if (pickupGeo) setPickupCoords({ lat: pickupGeo.lat, lng: pickupGeo.lng });
+        else if (!p) setPickupCoords(null);
+
+        if (destGeo) setDropoffCoords({ lat: destGeo.lat, lng: destGeo.lng });
+        else if (!destinationText) setDropoffCoords(null);
+
+        if (!pickupGeo || !destGeo) {
+          setCoordsRouteSrc('');
+          setRouteDistanceKm(null);
           return;
         }
 
         let waypointPairs = [];
         if (middleTexts.length) {
           const midGeos = await Promise.all(middleTexts.map((t) => forwardGeocodeAddress(t)));
+          if (cancelled) return;
           waypointPairs = midGeos.filter(Boolean).map((g) => [g.lat, g.lng]);
         }
 
@@ -230,11 +252,8 @@ export default function RequestDeliveryPage() {
     }
     if (p) return publicPlaceMapUrl(p);
     if (dropFirst) return publicPlaceMapUrl(dropFirst);
-    const c = live.mapCenter;
-    if (c && typeof c.lat === 'number' && typeof c.lng === 'number') {
-      return publicViewMapUrl(c.lat, c.lng, 14);
-    }
-    return publicViewMapUrl(LONDON_CENTER.lat, LONDON_CENTER.lng, 12);
+    const c = trustedMapCenter(live.mapCenter);
+    return publicViewMapUrl(c.lat, c.lng, 14);
   }, [debouncedPickup, debouncedStops, live.mapCenter]);
 
   const requestMapSrc = coordsRouteSrc || textFallbackMapSrc;
@@ -242,14 +261,41 @@ export default function RequestDeliveryPage() {
   const hasPickupAndDropoff =
     pickup.trim().length > 0 && (stops[0]?.value ?? '').trim().length > 0;
 
-  const deliveryInteractiveMapCenter = useMemo(() => {
-    if (live.hasFix && live.lat != null && live.lng != null) {
-      return { lat: live.lat, lng: live.lng };
-    }
-    return live.mapCenter;
-  }, [live.hasFix, live.lat, live.lng, live.mapCenter]);
+  const hasEditablePins = Boolean(pickupCoords || dropoffCoords);
 
-  const useDeliveryInteractiveMap = hasMapsKey && !deliveryJsMapFailed && !coordsRouteSrc;
+  const deliveryInteractiveMapCenter = useMemo(() => {
+    if (pickupCoords) return trustedMapCenter(pickupCoords);
+    if (live.hasFix && live.lat != null && live.lng != null) {
+      return trustedMapCenter({ lat: live.lat, lng: live.lng });
+    }
+    return trustedMapCenter(live.mapCenter);
+  }, [pickupCoords, live.hasFix, live.lat, live.lng, live.mapCenter]);
+
+  const jsMapAvailable = hasMapsKey && !deliveryJsMapFailed;
+
+  useEffect(() => {
+    if (!jsMapAvailable || hasEditablePins || !live.hasFix || live.lat == null || live.lng == null) {
+      setNearbyDrivers([]);
+      return undefined;
+    }
+    if (!isSupabaseConfigured || !supabase) return undefined;
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const list = await fetchNearbyDrivers(supabase, live.lat, live.lng);
+        if (!cancelled) setNearbyDrivers(list);
+      } catch {
+        if (!cancelled) setNearbyDrivers([]);
+      }
+    };
+    load();
+    const id = window.setInterval(load, 12_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [jsMapAvailable, hasEditablePins, live.hasFix, live.lat, live.lng]);
 
   const useGps = async () => {
     if (gpsLoading) return;
@@ -257,6 +303,9 @@ export default function RequestDeliveryPage() {
     setGpsLoading(true);
     try {
       const coords = await live.refreshFromUserGesture();
+      const next = { lat: coords.latitude, lng: coords.longitude };
+      setPickupCoords(next);
+      skipGeocodeFromDragRef.current = true;
       const line = await pickupLineFromCoords(coords.latitude, coords.longitude);
       setPickup(line);
     } catch (err) {
@@ -264,6 +313,52 @@ export default function RequestDeliveryPage() {
       setGpsNotice(geolocationFailureMessage(code));
     } finally {
       setGpsLoading(false);
+    }
+  };
+
+  const recomputeDistanceFromPins = (pu, drop) => {
+    if (!pu || !drop) {
+      setRouteDistanceKm(null);
+      setCoordsRouteSrc('');
+      return;
+    }
+    const straight = haversineKm(pu.lat, pu.lng, drop.lat, drop.lng);
+    const roadKm = straight != null ? estimateRoadKm(straight) : null;
+    setRouteDistanceKm(roadKm != null && roadKm > 0 ? roadKm : null);
+    const url = publicDirectionsCoordsMapUrl(pu.lat, pu.lng, drop.lat, drop.lng, []);
+    setCoordsRouteSrc(url || '');
+  };
+
+  const onPickupDragEnd = async (lat, lng) => {
+    const next = { lat, lng };
+    setPickupCoords(next);
+    recomputeDistanceFromPins(next, dropoffCoords);
+    setPinBusy('pickup');
+    skipGeocodeFromDragRef.current = true;
+    try {
+      const line = await pickupLineFromCoords(lat, lng);
+      setPickup(line);
+      setGpsNotice('');
+    } catch {
+      setPickup(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } finally {
+      setPinBusy('');
+    }
+  };
+
+  const onDropoffDragEnd = async (lat, lng) => {
+    const next = { lat, lng };
+    setDropoffCoords(next);
+    recomputeDistanceFromPins(pickupCoords, next);
+    setPinBusy('dropoff');
+    skipGeocodeFromDragRef.current = true;
+    try {
+      const line = await pickupLineFromCoords(lat, lng);
+      setAt(0, line);
+    } catch {
+      setAt(0, `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } finally {
+      setPinBusy('');
     }
   };
 
@@ -297,22 +392,43 @@ export default function RequestDeliveryPage() {
 
         <div className="br-map-wrap">
           <div
-            className={`br-map${useDeliveryInteractiveMap || requestMapSrc ? ' br-map--gmap' : ''}`}
-            role="img"
-            aria-label="Map with pickup and dropoff route"
+            className={`br-map${jsMapAvailable || requestMapSrc ? ' br-map--gmap' : ''}${
+              hasEditablePins ? ' br-map--editable' : ''
+            }`}
+            role="region"
+            aria-label="Map with pickup and dropoff — drag pins to adjust"
           >
-            {useDeliveryInteractiveMap ? (
-              <LiveUserGoogleMap
-                mapCenter={deliveryInteractiveMapCenter}
-                fallbackCenter={LONDON_CENTER}
-                hasFix={live.hasFix}
-                accurate={live.hasFix}
-                accuracyM={live.accuracy}
-                onLoadError={() => setDeliveryJsMapFailed(true)}
-                zoomWithFix={15}
-                zoomFallback={12}
-                showUserLocationMarker={!hasPickupAndDropoff}
-              />
+            {jsMapAvailable ? (
+              <div className="br-map-js-layer">
+                <LiveUserGoogleMap
+                  mapCenter={deliveryInteractiveMapCenter}
+                  fallbackCenter={DEFAULT_MAP_FALLBACK}
+                  hasFix={live.hasFix}
+                  accurate={live.hasFix}
+                  accuracyM={live.accuracy}
+                  onLoadError={() => setDeliveryJsMapFailed(true)}
+                  zoomWithFix={15}
+                  zoomFallback={12}
+                  showUserLocationMarker={!hasEditablePins}
+                  nearbyDrivers={hasEditablePins ? undefined : nearbyDrivers}
+                  pickupPin={pickupCoords}
+                  dropoffPin={dropoffCoords}
+                  onPickupDragEnd={onPickupDragEnd}
+                  onDropoffDragEnd={onDropoffDragEnd}
+                />
+                {!hasEditablePins && nearbyDrivers.length > 0 ? (
+                  <span className="br-map-nearby" aria-live="polite">
+                    {nearbyDrivers.length} driver{nearbyDrivers.length === 1 ? '' : 's'} nearby
+                  </span>
+                ) : null}
+                {hasEditablePins ? (
+                  <span className="br-map-hint" aria-live="polite">
+                    {pinBusy
+                      ? 'Updating address…'
+                      : 'Drag the green (pickup) or orange (drop-off) pin to fine-tune'}
+                  </span>
+                ) : null}
+              </div>
             ) : (
               <>
                 <GoogleMapEmbed src={requestMapSrc} title="Delivery route preview" />
@@ -345,6 +461,13 @@ export default function RequestDeliveryPage() {
                     onChange={(v) => {
                       setGpsNotice('');
                       setPickup(v);
+                      if (!String(v || '').trim()) setPickupCoords(null);
+                    }}
+                    onSelectSuggestion={(s) => {
+                      if (s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))) {
+                        setPickupCoords({ lat: Number(s.lat), lng: Number(s.lng) });
+                        skipGeocodeFromDragRef.current = true;
+                      }
                     }}
                     placeholder={pickup.trim() || (live.hasFix ? 'Current location' : 'Enter pickup address')}
                     autoComplete="street-address"
@@ -382,7 +505,16 @@ export default function RequestDeliveryPage() {
                     id="flow-dropoff"
                     name="dropoff"
                     value={stops[0]?.value ?? ''}
-                    onChange={(v) => setAt(0, v)}
+                    onChange={(v) => {
+                      setAt(0, v);
+                      if (!String(v || '').trim()) setDropoffCoords(null);
+                    }}
+                    onSelectSuggestion={(s) => {
+                      if (s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))) {
+                        setDropoffCoords({ lat: Number(s.lat), lng: Number(s.lng) });
+                        skipGeocodeFromDragRef.current = true;
+                      }
+                    }}
                     placeholder="Enter drop-off location"
                     autoComplete="off"
                     ariaLabel="Drop-off address"

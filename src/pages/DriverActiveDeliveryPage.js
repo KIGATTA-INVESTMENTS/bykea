@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import GoogleMapEmbed from '../components/GoogleMapEmbed';
+import LiveTrackingRouteMap from '../components/LiveTrackingRouteMap';
+import PackagePhotoCapture from '../components/PackagePhotoCapture';
 import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
 import { useLiveLocation } from '../hooks/useLiveLocation';
+import { isPackagePhotoSrc, persistParcelPackagePhoto } from '../lib/packagePhoto';
 import { formatGBP } from '../lib/currency';
-import { fetchBookingCustomerContact } from '../lib/driverIncomingBookings';
 import {
-  publicDirectionsCoordsMapUrl,
-  publicDirectionsMapUrl,
-  publicPlaceMapUrl,
+  buildDriverRouteMapUrl,
+  getGoogleMapsApiKey,
+  isInServiceArea,
 } from '../lib/googleMapsConfig';
+import { fetchBookingCustomerContact, isWalletCustomerPayment, isCashCustomerPayment, markDriverLeftAcceptedDelivery, ORDER_ALREADY_ACCEPTED_MSG, verifyDriverOwnsBooking } from '../lib/driverIncomingBookings';
+import { getDriverSession } from '../lib/driverSession';
 import { forwardGeocodeAddress } from '../lib/reverseGeocode';
+import { resolveLiveTrackTable } from '../lib/liveTrackTable';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './driverDelivery.css';
-
-function isDriverPackagePhotoSrc(v) {
-  return typeof v === 'string' && v.trim().startsWith('data:image/');
-}
 
 function Back() {
   return (
@@ -69,8 +70,15 @@ export default function DriverActiveDeliveryPage() {
   const [pickupGeo, setPickupGeo] = useState(null);
   const [dropoffGeo, setDropoffGeo] = useState(null);
   const [packagePhotoSrc, setPackagePhotoSrc] = useState(() =>
-    isDriverPackagePhotoSrc(o?.packagePhotoDataUrl) ? o.packagePhotoDataUrl : null,
+    isPackagePhotoSrc(o?.packagePhotoDataUrl) ? o.packagePhotoDataUrl : null,
   );
+  const [driverPhotoSrc, setDriverPhotoSrc] = useState(() =>
+    isPackagePhotoSrc(o?.driverPackagePhotoDataUrl) ? o.driverPackagePhotoDataUrl : null,
+  );
+  const [photoErr, setPhotoErr] = useState('');
+  const [lostJob, setLostJob] = useState('');
+  const [jsMapFailed, setJsMapFailed] = useState(() => !getGoogleMapsApiKey());
+  const jsMapAvailable = !jsMapFailed;
 
   const pickup = String(o.from || '').trim() || 'Stratford, London E15';
   const dropoff = String(o.to || '').trim() || pickup;
@@ -82,14 +90,15 @@ export default function DriverActiveDeliveryPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const fromNav = isDriverPackagePhotoSrc(o.packagePhotoDataUrl) ? o.packagePhotoDataUrl : null;
-    if (fromNav) {
-      setPackagePhotoSrc(fromNav);
+    const fromNav = isPackagePhotoSrc(o.packagePhotoDataUrl) ? o.packagePhotoDataUrl : null;
+    const fromDriver = isPackagePhotoSrc(o.driverPackagePhotoDataUrl) ? o.driverPackagePhotoDataUrl : null;
+    if (fromNav) setPackagePhotoSrc(fromNav);
+    if (fromDriver) setDriverPhotoSrc(fromDriver);
+    if (fromNav && fromDriver) {
       return () => {
         cancelled = true;
       };
     }
-    setPackagePhotoSrc(null);
     const table = o.bookingTable;
     const id = o.supabaseOrderId;
     if (!isSupabaseConfigured || !supabase || table !== 'customer_delivery_orders' || !id) {
@@ -100,17 +109,38 @@ export default function DriverActiveDeliveryPage() {
     (async () => {
       const { data, error } = await supabase
         .from('customer_delivery_orders')
-        .select('package_photo_data_url')
+        .select('package_photo_data_url, driver_package_photo_data_url')
         .eq('id', id)
         .maybeSingle();
       if (cancelled || error || !data) return;
-      const u = data.package_photo_data_url;
-      if (isDriverPackagePhotoSrc(u)) setPackagePhotoSrc(u);
+      if (!fromNav && isPackagePhotoSrc(data.package_photo_data_url)) setPackagePhotoSrc(data.package_photo_data_url);
+      if (!fromDriver && isPackagePhotoSrc(data.driver_package_photo_data_url)) {
+        setDriverPhotoSrc(data.driver_package_photo_data_url);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [o.packagePhotoDataUrl, o.bookingTable, o.supabaseOrderId]);
+  }, [o.packagePhotoDataUrl, o.driverPackagePhotoDataUrl, o.bookingTable, o.supabaseOrderId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const table = o.bookingTable;
+    const id = o.supabaseOrderId;
+    const driverId = getDriverSession()?.id || null;
+    if (!isSupabaseConfigured || !supabase || !table || !id || !driverId) return undefined;
+    (async () => {
+      const owns = await verifyDriverOwnsBooking(supabase, table, id, driverId);
+      if (cancelled) return;
+      if (!owns) {
+        setLostJob(ORDER_ALREADY_ACCEPTED_MSG);
+        window.setTimeout(() => navigate('/driver/home', { replace: true }), 1800);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [o.bookingTable, o.supabaseOrderId, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,17 +179,33 @@ export default function DriverActiveDeliveryPage() {
   }, [pickup, dropoff]);
 
   const startDeliveryRouteNav = () => {
+    if (lostJob) return;
     const table = o.bookingTable;
     const id = o.supabaseOrderId;
-    if (isSupabaseConfigured && supabase && table === 'customer_delivery_orders' && id && Number.isFinite(live.lat) && Number.isFinite(live.lng)) {
+    const liveTrackTable = resolveLiveTrackTable(table);
+    if (
+      isSupabaseConfigured &&
+      supabase &&
+      liveTrackTable &&
+      id &&
+      Number.isFinite(live.lat) &&
+      Number.isFinite(live.lng) &&
+      isInServiceArea(live.lat, live.lng)
+    ) {
       const payload = {
         driver_live_lat: Number(live.lat),
         driver_live_lng: Number(live.lng),
         driver_live_updated_at: new Date().toISOString(),
         driver_nav_leg: 'to_pickup',
       };
-      // Fire-and-forget: this helps customer /live-tracking show driver journey immediately.
-      supabase.from(table).update(payload).eq('id', id).then(() => {}).catch(() => {});
+      // Fire-and-forget: helps customer /live-tracking and shop owner order map show driver journey immediately.
+      supabase
+        .from(liveTrackTable)
+        .update(payload)
+        .eq('id', id)
+        .eq('assigned_driver_id', getDriverSession()?.id || '')
+        .then(() => {})
+        .catch(() => {});
     }
     navigate('/driver/navigation', {
       state: {
@@ -167,6 +213,8 @@ export default function DriverActiveDeliveryPage() {
           ...o,
           customerName: customerName || o.customerName,
           customerPhone: customerPhone || o.customerPhone,
+          packagePhotoDataUrl: packagePhotoSrc || o.packagePhotoDataUrl,
+          driverPackagePhotoDataUrl: driverPhotoSrc || o.driverPackagePhotoDataUrl,
         },
         pickup,
         dropoff,
@@ -176,29 +224,32 @@ export default function DriverActiveDeliveryPage() {
     });
   };
 
-  /** Show full journey reliably: current GPS -> pickup -> drop-off (coords), then fallbacks. */
-  const journeyMapSrc = useMemo(() => {
-    if (pickupGeo && dropoffGeo && Number.isFinite(live.lat) && Number.isFinite(live.lng)) {
-      const withWaypoint = publicDirectionsCoordsMapUrl(
-        live.lat,
-        live.lng,
-        dropoffGeo.lat,
-        dropoffGeo.lng,
-        [[pickupGeo.lat, pickupGeo.lng]],
-      );
-      if (withWaypoint) return withWaypoint;
-    }
-    if (pickupGeo && dropoffGeo) {
-      const coords = publicDirectionsCoordsMapUrl(pickupGeo.lat, pickupGeo.lng, dropoffGeo.lat, dropoffGeo.lng);
-      if (coords) return coords;
-    }
-    return publicDirectionsMapUrl(pickup, dropoff) || publicPlaceMapUrl(pickup);
-  }, [pickup, dropoff, pickupGeo, dropoffGeo, live.lat, live.lng]);
+  /** Stable route preview: address directions immediately, geocoded coords when ready. */
+  const journeyMapSrc = useMemo(
+    () =>
+      buildDriverRouteMapUrl({
+        pickup,
+        dropoff,
+        pickupGeo,
+        dropoffGeo,
+      }),
+    [pickup, dropoff, pickupGeo, dropoffGeo],
+  );
 
   return (
     <div className="da-page dd" role="main" aria-label="Active delivery">
       <header className="da-h">
-        <button type="button" className="da-back" onClick={() => navigate('/driver/home')} aria-label="Back">
+        <button
+          type="button"
+          className="da-back"
+          onClick={() => {
+            if (o.bookingTable && o.supabaseOrderId) {
+              markDriverLeftAcceptedDelivery(o.bookingTable, o.supabaseOrderId);
+            }
+            navigate('/driver/home');
+          }}
+          aria-label="Back"
+        >
           <Back />
         </button>
         <div className="da-ht">
@@ -207,40 +258,47 @@ export default function DriverActiveDeliveryPage() {
         </div>
       </header>
 
-      <div className={`da-map${journeyMapSrc ? ' da-map--gmap' : ''}`} aria-hidden>
-        <GoogleMapEmbed src={journeyMapSrc} title="Pickup to drop-off route" />
-        <div className="da-pulse" />
-        <svg viewBox="0 0 320 220" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" role="img">
-          <path
-            d="M 85 150 Q 150 100 200 80 T 255 60"
-            fill="none"
-            stroke="#F18631"
-            strokeWidth="4.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+      {lostJob ? (
+        <p className="da-oid" role="alert" style={{ margin: '0.75rem 1rem', color: '#b91c1c', fontWeight: 600 }}>
+          {lostJob}
+        </p>
+      ) : null}
+
+      <div
+        className={`da-map${jsMapAvailable || journeyMapSrc ? ' da-map--gmap' : ' da-map--empty'}`}
+        aria-hidden
+      >
+        {jsMapAvailable ? (
+          <LiveTrackingRouteMap
+            pickupGeo={pickupGeo}
+            dropoffGeo={dropoffGeo}
+            driverLat={live.lat}
+            driverLng={live.lng}
+            driverLiveOk={live.hasFix}
+            navLeg="to_pickup"
+            hasDriver={live.hasFix}
+            onLoadError={() => setJsMapFailed(true)}
           />
-          <g transform="translate(250, 58)">
-            <path
-              d="M12 2.2a3.4 3.4 0 0 0-3.2 2.1L3.2 18.2a.4.4 0 0 0 .3.5h15a.4.4 0 0 0 .3-.5L15.1 4.2A3.3 3.3 0 0 0 12 2.2Z"
-              fill="#1976d2"
-            />
-            <circle cx="12" cy="7" r="1" fill="#fff" />
-          </g>
-          <g transform="translate(170, 100)">
-            <path
-              d="M12 2.2a3.4 3.4 0 0 0-3.2 2.1L3.2 18.2a.4.4 0 0 0 .3.5h15a.4.4 0 0 0 .3-.5L15.1 4.2A3.3 3.3 0 0 0 12 2.2Z"
-              fill="#c62828"
-            />
-            <circle cx="12" cy="7" r="1" fill="#fff" />
-          </g>
-          <g transform="translate(80, 148)">
-            <path
-              d="M12 2.2a3.4 3.4 0 0 0-3.2 2.1L3.2 18.2a.4.4 0 0 0 .3.5h15a.4.4 0 0 0 .3-.5L15.1 4.2A3.3 3.3 0 0 0 12 2.2Z"
-              fill="#F18631"
-            />
-            <circle cx="12" cy="7" r="1" fill="#fff" />
-          </g>
-        </svg>
+        ) : (
+          <>
+            <GoogleMapEmbed src={journeyMapSrc} title="Pickup to drop-off route" loading="eager" />
+            {!journeyMapSrc ? (
+              <>
+                <div className="da-pulse" />
+                <svg viewBox="0 0 320 220" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" role="img">
+                  <path
+                    d="M 85 150 Q 150 100 200 80 T 255 60"
+                    fill="none"
+                    stroke="#F18631"
+                    strokeWidth="4.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </>
+            ) : null}
+          </>
+        )}
       </div>
 
       <div className="da-sheet">
@@ -333,14 +391,67 @@ export default function DriverActiveDeliveryPage() {
           </div>
           {packagePhotoSrc ? (
             <figure className="da-packagePhotoWrap">
-              <figcaption className="da-packagePhotoCap">Package photo</figcaption>
+              <figcaption className="da-packagePhotoCap">Customer photo</figcaption>
               <img className="da-packagePhotoImg" src={packagePhotoSrc} alt="Customer package" loading="lazy" />
             </figure>
           ) : null}
+          {String(o.bookingTable || '') === 'customer_delivery_orders' || String(o.bookingKind || '') === 'parcel' ? (
+            <div style={{ margin: '0.35rem 0 0.45rem' }}>
+              <PackagePhotoCapture
+                compact
+                value={driverPhotoSrc}
+                onChange={async (url) => {
+                  setPhotoErr('');
+                  setDriverPhotoSrc(url);
+                  const id = o.supabaseOrderId;
+                  if (!id) return;
+                  const saved = await persistParcelPackagePhoto('driver', id, url, 'driver-package.jpg');
+                  if (!saved.ok) setPhotoErr(saved.error || 'Could not save photo.');
+                }}
+                label="Your package photo"
+                hint="Take or upload a photo of the parcel at pickup."
+              />
+              {photoErr ? (
+                <p role="alert" style={{ margin: '0.35rem 0 0', color: '#b91c1c', fontSize: '0.78rem', fontWeight: 600 }}>
+                  {photoErr}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {o.customerPayment && o.customerPayment !== '—' ? (
-            <p className="da-customerPay" role="status">
-              Customer payment: <strong>{o.customerPayment}</strong>
-            </p>
+            <div
+              className={`da-customerPay${
+                isWalletCustomerPayment(o.payment_method) || isWalletCustomerPayment(o.customerPayment)
+                  ? ' da-customerPay--wallet'
+                  : ''
+              }${
+                isCashCustomerPayment(o.payment_method) || isCashCustomerPayment(o.customerPayment)
+                  ? ' da-customerPay--cash'
+                  : ''
+              }`}
+              role="status"
+            >
+              <p className="da-customerPay__line">
+                Payment:{' '}
+                <strong>
+                  {isWalletCustomerPayment(o.payment_method) || isWalletCustomerPayment(o.customerPayment)
+                    ? 'Wallet Payment'
+                    : isCashCustomerPayment(o.payment_method) || isCashCustomerPayment(o.customerPayment)
+                      ? 'Cash Payment'
+                      : o.customerPayment}
+                </strong>
+              </p>
+              {isWalletCustomerPayment(o.payment_method) || isWalletCustomerPayment(o.customerPayment) ? (
+                <p className="da-customerPay__note">
+                  Customer has already paid through the Ingo Wallet. Do not collect cash.
+                </p>
+              ) : null}
+              {isCashCustomerPayment(o.payment_method) || isCashCustomerPayment(o.customerPayment) ? (
+                <p className="da-customerPay__note da-customerPay__note--cash">
+                  Collect cash from the customer at drop-off.
+                </p>
+              ) : null}
+            </div>
           ) : null}
           {o.specialInstructions ? <p className="da-misc">{o.specialInstructions}</p> : null}
 
@@ -353,7 +464,17 @@ export default function DriverActiveDeliveryPage() {
             <button
               type="button"
               className="da-ia"
-              onClick={() => navigate('/driver/confirm-pickup', { state: { order: o } })}
+              onClick={() =>
+                navigate('/driver/confirm-pickup', {
+                  state: {
+                    order: {
+                      ...o,
+                      packagePhotoDataUrl: packagePhotoSrc || o.packagePhotoDataUrl,
+                      driverPackagePhotoDataUrl: driverPhotoSrc || o.driverPackagePhotoDataUrl,
+                    },
+                  },
+                })
+              }
             >
               I Have Arrived
             </button>

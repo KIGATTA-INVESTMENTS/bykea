@@ -156,7 +156,7 @@ export default function AdminOurDriversPage() {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => {
-      const hay = [r.full_name, r.email, r.phone, r.vehicle_plate, r.national_id, r.vehicle_make, r.vehicle_model]
+      const hay = [r.full_name, r.email, r.phone, r.vehicle_plate, r.national_id, r.vehicle_make, r.vehicle_model, r.referral_code]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -292,6 +292,7 @@ export default function AdminOurDriversPage() {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
+                <th>Referral code</th>
                 <th>Phone</th>
                 <th>Vehicle</th>
                 <th>Plate</th>
@@ -302,13 +303,13 @@ export default function AdminOurDriversPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
                     Loading�
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
                     No approved drivers yet. Approve applications from <strong>Driver requests</strong>.
                   </td>
                 </tr>
@@ -324,6 +325,7 @@ export default function AdminOurDriversPage() {
                       </div>
                     </td>
                     <td style={{ fontSize: '0.85rem' }}>{r.email}</td>
+                    <td className="admDim">{r.referral_code || '—'}</td>
                     <td>
                       {r.phone_country_code ? `${r.phone_country_code} ` : ''}
                       {r.phone}
@@ -394,6 +396,9 @@ export default function AdminOurDriversPage() {
               </p>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.88rem' }}>
                 <strong>National ID</strong> {v.national_id}
+              </p>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.88rem' }}>
+                <strong>Referral code</strong> {v.referral_code || '—'}
               </p>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.88rem' }}>
                 <strong>Password</strong> <span className="admDim">(stored value hidden)</span>

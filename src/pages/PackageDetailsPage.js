@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { compressImageToDataUrl } from '../lib/compressImageToDataUrl';
-import { getCustomerSession } from '../lib/customerSession';
+import PackagePhotoCapture from '../components/PackagePhotoCapture';
+import { friendlyAppUserFkError, getCustomerSession, resolveValidAppUserId } from '../lib/customerSession';
 import { CUSTOMER_PARCEL_VEHICLE_OPTIONS } from '../lib/deliveryVehicleTypes';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './bookRide.css';
@@ -77,16 +77,6 @@ const PACKAGE_TYPE_OPTIONS = [
   'Other',
 ];
 
-function CamIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-      <rect x="2" y="5" width="20" height="16" rx="1.2" fill="none" />
-      <path d="M2 8h3l1.5-2H10l1.5 2H22" strokeLinecap="round" fill="none" />
-      <circle cx="12" cy="12" r="3" fill="none" />
-    </svg>
-  );
-}
-
 export default function PackageDetailsPage() {
   const navigate = useNavigate();
   const { state: routeState = {} } = useLocation();
@@ -94,9 +84,13 @@ export default function PackageDetailsPage() {
   const [weight, setWeight] = useState('');
   const [typeCategory, setTypeCategory] = useState('Documents');
   const [typeOther, setTypeOther] = useState('');
-  const [fileName, setFileName] = useState('');
-  const [photoDataUrl, setPhotoDataUrl] = useState(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
+  const existingPkg = routeState.package && typeof routeState.package === 'object' ? routeState.package : {};
+  const [fileName, setFileName] = useState(typeof existingPkg.fileName === 'string' ? existingPkg.fileName : '');
+  const [photoDataUrl, setPhotoDataUrl] = useState(
+    typeof existingPkg.photoDataUrl === 'string' && existingPkg.photoDataUrl.startsWith('data:image/')
+      ? existingPkg.photoDataUrl
+      : null,
+  );
   const [notes, setNotes] = useState('');
   const [requestedVehicleType, setRequestedVehicleType] = useState('Motorbike');
   const [saveError, setSaveError] = useState('');
@@ -121,35 +115,52 @@ export default function PackageDetailsPage() {
     const pkg = { size, weight, type: resolvedType, notes, fileName, photoDataUrl, requestedVehicleType };
     let deliveryRequestId = routeState.deliveryRequestId;
 
-    if (photoBusy) {
-      setSaveError('Still processing your package photo — try again in a moment.');
-      return;
-    }
-
     if (pickup && dropoff && isSupabaseConfigured && supabase) {
       setIsSaving(true);
       try {
         const session = getCustomerSession();
-        const { data: insertedReq, error } = await supabase
+        const appUserId = await resolveValidAppUserId(supabase, session?.id);
+        const insertRow = {
+          app_user_id: appUserId,
+          pickup_location: pickup,
+          dropoff_location: dropoff,
+          extra_stops: extraStops,
+          delivery_type: String(routeState.deliveryType || 'standard'),
+          distance_estimate: routeState.distanceKm != null ? String(routeState.distanceKm) : null,
+          package_size: size,
+          package_weight: weight.trim() || null,
+          package_category: resolvedType || null,
+          package_notes: notes.trim() || null,
+          package_photo_filename: fileName.trim() || null,
+          package_photo_data_url: photoDataUrl || null,
+          requested_vehicle_type: requestedVehicleType.trim(),
+        };
+
+        let { data: insertedReq, error } = await supabase
           .from('delivery_requests')
-          .insert({
-            app_user_id: session?.id ?? null,
-            pickup_location: pickup,
-            dropoff_location: dropoff,
-            extra_stops: extraStops,
-            delivery_type: String(routeState.deliveryType || 'standard'),
-            distance_estimate: routeState.distanceKm != null ? String(routeState.distanceKm) : null,
-            package_size: size,
-            package_weight: weight.trim() || null,
-            package_category: resolvedType || null,
-            package_notes: notes.trim() || null,
-            package_photo_filename: fileName.trim() || null,
-            requested_vehicle_type: requestedVehicleType.trim(),
-          })
+          .insert(insertRow)
           .select('id')
           .single();
+
+        if (error && /package_photo_data_url/i.test(error.message || '')) {
+          const { package_photo_data_url: _omit, ...withoutPhoto } = insertRow;
+          ({ data: insertedReq, error } = await supabase
+            .from('delivery_requests')
+            .insert(withoutPhoto)
+            .select('id')
+            .single());
+        }
+
+        if (error && /app_user_id_fkey|foreign key constraint.*app_user/i.test(error.message || '')) {
+          ({ data: insertedReq, error } = await supabase
+            .from('delivery_requests')
+            .insert({ ...insertRow, app_user_id: null })
+            .select('id')
+            .single());
+        }
+
         if (error) {
-          setSaveError(error.message || 'Could not save your request.');
+          setSaveError(friendlyAppUserFkError(error.message));
           setIsSaving(false);
           return;
         }
@@ -289,46 +300,15 @@ export default function PackageDetailsPage() {
 
         <section className="br-pd-card">
           <h2 className="br-pd-heading">Package photo</h2>
-          <label className="br-pd-upload">
-            <input
-              type="file"
-              className="br-pd-upload__input"
-              accept="image/*"
-              disabled={photoBusy}
-              onChange={async (e) => {
-                const f = e.currentTarget.files?.[0];
-                if (!f) {
-                  setFileName('');
-                  setPhotoDataUrl(null);
-                  return;
-                }
-                setFileName(f.name);
-                setPhotoBusy(true);
-                setSaveError('');
-                try {
-                  const url = await compressImageToDataUrl(f, 960, 0.76);
-                  setPhotoDataUrl(url);
-                } catch (err) {
-                  setPhotoDataUrl(null);
-                  setSaveError(err?.message || 'Could not read that image. Try another photo.');
-                } finally {
-                  setPhotoBusy(false);
-                }
-              }}
-            />
-            <span className="br-pd-upload__icon" aria-hidden>
-              <CamIcon />
-            </span>
-            <span className="br-pd-upload__text">
-              {photoBusy ? 'Processing photo…' : 'Take or upload photo (optional)'}
-              {fileName && !photoBusy ? (
-                <span className="br-pd-upload__file">{` — ${fileName}`}</span>
-              ) : null}
-            </span>
-          </label>
-          {photoDataUrl ? (
-            <img src={photoDataUrl} alt="Your package" className="br-pd-preview" />
-          ) : null}
+          <PackagePhotoCapture
+            value={photoDataUrl}
+            onChange={(url, name) => {
+              setSaveError('');
+              setPhotoDataUrl(url);
+              setFileName(url ? name || 'package.jpg' : '');
+            }}
+            hint="Take or upload a photo of the parcel. The driver will see this at pickup."
+          />
         </section>
 
         <section className="br-pd-card">
@@ -352,7 +332,7 @@ export default function PackageDetailsPage() {
       </div>
 
       <div className="br-footer">
-        <button type="submit" className="br-confirm" disabled={isSaving || photoBusy}>
+        <button type="submit" className="br-confirm" disabled={isSaving}>
           {isSaving ? 'Saving…' : 'Continue'}
         </button>
       </div>

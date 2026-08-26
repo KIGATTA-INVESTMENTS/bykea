@@ -16,6 +16,7 @@ create table if not exists public.app_users (
   password_reset_code_hash text,
   password_reset_expires_at timestamptz,
   password_reset_sent_at timestamptz,
+  profile_photo_url text,
   created_at timestamptz not null default now()
 );
 

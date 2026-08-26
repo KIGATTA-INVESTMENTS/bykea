@@ -1,5 +1,4 @@
 import { Link, useNavigate } from 'react-router-dom';
-import CarIcon from '../components/icons/CarIcon';
 import './requestFlow.css';
 
 function BackArrow() {
@@ -25,10 +24,6 @@ function IconBox() {
   );
 }
 
-function IconCar() {
-  return <CarIcon size={24} />;
-}
-
 function IconBag() {
   return (
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden>
@@ -43,6 +38,23 @@ function IconBag() {
   );
 }
 
+function IconTukTuk() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden>
+      <circle cx="7" cy="17" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="17" cy="17" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M5 14h14l2-5H10l-1.5-3H5v8Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path d="M16 9V7a2 2 0 0 1 4 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const OPTIONS = [
   {
     id: 'delivery',
@@ -52,11 +64,11 @@ const OPTIONS = [
     to: '/request-delivery',
   },
   {
-    id: 'taxi',
-    title: 'Taxi',
-    hint: 'Book a ride',
-    Icon: IconCar,
-    to: '/book-ride',
+    id: 'tuk',
+    title: 'Tuk-Tuk',
+    hint: 'Affordable quick trips',
+    Icon: IconTukTuk,
+    to: '/book-tuk-tuk',
   },
   {
     id: 'shop',
@@ -69,7 +81,6 @@ const OPTIONS = [
 
 export default function RequestServiceChoicePage() {
   const navigate = useNavigate();
-
   return (
     <div className="flow-screen">
       <div className="flow-topbar">
@@ -89,6 +100,7 @@ export default function RequestServiceChoicePage() {
               type="button"
               className="rsc-row"
               onClick={() => navigate(to)}
+              aria-label={title}
               role="listitem"
             >
               <span className="rsc-row__ic" aria-hidden>

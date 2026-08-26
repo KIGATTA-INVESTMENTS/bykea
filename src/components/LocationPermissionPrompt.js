@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { geolocationFailureMessage } from '../lib/devicePickupLocation';
 import './LocationPermissionPrompt.css';
 
 const LS_SOFT = 'ingo_geo_prompt_soft_dismiss';
@@ -42,23 +43,28 @@ export default function LocationPermissionPrompt({ live, placement = 'customer' 
   const [busy, setBusy] = useState(false);
   const [softDismissed, setSoftDismissed] = useState(() => readLs(LS_SOFT));
   const [deniedDismissed, setDeniedDismissed] = useState(() => readLs(LS_DENIED));
+  const [failNotice, setFailNotice] = useState('');
 
   useEffect(() => {
     if (!live.hasFix) return;
     writeLs(LS_SOFT, '1');
     writeLs(LS_DENIED, '1');
+    setFailNotice('');
   }, [live.hasFix]);
 
   const onAllow = useCallback(async () => {
+    if (busy) return;
     setBusy(true);
+    setFailNotice('');
     try {
       await live.refreshFromUserGesture();
-    } catch {
-      // geoError / UI will reflect denied or unavailable
+    } catch (err) {
+      const code = typeof err?.code === 'number' ? err.code : 2;
+      setFailNotice(geolocationFailureMessage(code));
     } finally {
       setBusy(false);
     }
-  }, [live]);
+  }, [live, busy]);
 
   const onSoftDismiss = useCallback(() => {
     setSoftDismissed(true);
@@ -86,6 +92,7 @@ export default function LocationPermissionPrompt({ live, placement = 'customer' 
             ? 'For this installed app, open your device settings and allow Location for your browser or InGo. Then tap Retry.'
             : 'Allow location for this site in your browser settings, then tap Retry.'}
         </p>
+        {failNotice ? <p className="loc-perm__text loc-perm__text--err">{failNotice}</p> : null}
         <div className="loc-perm__actions">
           <button type="button" className="loc-perm__btn loc-perm__btn--primary" disabled={busy} onClick={onAllow}>
             {busy ? 'Checking…' : 'Retry'}
@@ -98,7 +105,27 @@ export default function LocationPermissionPrompt({ live, placement = 'customer' 
     );
   }
 
-  if (softDismissed) return null;
+  if (live.geoError === 'out_of_area') {
+    return (
+      <aside className={rootClass} role="alert" aria-label="Location outside service area">
+        <p className="loc-perm__title">Location outside Zimbabwe</p>
+        <p className="loc-perm__text">
+          Turn on precise GPS (not approximate / IP location) and try again. You can still type your pickup address.
+        </p>
+        {failNotice ? <p className="loc-perm__text loc-perm__text--err">{failNotice}</p> : null}
+        <div className="loc-perm__actions">
+          <button type="button" className="loc-perm__btn loc-perm__btn--primary" disabled={busy} onClick={onAllow}>
+            {busy ? 'Checking…' : 'Try again'}
+          </button>
+          <button type="button" className="loc-perm__btn loc-perm__btn--ghost" onClick={onSoftDismiss}>
+            Type address instead
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
+  if (softDismissed && !failNotice && live.geoError !== 'unavailable') return null;
 
   return (
     <aside className={rootClass} role="region" aria-label="Location permission">
@@ -108,9 +135,10 @@ export default function LocationPermissionPrompt({ live, placement = 'customer' 
           ? 'Tap Allow so we can show where you are on the map and fill pickup more accurately in this installed app.'
           : 'Tap Allow so we can show your position on the map and use “My current location” for pickup.'}
       </p>
+      {failNotice ? <p className="loc-perm__text loc-perm__text--err">{failNotice}</p> : null}
       <div className="loc-perm__actions">
         <button type="button" className="loc-perm__btn loc-perm__btn--primary" disabled={busy} onClick={onAllow}>
-          {busy ? 'Waiting…' : 'Allow location'}
+          {busy ? 'Getting location…' : 'Allow location'}
         </button>
         <button type="button" className="loc-perm__btn loc-perm__btn--ghost" disabled={busy} onClick={onSoftDismiss}>
           Not now

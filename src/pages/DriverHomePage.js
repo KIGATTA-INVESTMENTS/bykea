@@ -2,74 +2,34 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GoogleMapEmbed from '../components/GoogleMapEmbed';
 import LiveUserGoogleMap from '../components/LiveUserGoogleMap';
+import { useDriverOffers } from '../components/driver/DriverOffersProvider';
 import { useLiveLocation } from '../hooks/useLiveLocation';
+import { useThrottledMapEmbedSrc } from '../hooks/useThrottledMapEmbedSrc';
 import {
   driverAcceptOffer,
   driverRejectOffer,
-  fetchOpenOffersForDriver,
   fetchRecentForDriver,
   formatOfferTime,
+  isCashCustomerPayment,
+  isOpenBookingRowFresh,
+  isWalletCustomerPayment,
   offerToActiveDeliveryOrder,
+  openOfferSecondsLeft,
+  OPEN_OFFER_MAX_AGE_MS,
+  OFFER_RING_CYCLE_MS,
+  ORDER_ALREADY_ACCEPTED_MSG,
 } from '../lib/driverIncomingBookings';
+import { driverPlaceBid } from '../lib/bookingBids';
 import { formatGBP } from '../lib/currency';
-import { DRIVER_SECURITY_DEPOSIT_MIN_GBP, fetchDriverDepositBalance } from '../lib/driverDepositGate';
-import { getDriverSession } from '../lib/driverSession';
-import { getGoogleMapsApiKey, publicViewMapUrl } from '../lib/googleMapsConfig';
+import { DEFAULT_MAP_FALLBACK, publicViewMapUrlDriver, trustedMapCenter } from '../lib/googleMapsConfig';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
+import { unlockDriverOfferAudio } from '../lib/driverOfferRing';
+import { publishDriverOnlineLocation } from '../lib/nearbyDrivers';
 import CarIcon from '../components/icons/CarIcon';
 import { LOGIN_HERO_ART } from '../lib/ingoLogo';
+import DriverPermissionPrompts from '../components/driver/DriverPermissionPrompts';
 import './driverPortal.css';
 import './driverHomePremium.css';
-
-/** Same lat/lng fallback as customer `/home` map when GPS is unavailable. */
-const DRIVER_MAP_FALLBACK = { lat: 51.5246, lng: -0.0772 };
-
-/** Match customer home: embed-only when env set, no key, or Maps JS failed. */
-function useDriverMapsEmbedOnly() {
-  return useMemo(
-    () => String(process.env.REACT_APP_HOME_USE_MAPS_EMBED_ONLY || '').trim().toLowerCase() === 'true',
-    [],
-  );
-}
-
-/** Time window from when this device first shows an offer — accept/reject or it disappears. */
-const OFFER_WINDOW_MS = 60_000;
-const SS_FIRST_SEEN = 'ingo_driver_offer_first_seen:';
-
-function getOfferFirstSeenMs(offerId) {
-  if (!offerId) return Date.now();
-  try {
-    const k = `${SS_FIRST_SEEN}${offerId}`;
-    const raw = sessionStorage.getItem(k);
-    if (raw != null && raw !== '') {
-      const n = Number(raw);
-      if (!Number.isNaN(n)) return n;
-    }
-    const t = Date.now();
-    sessionStorage.setItem(k, String(t));
-    return t;
-  } catch {
-    return Date.now();
-  }
-}
-
-function clearOfferFirstSeen(offerId) {
-  if (!offerId) return;
-  try {
-    sessionStorage.removeItem(`${SS_FIRST_SEEN}${offerId}`);
-  } catch {
-    // ignore
-  }
-}
-
-function offerSecondsLeft(offerId) {
-  const elapsed = Date.now() - getOfferFirstSeenMs(offerId);
-  return Math.max(0, Math.ceil((OFFER_WINDOW_MS - elapsed) / 1000));
-}
-
-function isOfferStillVisible(offerId) {
-  return Date.now() - getOfferFirstSeenMs(offerId) < OFFER_WINDOW_MS;
-}
 
 function kindLabel(kind) {
   if (kind === 'parcel') return 'Delivery';
@@ -156,34 +116,6 @@ function IconOnline() {
   );
 }
 
-function IconWarn() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 4.5 3.5 19h17L12 4.5Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M12 10v4M12 17v.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconWarnSmall() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 4.5 3.5 19h17L12 4.5Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M12 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function IconRecentEmpty() {
   return (
     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden style={{ margin: '0 auto 0.65rem', display: 'block', color: '#9ca3af' }}>
@@ -219,47 +151,67 @@ function JobKindIcon({ kind }) {
 
 export default function DriverHomePage() {
   const navigate = useNavigate();
-  const live = useLiveLocation({ mapThrottleMs: 4000 });
-  const driverEmbedOnly = useDriverMapsEmbedOnly();
-  const hasMapsKey = Boolean(getGoogleMapsApiKey());
-  const [driverJsMapFailed, setDriverJsMapFailed] = useState(false);
-  const useEmbedDriverMap = driverEmbedOnly || !hasMapsKey || driverJsMapFailed;
+  const live = useLiveLocation({ mapThrottleMs: 12000, movePublishMeters: 80 });
+  const {
+    online,
+    setOnline,
+    offers,
+    recent,
+    setRecent,
+    loadErr,
+    ringingOfferKeys,
+    driverId,
+    driverVehicleType,
+    driverRegisteredAt,
+    removeOfferLocally,
+    refreshOffers,
+    setTakenNotice,
+  } = useDriverOffers();
 
+  const [jsMapFailed, setJsMapFailed] = useState(false);
   const driverMapSrc = useMemo(() => {
-    const c = live.mapCenter;
-    if (c && typeof c.lat === 'number' && typeof c.lng === 'number') {
-      return publicViewMapUrl(c.lat, c.lng, 14);
-    }
-    return publicViewMapUrl(DRIVER_MAP_FALLBACK.lat, DRIVER_MAP_FALLBACK.lng, 14);
+    const c = trustedMapCenter(live.mapCenter);
+    // Quantize ~11m so tiny GPS noise does not rebuild the embed URL.
+    const lat = Number(Number(c.lat).toFixed(4));
+    const lng = Number(Number(c.lng).toFixed(4));
+    return publicViewMapUrlDriver(lat, lng, 14);
   }, [live.mapCenter]);
+  const stableDriverMapSrc = useThrottledMapEmbedSrc(driverMapSrc, { throttleMs: 20000 });
+  const mapCenter = useMemo(() => trustedMapCenter(live.mapCenter), [live.mapCenter]);
+  const jsMapAvailable = !jsMapFailed;
+  const liveRef = useRef(live);
+  liveRef.current = live;
 
-  const driverJsMapCenter = useMemo(() => {
-    if (live.hasFix && live.lat != null && live.lng != null) {
-      return { lat: live.lat, lng: live.lng };
-    }
-    return live.mapCenter;
-  }, [live.hasFix, live.lat, live.lng, live.mapCenter]);
-
-  const [online, setOnline] = useState(true);
-  const [offers, setOffers] = useState([]);
-  const [recent, setRecent] = useState([]);
-  const [loadErr, setLoadErr] = useState('');
   const [actionMsg, setActionMsg] = useState('');
   const [busyKey, setBusyKey] = useState('');
-  const [depositBalance, setDepositBalance] = useState(null);
-  const [depositMissing, setDepositMissing] = useState(false);
-  const autoOfflineNoteRef = useRef(false);
-  const onlineRef = useRef(online);
-
-  useEffect(() => {
-    onlineRef.current = online;
-  }, [online]);
+  const [bidModeKey, setBidModeKey] = useState('');
+  const [bidDraft, setBidDraft] = useState('');
+  const [myBids, setMyBids] = useState({});
+  const acceptingRef = useRef(false);
   /** Re-render every second for countdown / expiry */
   const [, setSecTick] = useState(0);
 
-  const driverSession = getDriverSession();
-  const driverId = driverSession?.id || null;
-  const driverVehicleType = driverSession?.vehicle_type || '';
+  useEffect(() => {
+    if (!driverId || !isSupabaseConfigured || !supabase) return undefined;
+    if (!online) {
+      void publishDriverOnlineLocation(supabase, driverId, null, null, false);
+      return undefined;
+    }
+    const push = () => {
+      const { lat, lng, hasFix } = liveRef.current;
+      if (!hasFix || lat == null || lng == null) {
+        void publishDriverOnlineLocation(supabase, driverId, null, null, true);
+        return;
+      }
+      void publishDriverOnlineLocation(supabase, driverId, lat, lng, true);
+    };
+    push();
+    const id = window.setInterval(push, 15_000);
+    return () => {
+      window.clearInterval(id);
+      void publishDriverOnlineLocation(supabase, driverId, null, null, false);
+    };
+  }, [driverId, online]);
 
   useEffect(() => {
     if (!online) return undefined;
@@ -267,132 +219,66 @@ export default function DriverHomePage() {
     return () => window.clearInterval(id);
   }, [online]);
 
-  const visibleOffers = !online ? [] : offers.filter((o) => o.id && isOfferStillVisible(o.id));
-
-  useEffect(() => {
-    if (!driverId || !isSupabaseConfigured || !supabase) {
-      setOffers([]);
-      setRecent([]);
-      if (!isSupabaseConfigured || !supabase) {
-        setLoadErr('Supabase is not configured. Add keys to use live customer bookings.');
-      } else {
-        setLoadErr('');
-      }
-      return undefined;
-    }
-
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const dep = await fetchDriverDepositBalance(supabase, driverId);
-        if (cancelled) return;
-        let allowOffers = onlineRef.current;
-        setDepositMissing(Boolean(dep.missingColumn));
-        if (dep.missingColumn) {
-          setDepositBalance(null);
-        } else if (dep.error) {
-          setDepositBalance(null);
-        } else {
-          const bal = dep.balance ?? 0;
-          setDepositBalance(bal);
-          if (allowOffers && bal < DRIVER_SECURITY_DEPOSIT_MIN_GBP) {
-            setOnline(false);
-            allowOffers = false;
-            if (!autoOfflineNoteRef.current) {
-              autoOfflineNoteRef.current = true;
-              setActionMsg(
-                `Your security deposit is below ${formatGBP(DRIVER_SECURITY_DEPOSIT_MIN_GBP)}. You have been taken offline. Top up in Wallet.`,
-              );
-            }
-          } else if (bal >= DRIVER_SECURITY_DEPOSIT_MIN_GBP) {
-            autoOfflineNoteRef.current = false;
-          }
-        }
-
-        const rec = await fetchRecentForDriver(supabase, driverId);
-        if (cancelled) return;
-        setRecent(rec);
-        if (allowOffers) {
-          const next = await fetchOpenOffersForDriver(supabase, driverId, driverVehicleType);
-          if (cancelled) return;
-          setOffers(next);
-        } else {
-          setOffers([]);
-        }
-        setLoadErr('');
-      } catch (e) {
-        if (!cancelled) setLoadErr(e?.message || String(e));
-      }
-    };
-
-    tick();
-    const id = setInterval(tick, 4500);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [driverId, driverVehicleType]);
+  const visibleOffers = !online
+    ? []
+    : offers.filter(
+        (o) =>
+          o.id &&
+          isOpenBookingRowFresh(o.raw || { created_at: o.created_at, assigned_driver_id: null }, driverRegisteredAt),
+      );
 
   const recentTotal = useMemo(() => recent.reduce((s, r) => s + (Number(r.amt) || 0), 0), [recent]);
 
-  const acceptBlocked = useMemo(
-    () =>
-      depositMissing ||
-      depositBalance === null ||
-      (typeof depositBalance === 'number' && depositBalance < DRIVER_SECURITY_DEPOSIT_MIN_GBP),
-    [depositMissing, depositBalance],
-  );
-
   const offerKey = (o) => `${o.table}:${o.id}`;
 
-  const handleOnlineSwitch = useCallback(async () => {
-    if (online) {
-      setOnline(false);
-      return;
-    }
-    if (!isSupabaseConfigured || !supabase || !driverId) {
-      setActionMsg('Connect Supabase to verify your security deposit before going online.');
-      return;
-    }
-    const dep = await fetchDriverDepositBalance(supabase, driverId);
-    if (dep.missingColumn) {
-      setActionMsg(
-        'Security deposit column missing. Run supabase/driver_registrations_driver_deposit_balance.sql in the SQL editor.',
-      );
-      return;
-    }
-    if (dep.error) {
-      setActionMsg(dep.error);
-      return;
-    }
-    if ((dep.balance ?? 0) < DRIVER_SECURITY_DEPOSIT_MIN_GBP) {
-      setActionMsg(`Top up to at least ${formatGBP(DRIVER_SECURITY_DEPOSIT_MIN_GBP)} in Wallet before going online.`);
-      return;
-    }
+  const handleOnlineSwitch = useCallback(() => {
     setActionMsg('');
-    setOnline(true);
-  }, [online, driverId]);
+    unlockDriverOfferAudio();
+    setOnline((was) => !was);
+  }, [setOnline]);
 
   const onAccept = useCallback(
     async (offer) => {
       if (!supabase || !driverId) return;
       const k = offerKey(offer);
+      if (acceptingRef.current || busyKey) return;
+      acceptingRef.current = true;
       setBusyKey(k);
       setActionMsg('');
       const res = await driverAcceptOffer(supabase, offer, driverId, driverVehicleType);
       setBusyKey('');
+      acceptingRef.current = false;
       if (!res.ok) {
-        setActionMsg(res.taken ? res.error : res.error || 'Could not accept.');
+        if (/already accepted/i.test(String(res.error || ''))) {
+          removeOfferLocally(offer.table, offer.id);
+          setTakenNotice?.(res.error || ORDER_ALREADY_ACCEPTED_MSG);
+          void refreshOffers();
+          return;
+        }
+        setActionMsg(res.error || 'Could not send offer.');
         return;
       }
-      setOffers((prev) => prev.filter((x) => offerKey(x) !== k));
-      clearOfferFirstSeen(offer.id);
+
+      // Parcel / taxi / tuk: offer stays pending until the customer chooses this driver.
+      if (res.pending) {
+        const fare = Number(res.fare);
+        if (Number.isFinite(fare) && fare > 0) {
+          setMyBids((prev) => ({ ...prev, [k]: fare }));
+        }
+        setActionMsg(
+          `Offer of ${formatGBP(Number.isFinite(fare) && fare > 0 ? fare : offer.amount)} sent — waiting for the customer to choose you (more than one driver has seen this request).`,
+        );
+        void refreshOffers();
+        return;
+      }
+
+      // Shop (and any legacy instant-claim path): go straight to active delivery.
+      removeOfferLocally(offer.table, offer.id);
       const rec = await fetchRecentForDriver(supabase, driverId);
       setRecent(rec);
-
       navigate('/driver/active-delivery', { state: { order: offerToActiveDeliveryOrder(offer) } });
     },
-    [driverId, driverVehicleType, navigate],
+    [busyKey, driverId, driverVehicleType, navigate, refreshOffers, removeOfferLocally, setRecent, setTakenNotice],
   );
 
   const onReject = useCallback(
@@ -407,14 +293,60 @@ export default function DriverHomePage() {
         setActionMsg(res.error || 'Could not save rejection.');
         return;
       }
-      setOffers((prev) => prev.filter((x) => offerKey(x) !== k));
-      clearOfferFirstSeen(offer.id);
+      removeOfferLocally(offer.table, offer.id);
     },
-    [driverId],
+    [driverId, removeOfferLocally],
+  );
+
+  const onBid = useCallback(
+    async (offer) => {
+      if (!supabase || !driverId) return;
+      const k = offerKey(offer);
+      const amount = Number(bidDraft);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setActionMsg('Enter a valid bid amount.');
+        return;
+      }
+      setBusyKey(k);
+      setActionMsg('');
+      const table = offer.table;
+      if (!['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'].includes(table)) {
+        setBusyKey('');
+        setActionMsg('Bidding is not available for this job type.');
+        return;
+      }
+      const res = await driverPlaceBid(supabase, table, offer.id, driverId, amount);
+      setBusyKey('');
+      if (!res.ok) {
+        if (/already accepted/i.test(String(res.error || ''))) {
+          removeOfferLocally(offer.table, offer.id);
+          setTakenNotice?.(res.error || ORDER_ALREADY_ACCEPTED_MSG);
+          return;
+        }
+        setActionMsg(res.error || 'Could not place bid.');
+        return;
+      }
+      if (res.claimed) {
+        removeOfferLocally(offer.table, offer.id);
+        const rec = await fetchRecentForDriver(supabase, driverId);
+        setRecent(rec);
+        navigate('/driver/active-delivery', { state: { order: offerToActiveDeliveryOrder(offer) } });
+        return;
+      }
+      setBidModeKey('');
+      setBidDraft('');
+      setMyBids((prev) => ({ ...prev, [k]: res.amount }));
+      setActionMsg(`Bid of ${formatGBP(res.amount)} sent — waiting for the customer to choose you.`);
+      void refreshOffers();
+    },
+    [driverId, bidDraft, navigate, refreshOffers, removeOfferLocally, setRecent, setTakenNotice],
   );
 
   return (
     <div className="dh dh--premium" role="main" aria-label="Driver home">
+      <div className="dh__srOnly" aria-live="assertive" aria-atomic="true">
+        {ringingOfferKeys.size > 0 ? 'New delivery request — respond now.' : ''}
+      </div>
       <header className="dh__top">
         <h1 className="dh__brand">
           <img src={LOGIN_HERO_ART} alt="" className="dh__brandRider" decoding="async" />
@@ -439,21 +371,32 @@ export default function DriverHomePage() {
       </header>
 
       <div
-        className={`dh__mapWrap${!useEmbedDriverMap || driverMapSrc ? ' dh__mapWrap--gmap' : ''}`}
-        aria-hidden="true"
+        className={`dh__mapWrap dh__mapWrap--gmap${jsMapAvailable || stableDriverMapSrc ? ' dh__mapWrap--live' : ''}`}
+        role="region"
+        aria-label="Map near you"
       >
-        {useEmbedDriverMap ? (
-          <GoogleMapEmbed src={driverMapSrc} title="Map near you" loading="eager" />
+        {jsMapAvailable ? (
+          <div className="dh__mapJs">
+            <LiveUserGoogleMap
+              mapCenter={mapCenter}
+              fallbackCenter={DEFAULT_MAP_FALLBACK}
+              hasFix={live.hasFix}
+              accurate={live.hasFix}
+              accuracyM={live.accuracy}
+              onLoadError={() => setJsMapFailed(true)}
+              zoomWithFix={15}
+              zoomFallback={13}
+              showUserLocationMarker
+            />
+          </div>
         ) : (
-          <LiveUserGoogleMap
-            mapCenter={driverJsMapCenter}
-            fallbackCenter={DRIVER_MAP_FALLBACK}
-            hasFix={live.hasFix}
-            accurate={live.hasFix}
-            accuracyM={live.accuracy}
-            onLoadError={() => setDriverJsMapFailed(true)}
-            zoomWithFix={14}
-            zoomFallback={13}
+          <GoogleMapEmbed
+            src={
+              stableDriverMapSrc ||
+              publicViewMapUrlDriver(DEFAULT_MAP_FALLBACK.lat, DEFAULT_MAP_FALLBACK.lng, 13)
+            }
+            title="Map near you"
+            loading="eager"
           />
         )}
       </div>
@@ -467,7 +410,7 @@ export default function DriverHomePage() {
             <h2 className="dh__statusTitle">{online ? 'You are Online' : 'You are Offline'}</h2>
             <p className="dh__statusSub">
               {online
-                ? 'Each request shows for 60 seconds — accept, reject, or it disappears from your list.'
+                ? `Each request keeps showing for up to ${OPEN_OFFER_MAX_AGE_MS / 60000} minutes until a driver accepts — it re-rings every ${OFFER_RING_CYCLE_MS / 1000} seconds. Once accepted it disappears.`
                 : 'Toggle online to receive delivery, taxi, and Tuk-Tuk requests'}
             </p>
           </div>
@@ -488,7 +431,7 @@ export default function DriverHomePage() {
             <p className="dh__stT">Recent Jobs</p>
             <p className="dh__stSub">{recent.length} TOTAL</p>
           </div>
-          <div className="dh__stB dh__stB--sync" role="status" aria-label="Offers refresh about every 4 seconds">
+          <div className="dh__stB dh__stB--sync" role="status" aria-label="Offers refresh about every 2 seconds">
             <span className="dh__stIcoWrap" aria-hidden>
               <svg className="dh__stIco" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
                 <path
@@ -510,44 +453,7 @@ export default function DriverHomePage() {
             <p className="dh__stSub">~4s</p>
           </div>
         </div>
-
-        {depositMissing ? (
-          <p className="dh__alert dh__alert--info" role="alert">
-            Run <code>driver_registrations_driver_deposit_balance.sql</code> so the app can enforce the �$10 security
-            deposit.
-          </p>
-        ) : null}
-        {!depositMissing && depositBalance !== null && depositBalance < DRIVER_SECURITY_DEPOSIT_MIN_GBP ? (
-          <>
-            <div className="dh__depositWarn" role="note">
-              <div className="dh__depositWarnRow">
-                <span className="dh__depositWarnIcon" aria-hidden>
-                  <IconWarn />
-                </span>
-                <div>
-                  <p className="dh__depositWarnTitle">Security deposit is {formatGBP(depositBalance)}</p>
-                  <p className="dh__depositWarnSub">
-                    You need at least {formatGBP(DRIVER_SECURITY_DEPOSIT_MIN_GBP)} to go online and accept jobs.
-                  </p>
-                </div>
-              </div>
-              <button type="button" className="dh__walletBtn" onClick={() => navigate('/driver/wallet')}>
-                Open Wallet
-              </button>
-            </div>
-            <div className="dh__depositAlert" role="alert">
-              <span className="dh__depositAlertIcon" aria-hidden>
-                <IconWarnSmall />
-              </span>
-              <p className="dh__depositAlertText">
-                Your deposit is below the minimum of {formatGBP(DRIVER_SECURITY_DEPOSIT_MIN_GBP)}. Top up in Wallet before
-                going online.
-              </p>
-            </div>
-          </>
-        ) : null}
-
-        {loadErr ? (
+{loadErr ? (
           <p className="dh__alert dh__alert--error" role="alert">
             {loadErr}
           </p>
@@ -562,11 +468,29 @@ export default function DriverHomePage() {
           visibleOffers.map((offer) => {
             const k = offerKey(offer);
             const busy = busyKey === k;
-            const secLeft = offerSecondsLeft(offer.id);
-            const pct = (secLeft / 60) * 100;
+            const secLeft = openOfferSecondsLeft(offer.created_at);
+            const pct = (secLeft / (OFFER_RING_CYCLE_MS / 1000)) * 100;
             const urgent = secLeft <= 10;
+            const isRinging = ringingOfferKeys.has(k);
+            const payMethod = String(offer.raw?.payment_method || '').toLowerCase();
+            const isWalletPay =
+              isWalletCustomerPayment(payMethod) || isWalletCustomerPayment(offer.customerPayment);
+            const isCashPay =
+              isCashCustomerPayment(payMethod) || isCashCustomerPayment(offer.customerPayment);
+            const payLabel = isWalletPay
+              ? 'Wallet Payment'
+              : isCashPay
+                ? 'Cash Payment'
+                : offer.customerPayment && offer.customerPayment !== '—'
+                  ? offer.customerPayment
+                  : null;
             return (
-              <div key={k} className="dh-offerCard" role="region" aria-label={`New ${kindLabel(offer.kind)} request`}>
+              <div
+                key={k}
+                className={`dh-offerCard${isRinging ? ' dh-offerCard--ringing' : ''}`}
+                role="region"
+                aria-label={`New ${kindLabel(offer.kind)} request`}
+              >
                 <header className="dh-offerCard__head">
                   <div className="dh-offerCard__headMain">
                     <p className="dh-offerCard__ref">{offer.ref}</p>
@@ -620,17 +544,74 @@ export default function DriverHomePage() {
                   {offer.pkg}
                 </p>
 
-                {offer.customerPayment && offer.customerPayment !== '—' ? (
-                  <div className="dh-offerCard__pay" role="status">
-                    <span className="dh-offerCard__payLbl">Payment</span>
-                    <span className="dh-offerCard__payVal">{offer.customerPayment}</span>
+                {payLabel ? (
+                  <div
+                    className={`dh-offerCard__pay${isWalletPay ? ' dh-offerCard__pay--wallet' : ''}${
+                      isCashPay ? ' dh-offerCard__pay--cash' : ''
+                    }`}
+                    role="status"
+                  >
+                    <div className="dh-offerCard__payTop">
+                      <span className="dh-offerCard__payLbl">Payment</span>
+                      <span className="dh-offerCard__payVal">{payLabel}</span>
+                    </div>
+                    {isWalletPay ? (
+                      <p className="dh-offerCard__payNote">
+                        Customer has already paid through the Ingo Wallet. Do not collect cash.
+                      </p>
+                    ) : null}
+                    {isCashPay ? (
+                      <p className="dh-offerCard__payNote dh-offerCard__payNote--cash">
+                        Collect cash from the customer at drop-off.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 
                 <div className="dh-offerCard__priceBand">
-                  <span className="dh-offerCard__priceLbl">Offer</span>
+                  <span className="dh-offerCard__priceLbl">Customer offer</span>
                   <p className="dh-offerCard__amt">{formatGBP(offer.amount)}</p>
+                  {offer.minimumAmount != null && offer.minimumAmount < offer.amount ? (
+                    <p className="dh-offerCard__minBid">Min. {formatGBP(offer.minimumAmount)}</p>
+                  ) : offer.minimumAmount != null ? (
+                    <p className="dh-offerCard__minBid">Admin minimum: {formatGBP(offer.minimumAmount)}</p>
+                  ) : null}
                 </div>
+
+                {myBids[k] != null ? (
+                  <div className="dh-offerCard__myBid" role="status">
+                    <span className="dh-offerCard__myBidLbl">Your offer</span>
+                    <span className="dh-offerCard__myBidAmt">{formatGBP(myBids[k])}</span>
+                    <span className="dh-offerCard__myBidNote">Waiting for customer to choose you</span>
+                  </div>
+                ) : null}
+
+                {bidModeKey === k &&
+                ['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'].includes(offer.table) ? (
+                  <div className="dh-offerCard__bidForm">
+                    <label className="dh-offerCard__bidLbl" htmlFor={`bid-${k}`}>
+                      Your counter-offer (min {formatGBP(Math.max(offer.minimumAmount || 0, offer.amount))})
+                    </label>
+                    <input
+                      id={`bid-${k}`}
+                      type="number"
+                      step="0.5"
+                      min={Math.max(offer.minimumAmount || 0, offer.amount)}
+                      className="dh-offerCard__bidInput"
+                      value={bidDraft}
+                      onChange={(e) => setBidDraft(e.target.value)}
+                      placeholder={String((offer.amount + 0.5).toFixed(2))}
+                    />
+                    <button
+                      type="button"
+                      className="dh-offerCard__btn dh-offerCard__btn--bid"
+                      disabled={busy || secLeft <= 0}
+                      onClick={() => onBid(offer)}
+                    >
+                      {busy ? '…' : 'Send bid'}
+                    </button>
+                  </div>
+                ) : null}
 
                 <div className={`dh-offerCard__timer${urgent ? ' dh-offerCard__timer--urgent' : ''}`}>
                   <span className="dh-offerCard__timerTxt">Respond in {secLeft}s</span>
@@ -639,15 +620,33 @@ export default function DriverHomePage() {
                   </div>
                 </div>
 
-                <div className="dh-offerCard__actions" role="group" aria-label="Accept or reject">
+                <div className="dh-offerCard__actions" role="group" aria-label="Offer, bid, or reject">
                   <button
                     type="button"
                     className="dh-offerCard__btn dh-offerCard__btn--acc"
-                    disabled={busy || secLeft <= 0 || acceptBlocked}
+                    disabled={busy || secLeft <= 0}
                     onClick={() => onAccept(offer)}
                   >
-                    {busy ? '…' : acceptBlocked ? 'Deposit required' : 'Accept'}
+                    {busy
+                      ? '…'
+                      : ['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'].includes(offer.table)
+                        ? `Offer ${formatGBP(offer.amount)}`
+                        : `Accept ${formatGBP(offer.amount)}`}
                   </button>
+                  {['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'].includes(offer.table) ? (
+                    <button
+                      type="button"
+                      className="dh-offerCard__btn dh-offerCard__btn--bidOpen"
+                      disabled={busy || secLeft <= 0}
+                      onClick={() => {
+                        const floor = Math.max(offer.amount, myBids[k] || 0);
+                        setBidModeKey(k);
+                        setBidDraft(String((floor + 0.5).toFixed(2)));
+                      }}
+                    >
+                      {myBids[k] != null ? 'Raise bid' : 'Bid higher'}
+                    </button>
+                  ) : null}
                   <button type="button" className="dh-offerCard__btn dh-offerCard__btn--rej" disabled={busy || secLeft <= 0} onClick={() => onReject(offer)}>
                     Reject
                   </button>
@@ -694,8 +693,8 @@ export default function DriverHomePage() {
 
         {!loadErr && online && visibleOffers.length === 0 && offers.length > 0 && (
           <p className="dh__recentFoot">
-            No offers in your 60-second window right now. New bookings will appear when customers book — respond
-            quickly.
+            No fresh offers right now. New bookings keep showing for up to {OPEN_OFFER_MAX_AGE_MS / 60000} minutes
+            after customers place them, until a driver accepts — respond quickly.
           </p>
         )}
         {!loadErr && online && offers.length === 0 && (
@@ -706,6 +705,8 @@ export default function DriverHomePage() {
         )}
         {!online && <p className="dh__pEm">Go online to see new requests in this area.</p>}
       </div>
+
+      <DriverPermissionPrompts live={live} online={online} />
     </div>
   );
 }

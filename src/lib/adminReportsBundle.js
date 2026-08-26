@@ -52,6 +52,10 @@ function pctVersus(prev, curr) {
   return '0%';
 }
 
+function isOptionalSourceError(msg) {
+  return /does not exist|schema cache|relation|permission denied/i.test(String(msg || ''));
+}
+
 function emptyChannel() {
   return {
     ordersCurr: 0,
@@ -99,23 +103,7 @@ export async function fetchAdminReportPayload(supabase) {
   };
 
   try {
-    const [
-      ua,
-      userSpanCount,
-      appNewC,
-      appNewP,
-      delRes,
-      txRes,
-      tkRes,
-      shopRes,
-      wRes,
-      revRes,
-      drvApp,
-      drvPending,
-      commRes,
-    ] = await Promise.all([
-      supabase.from('app_users').select('*', { count: 'exact', head: true }),
-      supabase.from('app_users').select('*', { count: 'exact', head: true }).gte('created_at', prevStart).lte('created_at', currEnd),
+    const [appNewC, appNewP, delRes, txRes, tkRes, shopRes, wRes, revRes, drvApp, drvPending, commRes] = await Promise.all([
       supabase.from('app_users').select('*', { count: 'exact', head: true }).gte('created_at', currStart).lte('created_at', currEnd),
       supabase.from('app_users').select('*', { count: 'exact', head: true }).gte('created_at', prevStart).lte('created_at', prevEnd),
       supabase
@@ -137,19 +125,28 @@ export async function fetchAdminReportPayload(supabase) {
       supabase.from('platform_commission_settings').select('driver_commission_percent, shop_commission_percent').eq('id', 1).maybeSingle(),
     ]);
 
-    if (ua.error) errs.push(ua.error.message);
-    if (userSpanCount.error) errs.push(userSpanCount.error.message);
     if (appNewC.error) errs.push(appNewC.error.message);
     if (appNewP.error) errs.push(appNewP.error.message);
     if (delRes.error) errs.push(delRes.error.message);
     if (txRes.error) errs.push(txRes.error.message);
     if (tkRes.error) errs.push(tkRes.error.message);
     if (shopRes.error) errs.push(shopRes.error.message);
-    if (wRes.error) errs.push(wRes.error.message);
-    if (revRes.error) errs.push(revRes.error.message);
     if (drvApp.error) errs.push(drvApp.error.message);
     if (drvPending.error) errs.push(drvPending.error.message);
-    if (commRes.error) errs.push(commRes.error.message);
+
+    const bookingsOk = !(delRes.error && txRes.error && tkRes.error && shopRes.error);
+    if (!bookingsOk) {
+      return {
+        ok: false,
+        errorMessage: 'Could not load booking tables. Check Supabase tables and RLS policies.',
+        errors: errs,
+      };
+    }
+
+    const reviewsOk = !revRes.error;
+    const withdrawalsOk = !wRes.error;
+    if (wRes.error && !isOptionalSourceError(wRes.error.message)) errs.push(wRes.error.message);
+    if (revRes.error && !isOptionalSourceError(revRes.error.message)) errs.push(revRes.error.message);
 
     const dels = Array.isArray(delRes.data) ? delRes.data : [];
     const txs = Array.isArray(txRes.data) ? txRes.data : [];
@@ -255,8 +252,6 @@ export async function fetchAdminReportPayload(supabase) {
     const avg = (xs) =>
       xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null;
 
-    const signupsInFullSpan = Number(userSpanCount.count ?? 0);
-
     /** @type {string[]} */
     const insights = [];
     insights.push(
@@ -303,11 +298,16 @@ export async function fetchAdminReportPayload(supabase) {
         completionPrev,
       },
       byChannel: { ...ch },
+      sources: {
+        bookings: true,
+        signups: !(appNewC.error || appNewP.error),
+        drivers: !(drvApp.error || drvPending.error),
+        reviews: reviewsOk,
+        withdrawals: withdrawalsOk,
+      },
       customers: {
-        totalUsersApprox: ua.count ?? 0,
         signupsCurr: Number(appNewC.count ?? 0),
         signupsPrev: Number(appNewP.count ?? 0),
-        sampleSignupsRowsInSpan: signupsInFullSpan,
       },
       drivers: {
         approved: drvApp.count ?? 0,
@@ -443,13 +443,8 @@ export function downloadAdminReportsBundlePdf(payload) {
     margin: { left: margin, right: margin },
     head: [['Measure', 'Value']],
     body: [
-      ['Registered profiles (approx. count)', String(payload.customers.totalUsersApprox)],
       ['New registrations — recent window', String(payload.customers.signupsCurr)],
       ['New registrations — prior window', String(payload.customers.signupsPrev)],
-      [
-        `New accounts in combined lookup span (${ADMIN_REPORT_PERIOD_DAYS * 2} days)`,
-        String(payload.customers.sampleSignupsRowsInSpan),
-      ],
     ],
     headStyles: { fillColor: [236, 145, 32], textColor: 255 },
   });

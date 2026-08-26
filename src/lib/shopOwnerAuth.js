@@ -1,5 +1,6 @@
 const SHOP_OWNER_STORAGE = 'ingo_shop_owner_signed_in';
 const PROFILE_KEY = 'ingo_shop_owner_profile';
+const REMEMBER_EMAIL_KEY = 'ingo_shop_owner_remember_email';
 
 function clearShopOwnerKeysFrom(storage) {
   try {
@@ -53,6 +54,7 @@ export function saveShopOwnerSession(profile, options = {}) {
 export function getShopOwnerSession() {
   try {
     for (const storage of [sessionStorage, localStorage]) {
+      if (storage.getItem(SHOP_OWNER_STORAGE) !== '1') continue;
       const raw = storage.getItem(PROFILE_KEY);
       if (!raw) continue;
       const parsed = JSON.parse(raw);
@@ -62,6 +64,26 @@ export function getShopOwnerSession() {
     return null;
   } catch {
     return null;
+  }
+}
+
+/** Last email used with Remember me (for login form prefill). */
+export function getRememberedShopOwnerEmail() {
+  try {
+    return String(localStorage.getItem(REMEMBER_EMAIL_KEY) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/** @param {string | null | undefined} email */
+export function setRememberedShopOwnerEmail(email) {
+  try {
+    const v = String(email || '').trim().toLowerCase();
+    if (v) localStorage.setItem(REMEMBER_EMAIL_KEY, v);
+    else localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  } catch {
+    // ignore
   }
 }
 

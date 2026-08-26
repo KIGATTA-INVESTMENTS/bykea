@@ -344,6 +344,14 @@
   color: #b42318;
 }
 
+.auth-field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: #b42318;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .auth-message--success {
   color: #0d5c2f;
   text-align: center;
@@ -753,6 +761,36 @@ a.auth-btn-primary--link {
   line-height: 1.5;
 }
 
+.auth-login-launch {
+  margin: 0 0 1.1rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid #f5c99a;
+  background: linear-gradient(135deg, #fff8ef 0%, #fff3e0 100%);
+  text-align: center;
+}
+
+.auth-login-launch__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b45309;
+}
+
+.auth-login-launch__text {
+  margin: 0.35rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #78350f;
+}
+
+.auth-login-launch__text strong {
+  color: #9a3412;
+  font-weight: 800;
+}
+
 .auth-page--login .auth-message--success {
   text-align: left;
   margin: 0 0 1rem;
@@ -1058,6 +1096,24 @@ a.auth-btn-primary--link {
 .auth-login-role-btn:hover {
   border-color: #cbd5e1;
   box-shadow: 0 2px 8px rgba(0, 61, 185, 0.08);
+}
+
+.auth-login-role-btn--soon {
+  cursor: not-allowed;
+  opacity: 0.88;
+  pointer-events: none;
+  border-style: dashed;
+  background: #fafbfc;
+}
+
+.auth-login-role-btn--soon:hover {
+  border-color: var(--login-border);
+  box-shadow: none;
+}
+
+.auth-login-role-soon-badge {
+  margin-top: 0.1rem;
+  align-self: center;
 }
 
 .auth-login-role-icon {

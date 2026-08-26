@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CarIcon from '../components/icons/CarIcon';
 import InGoLogo from '../components/InGoLogo';
 import '../components/customer/CustomerApp.css';
-import { getCustomerSession } from '../lib/customerSession';
-import { fetchCustomerUnifiedOrders } from '../lib/customerOrderFeed';
-import { statusLabel } from '../data/mockOrders';
+import { mapRowsToCustomerProducts, mapShopOwnerToCard } from '../lib/customerShopMap';
+import { readCustomerShopsCache } from '../lib/customerShopsCache';
+import { FMT_GBP as FMT } from '../lib/currency';
+import { getPersonalizedRecommendations, fetchWeeklyProductStats } from '../lib/shopRecommendations';
+import { hydrateShelfProductImages, imageFromProductRow, resolveShelfImageUrl } from '../lib/shopProductImage';
+import { getShopUserBehavior } from '../lib/shopUserBehavior';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
-/** First word of `full_name`, else email local-part — matches `app_users` / session shape. */
+import { getCustomerSession } from '../lib/customerSession';
+
 function greetingFirstName(profile) {
   if (!profile || typeof profile !== 'object') return '';
   const full = String(profile.full_name || '').trim();
@@ -20,21 +24,6 @@ function greetingFirstName(profile) {
     return email.split('@')[0] || '';
   }
   return '';
-}
-
-function orderDisplayName(order) {
-  if (order.subtitle) return order.subtitle;
-  if (order.kind === 'shop') return 'Shop order';
-  if (order.kind === 'taxi' || order.kind === 'tuk') return 'Ride';
-  if (order.kind === 'delivery') return 'Delivery';
-  return order.id || 'Order';
-}
-
-function orderStatusBadgeClass(status, statusText) {
-  const text = String(statusText || statusLabel(status) || '').toLowerCase();
-  if (status === 'delivered' || text.includes('delivered')) return 'ch-ro__badge ch-ro__badge--delivered';
-  if (text.includes('completed')) return 'ch-ro__badge ch-ro__badge--completed';
-  return 'ch-ro__badge ch-ro__badge--completed';
 }
 
 function IconMenu() {
@@ -74,14 +63,6 @@ function IconDeliverBag() {
   );
 }
 
-function IconRideCar() {
-  return (
-    <span style={{ color: '#07408F', display: 'flex' }}>
-      <CarIcon size={26} />
-    </span>
-  );
-}
-
 function IconShopBag() {
   return (
     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden>
@@ -93,27 +74,6 @@ function IconShopBag() {
         fillOpacity="0.12"
       />
       <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="#16a34a" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconFood() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
-      <path d="M8 4v8M6 4v2M10 4v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M14 4c1.5 2 2 4 2 7v9H12V11c0-3 .5-5 2-7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconOrderCar() {
-  return <CarIcon size={20} color="currentColor" />;
-}
-
-function IconOrderShop() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
-      <path d="M5 10h14l-1-4H6L5 10Zm0 0v8h14v-8" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -147,48 +107,105 @@ function PromoBannerIcon() {
 
 const services = [
   { id: 'delivery', label: 'Deliver', subtitle: 'Fast deliveries', Icon: IconDeliverBag, iconClass: 'ch-svc-card__icon ch-svc-card__icon--orange' },
-  { id: 'taxi', label: 'Ride', subtitle: 'Get a ride', Icon: IconRideCar, iconClass: 'ch-svc-card__icon ch-svc-card__icon--blue' },
   { id: 'shop', label: 'Shop', subtitle: 'Shop online', Icon: IconShopBag, iconClass: 'ch-svc-card__icon ch-svc-card__icon--green' },
 ];
 
-const RECENT_LIMIT = 4;
+const RECOMMEND_LIMIT = 4;
+
+function formatP(p) {
+  return FMT.format(p);
+}
+
+async function loadRecommendationsCatalog() {
+  const cached = readCustomerShopsCache();
+  if (cached?.products?.length && cached.products.every((p) => p.imageUrl)) {
+    return cached.products;
+  }
+
+  if (!isSupabaseConfigured || !supabase) return [];
+
+  const rpc = await supabase.rpc('customer_shop_product_shelf', { lim: 48 });
+  if (!rpc.error && Array.isArray(rpc.data) && rpc.data.length) {
+    const rows = await hydrateShelfProductImages(supabase, rpc.data);
+    const shopIds = [...new Set(rows.map((r) => r.shop_owner_id).filter(Boolean))];
+    let nameById = {};
+    if (shopIds.length) {
+      const { data: shops } = await supabase
+        .from('shop_owners')
+        .select('id, business_name')
+        .in('id', shopIds);
+      nameById = Object.fromEntries((shops || []).map((s) => [s.id, mapShopOwnerToCard(s)?.name || 'Shop']));
+    }
+    const merged = [];
+    for (const row of rows) {
+      const sid = row.shop_owner_id;
+      const item = mapRowsToCustomerProducts([row], sid, nameById[sid] || 'Shop')[0];
+      if (!item) continue;
+      const imageUrl = resolveShelfImageUrl(item.imageUrl) || imageFromProductRow(row);
+      merged.push(imageUrl ? { ...item, imageUrl } : item);
+    }
+    return merged;
+  }
+  return cached?.products || [];
+}
+
+function RecProductCard({ product, onOpen }) {
+  return (
+    <button type="button" className="ch-rec-card" onClick={() => onOpen(product)}>
+      <div className="ch-rec-card__media">
+        {product.imageUrl ? (
+          <img src={product.imageUrl} alt="" loading="lazy" decoding="async" />
+        ) : (
+          <div className="ch-rec-card__ph" aria-hidden />
+        )}
+      </div>
+      <p className="ch-rec-card__name">{product.name}</p>
+      <p className="ch-rec-card__price">{formatP(product.price)}</p>
+      <p className="ch-rec-card__shop">{product.shopName}</p>
+    </button>
+  );
+}
 
 export default function CustomerHomePage() {
   const navigate = useNavigate();
   const displayName = useMemo(() => greetingFirstName(getCustomerSession()), []);
   const [activeService, setActiveService] = useState('delivery');
-  const [recentOrders, setRecentOrders] = useState([]);
-  const [ordersLoading, setOrdersLoading] = useState(true);
-
-  const loadRecentOrders = useCallback(async () => {
-    setOrdersLoading(true);
-    const session = getCustomerSession();
-    const { orders } = await fetchCustomerUnifiedOrders(session);
-    setRecentOrders((orders || []).slice(0, RECENT_LIMIT));
-    setOrdersLoading(false);
-  }, []);
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [weeklyStats, setWeeklyStats] = useState([]);
+  const [recsLoading, setRecsLoading] = useState(true);
 
   useEffect(() => {
-    loadRecentOrders();
-  }, [loadRecentOrders]);
+    let cancelled = false;
+    (async () => {
+      setRecsLoading(true);
+      const [products, stats] = await Promise.all([
+        loadRecommendationsCatalog(),
+        isSupabaseConfigured && supabase ? fetchWeeklyProductStats(supabase) : Promise.resolve([]),
+      ]);
+      if (!cancelled) {
+        setCatalogProducts(products || []);
+        setWeeklyStats(stats || []);
+        setRecsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const onServiceClick = (id) => {
-    setActiveService(id);
-    if (id === 'delivery') navigate('/request-delivery');
-    if (id === 'taxi') navigate('/book-ride');
-    if (id === 'shop') navigate('/shops');
+  const recommendations = useMemo(() => {
+    const behavior = getShopUserBehavior();
+    return getPersonalizedRecommendations(catalogProducts, weeklyStats, behavior, RECOMMEND_LIMIT);
+  }, [catalogProducts, weeklyStats]);
+
+  const onServiceClick = (service) => {
+    setActiveService(service.id);
+    if (service.id === 'delivery') navigate('/request-delivery');
+    if (service.id === 'shop') navigate('/shops');
   };
 
-  const orderKindIcon = (kind) => {
-    if (kind === 'taxi' || kind === 'tuk') return <IconOrderCar />;
-    if (kind === 'shop') return <IconOrderShop />;
-    return <IconFood />;
-  };
-
-  const orderKindIconClass = (kind) => {
-    if (kind === 'taxi' || kind === 'tuk') return 'ch-ro__icon ch-ro__icon--blue';
-    if (kind === 'shop') return 'ch-ro__icon ch-ro__icon--green';
-    return 'ch-ro__icon ch-ro__icon--orange';
+  const openProduct = (p) => {
+    navigate(`/shop/${p.shopId}/product/${p.id}`);
   };
 
   return (
@@ -226,21 +243,24 @@ export default function CustomerHomePage() {
       <div className="ch-premium-scroll">
         <section className="ch-svc-cards" aria-label="Services">
           <div className="ch-svc-cards__row">
-            {services.map(({ id, label, subtitle, Icon, iconClass }) => (
-              <button
-                key={id}
-                type="button"
-                className={`ch-svc-card${activeService === id ? ' ch-svc-card--active' : ''}`}
-                aria-label={label}
-                onClick={() => onServiceClick(id)}
-              >
-                <span className={iconClass}>
-                  <Icon />
-                </span>
-                <span className="ch-svc-card__label">{label}</span>
-                <span className="ch-svc-card__sub">{subtitle}</span>
-              </button>
-            ))}
+            {services.map((service) => {
+              const { id, label, subtitle, Icon, iconClass } = service;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`ch-svc-card${activeService === id ? ' ch-svc-card--active' : ''}`}
+                  aria-label={label}
+                  onClick={() => onServiceClick(service)}
+                >
+                  <span className={iconClass}>
+                    <Icon />
+                  </span>
+                  <span className="ch-svc-card__label">{label}</span>
+                  <span className="ch-svc-card__sub">{subtitle}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -252,42 +272,24 @@ export default function CustomerHomePage() {
           <PromoBannerIcon />
         </section>
 
-        <section className="ch-recent" aria-label="Recent orders">
+        <section className="ch-recent" aria-label="Recommendations">
           <div className="ch-recent__head">
-            <h2 className="ch-recent__title">Recent Orders</h2>
-            <button type="button" className="ch-recent__viewall" onClick={() => navigate('/orders')}>
+            <h2 className="ch-recent__title">Recommendations</h2>
+            <button type="button" className="ch-recent__viewall" onClick={() => navigate('/shops?section=recommendations')}>
               View all
             </button>
           </div>
 
-          {ordersLoading ? (
-            <p className="ch-recent__empty">Loading orders…</p>
-          ) : recentOrders.length === 0 ? (
-            <p className="ch-recent__empty">No orders yet. Book a delivery, ride, or shop order to see them here.</p>
+          {recsLoading ? (
+            <p className="ch-recent__empty">Loading picks for you…</p>
+          ) : recommendations.length === 0 ? (
+            <p className="ch-recent__empty">Browse the shop to get personalized recommendations.</p>
           ) : (
-            <ul className="ch-recent__list">
-              {recentOrders.map((o) => (
-                <li key={o.navKey}>
-                  <button
-                    type="button"
-                    className="ch-ro"
-                    onClick={() => navigate(`/order/${encodeURIComponent(o.navKey)}`)}
-                  >
-                    <span className={orderKindIconClass(o.kind)} aria-hidden>
-                      {orderKindIcon(o.kind)}
-                    </span>
-                    <span className="ch-ro__body">
-                      <span className="ch-ro__name">{orderDisplayName(o)}</span>
-                      <span className="ch-ro__date">{o.date}</span>
-                      <span className={orderStatusBadgeClass(o.status, o.statusText)}>
-                        {o.statusText || statusLabel(o.status)}
-                      </span>
-                    </span>
-                    <span className="ch-ro__price">{o.price}</span>
-                  </button>
-                </li>
+            <div className="ch-rec-grid">
+              {recommendations.map((p) => (
+                <RecProductCard key={p.id} product={p} onOpen={openProduct} />
               ))}
-            </ul>
+            </div>
           )}
         </section>
       </div>

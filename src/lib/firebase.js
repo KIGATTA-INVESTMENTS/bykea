@@ -25,6 +25,9 @@ export const isFirebaseConfigured = Boolean(
     firebaseConfig.appId
 );
 
+/** Public Firebase web config (safe for client / service worker). */
+export { firebaseConfig };
+
 let app = null;
 if (isFirebaseConfigured) {
   app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);

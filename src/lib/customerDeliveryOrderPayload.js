@@ -1,4 +1,5 @@
 import { getCustomerSession } from './customerSession';
+import { generateDeliveryConfirmationCode } from './deliveryConfirmationCode';
 
 function orderRouteSnapshot(order) {
   const pickup = String(order.pickup || order.from || '').trim();
@@ -23,21 +24,32 @@ export function deliveryOrderDisplayRef(uuid) {
 /**
  * Row for `customer_delivery_orders` insert (matches Select Payment / checkout snapshot).
  * @param {Record<string, unknown>} order - delivery flow `location.state`
- * @param {'ecocash' | 'card' | 'cod' | 'stripe'} paymentMethod
+ * @param {'ecocash' | 'card' | 'cod' | 'stripe' | 'wallet'} paymentMethod
+ * @param {string | null} [appUserId] Verified user id; omit to use cached session id.
  */
-export function buildCustomerDeliveryOrderRow(order, paymentMethod) {
+export function buildCustomerDeliveryOrderRow(order, paymentMethod, appUserId) {
   const { pickupLocation, dropoffLocation, extraStops } = orderRouteSnapshot(order);
   const pkg = order.package || {};
   const session = getCustomerSession();
+  const linkedUserId = appUserId !== undefined ? appUserId : session?.id ?? null;
   const total = typeof order.priceNum === 'number' ? order.priceNum : 0;
+  const minimum =
+    typeof order.minimumFareAmount === 'number' && order.minimumFareAmount > 0
+      ? order.minimumFareAmount
+      : total;
+  const customerOffer =
+    typeof order.customerOfferAmount === 'number' && order.customerOfferAmount >= minimum
+      ? order.customerOfferAmount
+      : total;
 
   const baseFare = Number(order.priceBreakdownBase);
   const distFee = Number(order.priceBreakdownDistance);
+  const timeFee = Number(order.priceBreakdownTime);
   const svcFee = Number(order.priceBreakdownService);
 
   return {
     delivery_request_id: order.deliveryRequestId ?? null,
-    app_user_id: session?.id ?? null,
+    app_user_id: linkedUserId,
     pickup_location: pickupLocation,
     dropoff_location: dropoffLocation,
     extra_stops: extraStops,
@@ -59,13 +71,18 @@ export function buildCustomerDeliveryOrderRow(order, paymentMethod) {
         : 'Motorbike',
     base_fare_amount: Number.isFinite(baseFare) ? baseFare : 0,
     distance_fee_amount: Number.isFinite(distFee) ? distFee : 0,
+    time_fee_amount: Number.isFinite(timeFee) ? timeFee : 0,
     service_fee_amount: Number.isFinite(svcFee) ? svcFee : 0,
-    total_amount: total,
+    total_amount: customerOffer,
+    minimum_fare_amount: minimum,
+    customer_offer_amount: customerOffer,
+    bid_status: 'open',
     currency: 'USD',
     payment_method: paymentMethod,
     delivery_title: order.deliveryTitle ?? null,
     eta_text: order.eta ?? null,
     scheduled_for: order.scheduledFor ?? null,
     status: 'placed',
+    delivery_confirmation_code: generateDeliveryConfirmationCode(),
   };
 }

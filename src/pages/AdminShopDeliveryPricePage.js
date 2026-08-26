@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SHOP_DELIVERY_SETTINGS_ID } from '../lib/shopDeliverySettings';
+import {
+  MAX_REASONABLE_SHOP_PER_KM_USD,
+  SHOP_DELIVERY_SETTINGS_ID,
+} from '../lib/shopDeliverySettings';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
 
 export default function AdminShopDeliveryPricePage() {
-  const [fee, setFee] = useState('');
+  const [perKm, setPerKm] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -21,20 +24,24 @@ export default function AdminShopDeliveryPricePage() {
     try {
       const { data, error: qErr } = await supabase
         .from('shop_delivery_settings')
-        .select('delivery_fee, currency, updated_at')
+        .select('delivery_fee_per_km, price_per_km, currency, updated_at')
         .eq('id', SHOP_DELIVERY_SETTINGS_ID)
         .maybeSingle();
 
       if (qErr) {
-        setError(qErr.message);
+        if (/delivery_fee_per_km|schema cache/i.test(qErr.message || '')) {
+          setError('Run supabase/shop_delivery_settings_per_km.sql in the SQL editor, then refresh.');
+        } else {
+          setError(qErr.message);
+        }
         setLoading(false);
         return;
       }
       if (data) {
-        setFee(String(data.delivery_fee ?? ''));
+        setPerKm(String(data.delivery_fee_per_km ?? data.price_per_km ?? ''));
         setLastSaved(data.updated_at || null);
       } else {
-        setFee('2.99');
+        setPerKm('1.00');
         setLastSaved(null);
       }
     } catch {
@@ -60,9 +67,15 @@ export default function AdminShopDeliveryPricePage() {
       setError('Database is not configured.');
       return;
     }
-    const amount = parseMoney(fee);
-    if (Number.isNaN(amount) || amount < 0) {
-      setError('Enter a valid delivery cost (0 or more).');
+    const perKmAmount = parseMoney(perKm);
+    if (Number.isNaN(perKmAmount) || perKmAmount < 0) {
+      setError('Enter a valid price per km (0 or more).');
+      return;
+    }
+    if (perKmAmount > MAX_REASONABLE_SHOP_PER_KM_USD) {
+      setError(
+        `Price per km looks too high (max $${MAX_REASONABLE_SHOP_PER_KM_USD}/km). Check you are not entering a flat delivery fee.`,
+      );
       return;
     }
 
@@ -72,14 +85,20 @@ export default function AdminShopDeliveryPricePage() {
       const { error: upErr } = await supabase.from('shop_delivery_settings').upsert(
         {
           id: SHOP_DELIVERY_SETTINGS_ID,
-          delivery_fee: amount,
+          delivery_fee: 0,
+          delivery_fee_per_km: perKmAmount,
+          price_per_km: perKmAmount,
           currency: 'USD',
           updated_at: now,
         },
         { onConflict: 'id' },
       );
       if (upErr) {
-        setError(upErr.message);
+        if (/delivery_fee_per_km|schema cache/i.test(upErr.message || '')) {
+          setError('Run supabase/shop_delivery_settings_per_km.sql in the SQL editor, then save again.');
+        } else {
+          setError(upErr.message);
+        }
         setSaving(false);
         return;
       }
@@ -109,16 +128,16 @@ export default function AdminShopDeliveryPricePage() {
           {subtitle ? (
             <small className="admDim">Last saved: {subtitle}</small>
           ) : (
-            <small className="admDim">Flat fee added at shop checkout</small>
+            <small className="admDim">Per-km rate at shop checkout</small>
           )}
         </div>
       </div>
 
-      <section className="admCard" style={{ maxWidth: '28rem' }}>
+      <section className="admCard" style={{ maxWidth: '32rem' }}>
         <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#444', lineHeight: 1.5 }}>
-          This amount appears on the customer <strong>Checkout</strong> page as <strong>Delivery</strong> and is included in the
-          order total. Changing it only affects <em>new</em> orders; completed orders keep the fee that was saved when they were
-          placed.
+          Checkout calculates <strong>Delivery</strong> as{' '}
+          <em>distance from shop to customer (km) × this price per km</em>. Example: 2.5 km × $1.00 = $2.50. Do{' '}
+          <strong>not</strong> enter a flat delivery total here. Max ${MAX_REASONABLE_SHOP_PER_KM_USD}/km.
         </p>
 
         {loading ? (
@@ -126,13 +145,13 @@ export default function AdminShopDeliveryPricePage() {
         ) : (
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#333' }}>Delivery cost (USD)</span>
+              <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#333' }}>Price per km (USD)</span>
               <input
                 type="text"
                 inputMode="decimal"
-                value={fee}
-                onChange={(e) => setFee(e.target.value)}
-                placeholder="e.g. 2.99"
+                value={perKm}
+                onChange={(e) => setPerKm(e.target.value)}
+                placeholder="e.g. 1.00"
                 style={{
                   padding: '0.55rem 0.65rem',
                   borderRadius: 8,

@@ -45,7 +45,7 @@
 
 .bnav__item {
   flex: 1;
-  max-width: 5.5rem;
+  max-width: 4.75rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -736,6 +736,11 @@
   gap: 0.65rem;
 }
 
+.ch-svc-cards__row--quad {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
 .ch-svc-card {
   display: flex;
   flex-direction: column;
@@ -783,6 +788,10 @@
 
 .ch-svc-card__icon--green {
   background: rgba(22, 163, 74, 0.12);
+}
+
+.ch-svc-card__icon--amber {
+  background: rgba(217, 119, 6, 0.12);
 }
 
 .ch-svc-card__label {
@@ -980,9 +989,123 @@
   color: #07408f;
 }
 
+.ch-ro__badge--finding {
+  background: rgba(236, 108, 35, 0.14);
+  color: #c2410c;
+}
+
+.ch-ro__badge--active {
+  background: rgba(7, 64, 143, 0.12);
+  color: #07408f;
+}
+
+.ch-ro__badge--cancelled {
+  background: rgba(180, 35, 24, 0.1);
+  color: #b42318;
+}
+
 .ch-ro__price {
   flex-shrink: 0;
   font-size: 0.9rem;
   font-weight: 800;
   color: #07408f;
+}
+
+.ch-rec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.ch-rec-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(7, 64, 143, 0.06);
+  overflow: hidden;
+  cursor: pointer;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ch-rec-card__media {
+  aspect-ratio: 1;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+
+.ch-rec-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ch-rec-card__ph {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(145deg, #e8eef6, #f3f4f6);
+}
+
+.ch-rec-card__name {
+  margin: 0.45rem 0.5rem 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ch-rec-card__price {
+  margin: 0.2rem 0.5rem 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #ec6c23;
+}
+
+.ch-rec-card__shop {
+  margin: 0.15rem 0.5rem 0.55rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #07408f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prf-recent {
+  margin-bottom: 0.85rem;
+}
+
+.prf-recent__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 0.65rem;
+  padding: 0 0.15rem;
+}
+
+.prf-recent__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #07408f;
+}
+
+.prf-recent__viewall {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ec6c23;
+  cursor: pointer;
 }

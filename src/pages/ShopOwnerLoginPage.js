@@ -1,6 +1,11 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { saveShopOwnerSession } from '../lib/shopOwnerAuth';
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import {
+  getRememberedShopOwnerEmail,
+  isShopOwnerSignedIn,
+  saveShopOwnerSession,
+  setRememberedShopOwnerEmail,
+} from '../lib/shopOwnerAuth';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import InGoLogo from '../components/InGoLogo';
 import './shopOwnerLoginPremium.css';
@@ -141,18 +146,21 @@ const TRUST_BADGES = [
 export default function ShopOwnerLoginPage() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => getRememberedShopOwnerEmail());
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [unverifiedEmail, setUnverifiedEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (isShopOwnerSignedIn()) {
+    const to = state?.from?.pathname || '/shop-owner/dashboard';
+    return <Navigate to={to} replace />;
+  }
 
   const submit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
-    setUnverifiedEmail('');
     if (!isSupabaseConfigured || !supabase) {
       setErrorMessage('Supabase is not configured. Add env vars and restart npm start.');
       return;
@@ -167,7 +175,7 @@ export default function ShopOwnerLoginPage() {
       const normalizedEmail = email.trim().toLowerCase();
       const { data: row, error } = await supabase
         .from('shop_owners')
-        .select('id, business_name, owner_full_name, phone, email, shop_image_url, password, email_verified_at')
+        .select('id, business_name, owner_full_name, phone, email, shop_image_url, password')
         .eq('email', normalizedEmail)
         .maybeSingle();
 
@@ -177,13 +185,6 @@ export default function ShopOwnerLoginPage() {
       }
       if (!row || row.password !== password) {
         setErrorMessage('Invalid email or password.');
-        return;
-      }
-      if (row.email_verified_at == null) {
-        setUnverifiedEmail(normalizedEmail);
-        setErrorMessage(
-          'Please verify your email before logging in. Check your inbox or use the link below.',
-        );
         return;
       }
 
@@ -198,6 +199,8 @@ export default function ShopOwnerLoginPage() {
         },
         { rememberMe: remember },
       );
+      if (remember) setRememberedShopOwnerEmail(normalizedEmail);
+      else setRememberedShopOwnerEmail('');
       const to = state?.from?.pathname || '/shop-owner/dashboard';
       navigate(to, { replace: true });
     } catch {
@@ -247,15 +250,6 @@ export default function ShopOwnerLoginPage() {
                 {errorMessage}
               </p>
             ) : null}
-            {unverifiedEmail && unverifiedEmail === email.trim().toLowerCase() ? (
-              <p className="so-login-verify">
-                <Link
-                  to={`/verify-email?realm=shop_owner&email=${encodeURIComponent(unverifiedEmail)}`}
-                >
-                  Verify email or resend code
-                </Link>
-              </p>
-            ) : null}
 
             <div className="so-login-field">
               <label className="so-login-label" htmlFor="sop-em">
@@ -272,10 +266,7 @@ export default function ShopOwnerLoginPage() {
                   type="email"
                   autoComplete="email"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setUnverifiedEmail('');
-                  }}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@shop.com"
                   required
                 />

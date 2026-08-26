@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FMT_GBP as FMT } from '../lib/currency';
-import { getCustomerSession } from '../lib/customerSession';
+import { deliveryOrderDisplayRef } from '../lib/customerDeliveryOrderPayload';
+import { notifyDriversOfNewOffer } from '../lib/driverOfferPushNotify';
+import { postEcocashCharge } from '../lib/ecocashLocal';
+import { friendlyAppUserFkError, getCustomerSession, resolveValidAppUserId } from '../lib/customerSession';
+import { debitCustomerWallet, fetchCustomerWalletBalance } from '../lib/customerWallet';
+import {
+  computeIngoKilometreFare,
+  resolveIngoVehicleFromRide,
+} from '../lib/ingoKilometres';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import BikeIcon from '../components/icons/BikeIcon';
 import CarIcon from '../components/icons/CarIcon';
@@ -11,10 +19,12 @@ import LocationPermissionPrompt from '../components/LocationPermissionPrompt';
 import LiveUserMapPuck from '../components/LiveUserMapPuck';
 import { useLiveLocation } from '../hooks/useLiveLocation';
 import {
+  DEFAULT_MAP_FALLBACK,
   getGoogleMapsApiKey,
   publicDirectionsCoordsMapUrl,
   publicPlaceMapUrl,
   publicViewMapUrl,
+  trustedMapCenter,
 } from '../lib/googleMapsConfig';
 import {
   effectiveBillableKm,
@@ -27,9 +37,6 @@ import {
   pickupLineFromCoords,
 } from '../lib/devicePickupLocation';
 import { forwardGeocodeAddress } from '../lib/reverseGeocode';
-import { deliveryOrderDisplayRef } from '../lib/customerDeliveryOrderPayload';
-import { postLocalPaynowInitiate, resolveShopPaynowLocalInitiateUrl } from '../lib/shopPaynowLocal';
-import { writeShopOrderConfirmationState } from '../lib/shopOrderConfirmationSession';
 import {
   isStripePaymentsConfigured,
   setStripeHostedReturnContext,
@@ -40,8 +47,6 @@ import './requestFlow.css';
 import './taxiAndShop.css';
 import './pePayment.css';
 import './bookRide.css';
-
-const LONDON_CENTER = { lat: 51.5074, lng: -0.1278 };
 
 /** Single-card meta for /book-tuk-tuk (variant tukOnly). */
 const TUK_ONLY_META = {
@@ -128,21 +133,21 @@ function MapPinB() {
   );
 }
 
-function IconCardRide() {
-  return (
-    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="#333" strokeWidth="1.3" aria-hidden>
-      <rect x="3" y="7" width="26" height="18" rx="2" fill="#fff" />
-      <path d="M3 12h26" stroke="#F18631" strokeWidth="2" />
-      <rect x="5" y="18" width="7" height="2" rx="0.5" fill="#ccc" />
-    </svg>
-  );
-}
 function IconStripeRide() {
   return (
     <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden>
       <rect x="3" y="7" width="26" height="18" rx="2" fill="#635bff" />
       <path d="M3 12h26" fill="#0a2540" opacity="0.25" />
       <rect x="6" y="17" width="10" height="3" rx="0.5" fill="#c4f4ff" opacity="0.9" />
+    </svg>
+  );
+}
+function IconIngoKmRide() {
+  return (
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" aria-hidden>
+      <rect x="4" y="8" width="24" height="16" rx="2.5" stroke="#0A58A6" strokeWidth="1.8" fill="#e8f1fb" />
+      <path d="M4 13h24" stroke="#0A58A6" strokeWidth="1.5" />
+      <circle cx="22" cy="18.5" r="1.6" fill="#F18631" />
     </svg>
   );
 }
@@ -238,17 +243,38 @@ function IconWalletOpt() {
 const TIER_MULT = { bicycle: 0.5, tuktuk: 0.88, car: 1, minibus: 1.32 };
 
 const FALLBACK_RATES = {
-  taxi: { base_fare: 3, price_per_km: 1.2, service_fee: 0.5 },
-  tuk_tuk: { base_fare: 2, price_per_km: 0.8, service_fee: 0.35 },
+  taxi: { base_fare: 3, price_per_km: 1.2, price_per_minute: 0.15, service_fee: 0.5 },
+  tuk_tuk: { base_fare: 2, price_per_km: 0.8, price_per_minute: 0.1, service_fee: 0.35 },
 };
 
-function computeRideQuote(roadKm, rates, rideId, isTukOnlyPage) {
+function billableMinutes(durationMins) {
+  if (durationMins == null || !Number.isFinite(durationMins) || durationMins <= 0) return 0;
+  return Math.max(1, Math.round(durationMins));
+}
+
+function computeRideQuote(roadKm, durationMins, rates, rideId, isTukOnlyPage) {
   if (roadKm == null || !Number.isFinite(roadKm) || roadKm <= 0 || !rates) return null;
   const eff = effectiveBillableKm(roadKm, 0.5);
-  const raw = Number(rates.base_fare) + eff * Number(rates.price_per_km) + Number(rates.service_fee);
+  const mins = billableMinutes(durationMins);
+  const timeFee = mins * Number(rates.price_per_minute || 0);
+  const raw =
+    Number(rates.base_fare) + eff * Number(rates.price_per_km) + timeFee + Number(rates.service_fee);
   if (!Number.isFinite(raw)) return null;
   const mult = isTukOnlyPage ? 1 : TIER_MULT[rideId] ?? TIER_MULT.car;
   return Math.round(raw * mult * 100) / 100;
+}
+
+function computeRideQuoteBreakdown(roadKm, durationMins, rates, rideId, isTukOnlyPage) {
+  if (!rates || roadKm == null || !Number.isFinite(roadKm) || roadKm <= 0) return null;
+  const eff = effectiveBillableKm(roadKm, 0.5);
+  const mins = billableMinutes(durationMins);
+  const mult = isTukOnlyPage ? 1 : TIER_MULT[rideId] ?? TIER_MULT.car;
+  const base = Number(rates.base_fare) * mult;
+  const distance = eff * Number(rates.price_per_km) * mult;
+  const time = mins * Number(rates.price_per_minute || 0) * mult;
+  const service = Number(rates.service_fee) * mult;
+  const total = Math.round((base + distance + time + service) * 100) / 100;
+  return { base, distance, time, service, mins, total };
 }
 
 function createStop() {
@@ -277,25 +303,58 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
   const [gpsNotice, setGpsNotice] = useState('');
   const [stops, setStops] = useState([createStop()]);
   const [coordsRouteSrc, setCoordsRouteSrc] = useState('');
+  const [pickupCoords, setPickupCoords] = useState(null);
+  const [dropoffCoords, setDropoffCoords] = useState(null);
+  const [pinBusy, setPinBusy] = useState('');
+  const skipGeocodeFromDragRef = useRef(false);
   const [bookError, setBookError] = useState('');
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
-  const showRidePaynow = useMemo(() => Boolean(resolveShopPaynowLocalInitiateUrl()), []);
   const showRideStripe = useMemo(() => isStripePaymentsConfigured(), []);
   const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [ecoPhone, setEcoPhone] = useState(() => String(getCustomerSession()?.phone || '').trim());
   const [showFareDetails, setShowFareDetails] = useState(false);
   const [showPaymentPanel, setShowPaymentPanel] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+
+  const ingoVehicle = useMemo(
+    () => resolveIngoVehicleFromRide(selected, isTukOnly),
+    [selected, isTukOnly],
+  );
+  const walletEligible = Boolean(ingoVehicle);
 
   const ridePaymentMethods = useMemo(() => {
-    const rows = [{ id: 'cod', label: 'Cash on delivery', Icon: IconCashRide }];
-    if (showRidePaynow) rows.push({ id: 'card', label: 'Paynow', Icon: IconCardRide });
+    const rows = [
+      { id: 'cod', label: 'Cash on delivery', Icon: IconCashRide },
+      { id: 'ecocash', label: 'EcoCash', Icon: IconCashRide },
+    ];
+    if (walletEligible) {
+      rows.push({ id: 'wallet', label: 'Ingo Kilometres', Icon: IconIngoKmRide });
+    }
     if (showRideStripe) rows.push({ id: 'stripe', label: 'Card', Icon: IconStripeRide });
     return rows;
-  }, [showRidePaynow, showRideStripe]);
+  }, [showRideStripe, walletEligible]);
 
   useEffect(() => {
-    if (paymentMethod === 'card' && !showRidePaynow) setPaymentMethod(showRideStripe ? 'stripe' : 'cod');
-    if (paymentMethod === 'stripe' && !showRideStripe) setPaymentMethod(showRidePaynow ? 'card' : 'cod');
-  }, [paymentMethod, showRidePaynow, showRideStripe]);
+    if (paymentMethod === 'wallet' && !walletEligible) setPaymentMethod('cod');
+    if (paymentMethod === 'card') setPaymentMethod(showRideStripe ? 'stripe' : 'cod');
+    if (paymentMethod === 'stripe' && !showRideStripe) setPaymentMethod('cod');
+  }, [paymentMethod, showRideStripe, walletEligible]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!walletEligible) {
+        if (!cancelled) setWalletBalance(0);
+        return;
+      }
+      const session = getCustomerSession();
+      const { balance } = await fetchCustomerWalletBalance(session?.id || null);
+      if (!cancelled) setWalletBalance(balance);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [walletEligible]);
 
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [roadKm, setRoadKm] = useState(null);
@@ -314,10 +373,34 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
     return `${Math.max(1, Math.round(durationMins))} mins`;
   }, [estimateLoading, durationMins]);
 
-  const selectedQuote = useMemo(
-    () => computeRideQuote(roadKm, rates, selected, isTukOnly),
-    [roadKm, rates, selected, isTukOnly],
+  const marketQuote = useMemo(
+    () => computeRideQuote(roadKm, durationMins, rates, selected, isTukOnly),
+    [roadKm, durationMins, rates, selected, isTukOnly],
   );
+
+  const ingoFareResult = useMemo(() => {
+    if (!ingoVehicle || roadKm == null || !Number.isFinite(roadKm) || roadKm <= 0) return null;
+    return computeIngoKilometreFare({ vehicle: ingoVehicle, distanceKm: roadKm });
+  }, [ingoVehicle, roadKm]);
+
+  const useIngoFare = paymentMethod === 'wallet' && ingoFareResult != null;
+  const selectedQuote = useIngoFare ? ingoFareResult.fare : marketQuote;
+
+  const fareBreakdown = useMemo(() => {
+    if (useIngoFare && ingoFareResult) {
+      return {
+        base: ingoFareResult.minFare,
+        distance: ingoFareResult.extraFare,
+        time: 0,
+        service: 0,
+        mins: 0,
+        total: ingoFareResult.fare,
+        ingo: true,
+        extraKm: ingoFareResult.extraKm,
+      };
+    }
+    return computeRideQuoteBreakdown(roadKm, durationMins, rates, selected, isTukOnly);
+  }, [useIngoFare, ingoFareResult, roadKm, durationMins, rates, selected, isTukOnly]);
 
   const setDropoff = (v) => {
     setStops((prev) => {
@@ -340,16 +423,18 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
     (async () => {
       const { data } = await supabase
         .from('service_pricing')
-        .select('price_per_km, base_fare, service_fee')
+        .select('price_per_km, price_per_minute, base_fare, service_fee')
         .eq('service_type', svc)
         .maybeSingle();
       if (cancelled) return;
       const pk = data?.price_per_km != null ? Number(data.price_per_km) : NaN;
+      const pm = data?.price_per_minute != null ? Number(data.price_per_minute) : NaN;
       const bf = data?.base_fare != null ? Number(data.base_fare) : NaN;
       const sf = data?.service_fee != null ? Number(data.service_fee) : NaN;
       const fb = isTukOnly ? FALLBACK_RATES.tuk_tuk : FALLBACK_RATES.taxi;
       setRates({
         price_per_km: Number.isFinite(pk) && pk >= 0 ? pk : fb.price_per_km,
+        price_per_minute: Number.isFinite(pm) && pm >= 0 ? pm : fb.price_per_minute,
         base_fare: Number.isFinite(bf) && bf >= 0 ? bf : fb.base_fare,
         service_fee: Number.isFinite(sf) && sf >= 0 ? sf : fb.service_fee,
       });
@@ -368,6 +453,13 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
       setRoadKm(null);
       setDurationMins(null);
       setEstimateLoading(false);
+      if (!p) setPickupCoords(null);
+      if (!stopTexts.length) setDropoffCoords(null);
+      return undefined;
+    }
+
+    if (skipGeocodeFromDragRef.current) {
+      skipGeocodeFromDragRef.current = false;
       return undefined;
     }
 
@@ -381,12 +473,18 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
         const destGeo = await forwardGeocodeAddress(destinationText);
         if (cancelled) return;
         if (!pickupGeo || !destGeo) {
+          if (pickupGeo) setPickupCoords({ lat: pickupGeo.lat, lng: pickupGeo.lng });
+          else if (!p) setPickupCoords(null);
+          if (destGeo) setDropoffCoords({ lat: destGeo.lat, lng: destGeo.lng });
           setCoordsRouteSrc('');
           setRoadKm(null);
           setDurationMins(null);
           setEstimateLoading(false);
           return;
         }
+
+        setPickupCoords({ lat: pickupGeo.lat, lng: pickupGeo.lng });
+        setDropoffCoords({ lat: destGeo.lat, lng: destGeo.lng });
 
         const straight = haversineKm(pickupGeo.lat, pickupGeo.lng, destGeo.lat, destGeo.lng);
         const road = straight != null ? estimateRoadKm(straight) : null;
@@ -439,11 +537,8 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
     }
     if (p) return publicPlaceMapUrl(p);
     if (dropFirst) return publicPlaceMapUrl(dropFirst);
-    const c = live.mapCenter;
-    if (c && typeof c.lat === 'number' && typeof c.lng === 'number') {
-      return publicViewMapUrl(c.lat, c.lng, 14);
-    }
-    return publicViewMapUrl(LONDON_CENTER.lat, LONDON_CENTER.lng, 12);
+    const c = trustedMapCenter(live.mapCenter);
+    return publicViewMapUrl(c.lat, c.lng, 14);
   }, [debouncedPickup, debouncedStops, live.mapCenter]);
 
   const rideMapSrc = coordsRouteSrc || textFallbackMapSrc;
@@ -451,15 +546,18 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
   const hasPickupAndDestination =
     pickup.trim().length > 0 && (stops[0]?.value ?? '').trim().length > 0;
 
+  const hasEditablePins = Boolean(pickupCoords || dropoffCoords);
+
   /** Same live dot as /home: raw GPS for JS map (mapCenter throttled for embed URLs). */
   const rideInteractiveMapCenter = useMemo(() => {
+    if (pickupCoords) return trustedMapCenter(pickupCoords);
     if (live.hasFix && live.lat != null && live.lng != null) {
-      return { lat: live.lat, lng: live.lng };
+      return trustedMapCenter({ lat: live.lat, lng: live.lng });
     }
-    return live.mapCenter;
-  }, [live.hasFix, live.lat, live.lng, live.mapCenter]);
+    return trustedMapCenter(live.mapCenter);
+  }, [pickupCoords, live.hasFix, live.lat, live.lng, live.mapCenter]);
 
-  const useRideInteractiveMap = hasMapsKey && !rideJsMapFailed && !coordsRouteSrc;
+  const jsMapAvailable = hasMapsKey && !rideJsMapFailed;
 
   const useGps = async () => {
     if (gpsLoading) return;
@@ -467,6 +565,9 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
     setGpsLoading(true);
     try {
       const coords = await live.refreshFromUserGesture();
+      const next = { lat: coords.latitude, lng: coords.longitude };
+      setPickupCoords(next);
+      skipGeocodeFromDragRef.current = true;
       const line = await pickupLineFromCoords(coords.latitude, coords.longitude);
       setPickup(line);
     } catch (err) {
@@ -474,6 +575,59 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
       setGpsNotice(geolocationFailureMessage(code));
     } finally {
       setGpsLoading(false);
+    }
+  };
+
+  const recomputeRideFromPins = (pu, drop) => {
+    if (!pu || !drop) {
+      setCoordsRouteSrc('');
+      setRoadKm(null);
+      setDurationMins(null);
+      return;
+    }
+    const straight = haversineKm(pu.lat, pu.lng, drop.lat, drop.lng);
+    const road = straight != null ? estimateRoadKm(straight) : null;
+    if (road != null && Number.isFinite(road)) {
+      setRoadKm(road);
+      setDurationMins(estimateDriveMinutes(road));
+    } else {
+      setRoadKm(null);
+      setDurationMins(null);
+    }
+    const url = publicDirectionsCoordsMapUrl(pu.lat, pu.lng, drop.lat, drop.lng, []);
+    setCoordsRouteSrc(url || '');
+  };
+
+  const onPickupDragEnd = async (lat, lng) => {
+    const next = { lat, lng };
+    setPickupCoords(next);
+    recomputeRideFromPins(next, dropoffCoords);
+    setPinBusy('pickup');
+    skipGeocodeFromDragRef.current = true;
+    try {
+      const line = await pickupLineFromCoords(lat, lng);
+      setPickup(line);
+      setGpsNotice('');
+    } catch {
+      setPickup(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } finally {
+      setPinBusy('');
+    }
+  };
+
+  const onDropoffDragEnd = async (lat, lng) => {
+    const next = { lat, lng };
+    setDropoffCoords(next);
+    recomputeRideFromPins(pickupCoords, next);
+    setPinBusy('dropoff');
+    skipGeocodeFromDragRef.current = true;
+    try {
+      const line = await pickupLineFromCoords(lat, lng);
+      setDropoff(line);
+    } catch {
+      setDropoff(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } finally {
+      setPinBusy('');
     }
   };
 
@@ -486,27 +640,45 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
       setBookError('Please enter pickup and destination.');
       return;
     }
-    const quote = computeRideQuote(roadKm, rates, selected, isTukOnly);
+    const quote = selectedQuote;
     if (quote == null || roadKm == null) {
       setBookError('Could not estimate this route yet. Wait for distance to load, or adjust addresses.');
       return;
     }
 
-    const usePaynowFirst = paymentMethod === 'card' && showRidePaynow;
+    const useWallet = paymentMethod === 'wallet' && walletEligible;
     const useStripeFirst = paymentMethod === 'stripe' && showRideStripe;
-    if (paymentMethod === 'card' && !showRidePaynow) {
-      setBookError(
-        'Paynow is not configured. The app uses https://bykea-production.up.railway.app by default, or set REACT_APP_SHOP_PAYNOW_LOCAL_URL in .env.local. For local Paynow run `cd server && npm start`, then restart the app — or choose another payment method.',
-      );
-      return;
-    }
+    const useEcocash = paymentMethod === 'ecocash';
     if (paymentMethod === 'stripe' && !showRideStripe) {
       setBookError(
         'Card payments need the app backend configured (Supabase and card payment keys).',
       );
       return;
     }
-    if ((usePaynowFirst || useStripeFirst) && (!isSupabaseConfigured || !supabase)) {
+    if (useEcocash) {
+      if (!String(ecoPhone || '').trim()) {
+        setBookError('Enter the EcoCash mobile number that will approve payment.');
+        return;
+      }
+    }
+    if (useWallet) {
+      if (!ingoFareResult) {
+        setBookError('Ingo Kilometres is only available for bike and tuktuk rides.');
+        return;
+      }
+      const sessionCheck = getCustomerSession();
+      if (!sessionCheck?.id) {
+        setBookError('Sign in to pay with Ingo Kilometres.');
+        return;
+      }
+      if (walletBalance + 0.001 < quote) {
+        setBookError(
+          `Insufficient Ingo Kilometres balance (${FMT.format(walletBalance)}). Top up or choose cash.`,
+        );
+        return;
+      }
+    }
+    if ((useStripeFirst || useWallet || useEcocash) && (!isSupabaseConfigured || !supabase)) {
       setBookError('Connect Supabase to pay online.');
       return;
     }
@@ -516,20 +688,30 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
       setBookingSubmitting(true);
       try {
         const session = getCustomerSession();
+        const appUserId = await resolveValidAppUserId(supabase, session?.id);
         const rowPayload = isTukOnly
           ? {
-              app_user_id: session?.id ?? null,
+              app_user_id: appUserId,
               pickup_location: pu,
               destination_location: dest,
               estimated_distance_label: distanceLabel,
               estimated_duration_label: durationLabel,
               quoted_price: quote,
+              minimum_fare_amount: quote,
+              customer_offer_amount: quote,
+              bid_status: 'open',
               currency: 'USD',
               status: 'requested',
               payment_method: paymentMethod,
+              ...(useWallet
+                ? {
+                    payment_status: 'pending',
+                    payment_gateway: 'wallet',
+                  }
+                : {}),
             }
           : {
-              app_user_id: session?.id ?? null,
+              app_user_id: appUserId,
               pickup_location: pu,
               destination_location: dest,
               ride_type: selected === 'tuktuk' ? 'tuk' : 'std',
@@ -537,18 +719,71 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
               estimated_distance_label: distanceLabel,
               estimated_duration_label: durationLabel,
               quoted_price: quote,
+              minimum_fare_amount: quote,
+              customer_offer_amount: quote,
+              bid_status: 'open',
               currency: 'USD',
               status: 'requested',
               payment_method: paymentMethod,
+              ...(useWallet
+                ? {
+                    payment_status: 'pending',
+                    payment_gateway: 'wallet',
+                  }
+                : {}),
             };
 
-        const { data, error } = await supabase.from(storageTable).insert(rowPayload).select('id').single();
+        let { data, error } = await supabase.from(storageTable).insert(rowPayload).select('id').single();
+        if (error && /app_user_id_fkey|foreign key constraint.*app_user/i.test(error.message || '')) {
+          ({ data, error } = await supabase
+            .from(storageTable)
+            .insert({ ...rowPayload, app_user_id: null })
+            .select('id')
+            .single());
+        }
         if (error) {
-          setBookError(error.message || 'Could not save booking.');
+          if (/payment_method|payment_method_chk|wallet/i.test(error.message || '')) {
+            setBookError(
+              `${friendlyAppUserFkError(error.message)} — Run supabase/taxi_tuk_wallet_payment.sql in the SQL editor.`,
+            );
+          } else {
+            setBookError(friendlyAppUserFkError(error.message));
+          }
           setBookingSubmitting(false);
           return;
         }
         taxiBookingId = data?.id ?? null;
+
+        if (useWallet && taxiBookingId) {
+          if (!appUserId) {
+            await supabase.from(storageTable).delete().eq('id', taxiBookingId);
+            setBookError('Sign in with a valid account to pay with Ingo Kilometres.');
+            setBookingSubmitting(false);
+            return;
+          }
+          const debit = await debitCustomerWallet({
+            userId: appUserId,
+            amount: quote,
+            label: `Ride ${deliveryOrderDisplayRef(taxiBookingId)}`,
+            refType: isTukOnly ? 'tuk' : 'taxi',
+            refId: taxiBookingId,
+          });
+          if (!debit.ok) {
+            await supabase.from(storageTable).delete().eq('id', taxiBookingId);
+            setBookError(debit.error || 'Could not pay with Ingo Kilometres.');
+            setBookingSubmitting(false);
+            return;
+          }
+          await supabase
+            .from(storageTable)
+            .update({
+              payment_status: 'paid',
+              payment_completed_at: new Date().toISOString(),
+              payment_gateway: 'wallet',
+            })
+            .eq('id', taxiBookingId);
+          setWalletBalance(Number(debit.balanceAfter) || Math.max(0, walletBalance - quote));
+        }
 
         if (useStripeFirst && taxiBookingId) {
           const displayRef = deliveryOrderDisplayRef(taxiBookingId);
@@ -599,45 +834,60 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
           return;
         }
 
-        if (usePaynowFirst && taxiBookingId) {
+        if (useEcocash && taxiBookingId) {
+          const sessionEco = getCustomerSession();
+          const phoneForCharge = String(ecoPhone || sessionEco?.phone || '').trim();
           const displayRef = deliveryOrderDisplayRef(taxiBookingId);
-          const payRes = await postLocalPaynowInitiate({
-            orderKind: isTukOnly ? 'tuk' : 'taxi',
-            orderNumber: displayRef,
+          const charge = await postEcocashCharge({
             orderId: taxiBookingId,
-            amount: Number(Number(quote).toFixed(2)),
-            customerEmail: session?.email != null ? String(session.email) : '',
-            customerPhone: session?.phone != null ? String(session.phone) : '',
-            customerName:
-              String(session?.full_name || session?.name || '')
-                .trim()
-                .slice(0, 120) || 'Customer',
+            orderNumber: displayRef,
+            amount: quote,
+            phone: phoneForCharge,
+            orderKind: isTukOnly ? 'tuk' : 'taxi',
+            customerName: sessionEco?.full_name || sessionEco?.email || 'Customer',
+            remarks: isTukOnly ? `Tuk-Tuk ${displayRef}` : `Taxi ${displayRef}`,
           });
-          if (!payRes.ok || !payRes.redirectUrl) {
+          if (!charge?.ok) {
             await supabase.from(storageTable).delete().eq('id', taxiBookingId);
-            setBookError(payRes.error || 'Could not start Paynow.');
+            setBookError(charge?.error || 'Could not start EcoCash payment.');
             setBookingSubmitting(false);
             return;
           }
-          writeShopOrderConfirmationState({
-            source: 'ride',
-            orderId: displayRef,
-            taxiBookingId,
-            bookingStorageTable: storageTable,
+          const liveState = {
             mode: 'taxi',
             pickup: pu,
             stops,
             rideType: selected,
             distanceKm: distanceLabel,
             quotedPrice: quote,
-            payment_method: 'card',
+            taxiBookingId,
+            bookingStorageTable: storageTable,
+            payment_method: 'ecocash',
+            orderId: displayRef,
             eta: durationLabel,
-            placedAt: new Date().toISOString(),
             priceLabel: FMT.format(quote),
             priceNum: quote,
+            placedAt: new Date().toISOString(),
+          };
+          setBookingSubmitting(false);
+          navigate('/ecocash-waiting', {
+            replace: true,
+            state: {
+              clientCorrelation: charge.clientCorrelation,
+              phone: charge.phone || ecoPhone,
+              orderId: taxiBookingId,
+              orderKind: isTukOnly ? 'tuk' : 'taxi',
+              orderNumber: displayRef,
+              notifyTable: storageTable,
+              nextPath: '/live-tracking',
+              nextState: liveState,
+            },
           });
-          window.location.href = payRes.redirectUrl;
           return;
+        }
+
+        if (taxiBookingId) {
+          notifyDriversOfNewOffer(storageTable, taxiBookingId);
         }
       } catch {
         setBookError('Network error while saving booking.');
@@ -658,6 +908,11 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
         taxiBookingId,
         bookingStorageTable: storageTable,
         payment_method: paymentMethod,
+        orderId: deliveryOrderDisplayRef(taxiBookingId),
+        eta: durationLabel,
+        priceLabel: FMT.format(quote),
+        priceNum: quote,
+        placedAt: new Date().toISOString(),
       },
     });
   };
@@ -665,7 +920,9 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
   const activePayment = ridePaymentMethods.find((m) => m.id === paymentMethod);
   const paymentSubtitle =
     selectedQuote != null && activePayment
-      ? `${activePayment.label} (${FMT.format(selectedQuote)})`
+      ? paymentMethod === 'wallet'
+        ? `${activePayment.label} (${FMT.format(selectedQuote)} · bal ${FMT.format(walletBalance)})`
+        : `${activePayment.label} (${FMT.format(selectedQuote)})`
       : activePayment?.label ?? 'Select payment';
 
   const pickupDisplay =
@@ -713,22 +970,37 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
 
         <div className="br-map-wrap">
           <div
-            className={`br-map${useRideInteractiveMap || rideMapSrc ? ' br-map--gmap' : ''}`}
-            role="img"
-            aria-label="Map with pickup and destination route"
+            className={`br-map${jsMapAvailable || rideMapSrc ? ' br-map--gmap' : ''}${
+              hasEditablePins ? ' br-map--editable' : ''
+            }`}
+            role="region"
+            aria-label="Map with pickup and destination — drag pins to adjust"
           >
-            {useRideInteractiveMap ? (
-              <LiveUserGoogleMap
-                mapCenter={rideInteractiveMapCenter}
-                fallbackCenter={LONDON_CENTER}
-                hasFix={live.hasFix}
-                accurate={live.hasFix}
-                accuracyM={live.accuracy}
-                onLoadError={() => setRideJsMapFailed(true)}
-                zoomWithFix={15}
-                zoomFallback={12}
-                showUserLocationMarker={!hasPickupAndDestination}
-              />
+            {jsMapAvailable ? (
+              <div className="br-map-js-layer">
+                <LiveUserGoogleMap
+                  mapCenter={rideInteractiveMapCenter}
+                  fallbackCenter={DEFAULT_MAP_FALLBACK}
+                  hasFix={live.hasFix}
+                  accurate={live.hasFix}
+                  accuracyM={live.accuracy}
+                  onLoadError={() => setRideJsMapFailed(true)}
+                  zoomWithFix={15}
+                  zoomFallback={12}
+                  showUserLocationMarker={!hasEditablePins}
+                  pickupPin={pickupCoords}
+                  dropoffPin={dropoffCoords}
+                  onPickupDragEnd={onPickupDragEnd}
+                  onDropoffDragEnd={onDropoffDragEnd}
+                />
+                {hasEditablePins ? (
+                  <span className="br-map-hint" aria-live="polite">
+                    {pinBusy
+                      ? 'Updating address…'
+                      : 'Drag the green (pickup) or orange (drop-off) pin to fine-tune'}
+                  </span>
+                ) : null}
+              </div>
             ) : (
               <>
                 <GoogleMapEmbed src={rideMapSrc} title="Ride route preview" />
@@ -761,6 +1033,13 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
                     onChange={(v) => {
                       setGpsNotice('');
                       setPickup(v);
+                      if (!String(v || '').trim()) setPickupCoords(null);
+                    }}
+                    onSelectSuggestion={(s) => {
+                      if (s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))) {
+                        setPickupCoords({ lat: Number(s.lat), lng: Number(s.lng) });
+                        skipGeocodeFromDragRef.current = true;
+                      }
                     }}
                     placeholder={pickupDisplay || 'Current location'}
                     autoComplete="street-address"
@@ -798,7 +1077,16 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
                     id="taxi-destination"
                     name="destination"
                     value={stops[0]?.value ?? ''}
-                    onChange={(v) => setDropoff(v)}
+                    onChange={(v) => {
+                      setDropoff(v);
+                      if (!String(v || '').trim()) setDropoffCoords(null);
+                    }}
+                    onSelectSuggestion={(s) => {
+                      if (s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))) {
+                        setDropoffCoords({ lat: Number(s.lat), lng: Number(s.lng) });
+                        skipGeocodeFromDragRef.current = true;
+                      }
+                    }}
                     placeholder="Enter drop-off location"
                     autoComplete="off"
                     ariaLabel="Destination address"
@@ -862,6 +1150,37 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
                   );
                 })}
               </div>
+              {paymentMethod === 'wallet' ? (
+                <p className="br-pay-wallet-hint">
+                  Balance {FMT.format(walletBalance)}. Fixed Ingo Kilometre rate — top up at{' '}
+                  <Link to="/wallet/top-up">Ingo Kilometres</Link> if needed.
+                </p>
+              ) : null}
+              {paymentMethod === 'ecocash' ? (
+                <label className="br-pay-wallet-hint" style={{ display: 'block', marginTop: '0.75rem' }}>
+                  <span style={{ display: 'block', fontWeight: 700, marginBottom: 6 }}>EcoCash number</span>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="0771234567"
+                    value={ecoPhone}
+                    onChange={(e) => setEcoPhone(e.target.value)}
+                    disabled={bookingSubmitting}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      height: 44,
+                      borderRadius: 10,
+                      border: '1px solid #dbe3ef',
+                      padding: '0 0.85rem',
+                      fontSize: '1rem',
+                      fontFamily: 'inherit',
+                    }}
+                    required
+                  />
+                </label>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -897,6 +1216,46 @@ export default function TaxiBookingPage({ variant = 'full' } = {}) {
                   {rideTiers.find((t) => t.id === selected)?.label ?? '—'}
                 </span>
               </div>
+              {fareBreakdown ? (
+                fareBreakdown.ingo ? (
+                  <>
+                    <div className="br-fare__meta-cell">
+                      <span className="br-fare__meta-lab">
+                        Min fare (first 3 km)
+                      </span>
+                      <span className="br-fare__meta-val">{FMT.format(fareBreakdown.base)}</span>
+                    </div>
+                    <div className="br-fare__meta-cell">
+                      <span className="br-fare__meta-lab">
+                        Beyond 3 km ({fareBreakdown.extraKm} km × $0.60)
+                      </span>
+                      <span className="br-fare__meta-val">{FMT.format(fareBreakdown.distance)}</span>
+                    </div>
+                    <p className="br-fare__ingo-note">Ingo Kilometres fixed rate — not negotiable</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="br-fare__meta-cell">
+                      <span className="br-fare__meta-lab">Base fare</span>
+                      <span className="br-fare__meta-val">{FMT.format(fareBreakdown.base)}</span>
+                    </div>
+                    <div className="br-fare__meta-cell">
+                      <span className="br-fare__meta-lab">Distance fee</span>
+                      <span className="br-fare__meta-val">{FMT.format(fareBreakdown.distance)}</span>
+                    </div>
+                    <div className="br-fare__meta-cell">
+                      <span className="br-fare__meta-lab">
+                        Time fee ({fareBreakdown.mins} min × {FMT.format(Number(rates.price_per_minute) || 0)}/min)
+                      </span>
+                      <span className="br-fare__meta-val">{FMT.format(fareBreakdown.time)}</span>
+                    </div>
+                    <div className="br-fare__meta-cell">
+                      <span className="br-fare__meta-lab">Service fee</span>
+                      <span className="br-fare__meta-val">{FMT.format(fareBreakdown.service)}</span>
+                    </div>
+                  </>
+                )
+              ) : null}
             </div>
           ) : null}
         </section>

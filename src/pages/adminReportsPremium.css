@@ -1,0 +1,42 @@
+/* Admin reports — live Supabase metrics only */
+.admrep-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.admrep-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 0.95rem;
+  background: #fff;
+  border: 1px solid var(--adm-border, #e8ebe8);
+  border-radius: 12px;
+}
+
+.admrep-meta__period {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.admrep-meta__sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: #6f6f6f;
+}
+
+.admrep-kpi .admSmallCard .v {
+  font-variant-numeric: tabular-nums;
+}
+
+.admrep-foot {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6f6f6f;
+  line-height: 1.45;
+}

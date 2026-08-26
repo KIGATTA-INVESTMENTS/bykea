@@ -5,7 +5,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
 const ACTIVE_DAYS = 14;
 
-/** @typedef {{ id: string; name: string; phone: string; email: string; orders: number; spent: number; joined: string; status: string; lastActive: string; lastActivityIso: string | null }} CustomerRow */
+/** @typedef {{ id: string; name: string; phone: string; email: string; referralCode: string | null; orders: number; spent: number; joined: string; status: string; lastActive: string; lastActivityIso: string | null }} CustomerRow */
 
 function normEmail(s) {
   return String(s || '')
@@ -143,7 +143,7 @@ export default function AdminCustomerManagementPage() {
 
       const { data: users, error: uErr } = await supabase
         .from('app_users')
-        .select('id, full_name, phone, email, created_at')
+        .select('id, full_name, phone, email, referral_code, created_at')
         .order('created_at', { ascending: false });
 
       if (uErr) {
@@ -262,6 +262,7 @@ export default function AdminCustomerManagementPage() {
           name: u.full_name?.trim() || '—',
           phone: u.phone ?? '—',
           email: u.email ?? '—',
+          referralCode: u.referral_code?.trim() || null,
           orders: a.orders,
           spent: a.spent,
           joined: joinLabel(u.created_at),
@@ -398,7 +399,7 @@ export default function AdminCustomerManagementPage() {
               </button>
             ) : null}
           </div>
-          <div className="admFilters">
+          <div className="admFilters admFilters--row">
             <select className="admSelect" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option>All</option>
               <option>Active</option>
@@ -409,12 +410,6 @@ export default function AdminCustomerManagementPage() {
               <option value="orders">Sort: Total orders</option>
               <option value="spent">Sort: Total spent</option>
             </select>
-            <input
-              className="admInput admDateInput"
-              readOnly
-              value="App accounts · aggregated orders"
-              title="Totals include delivery, taxi, tuk-tuk; shop checkout matched by phone/email"
-            />
           </div>
         </div>
       </section>
@@ -427,6 +422,7 @@ export default function AdminCustomerManagementPage() {
                 <th>Full Name</th>
                 <th>Phone Number</th>
                 <th>Email</th>
+                <th>Referral code</th>
                 <th>Total Orders</th>
                 <th>Total Spent</th>
                 <th>Joined Date</th>
@@ -437,13 +433,13 @@ export default function AdminCustomerManagementPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="admDim">
+                  <td colSpan={9} className="admDim">
                     Loading customers…
                   </td>
                 </tr>
               ) : filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="admDim">
+                  <td colSpan={9} className="admDim">
                     No customers found.
                   </td>
                 </tr>
@@ -464,6 +460,7 @@ export default function AdminCustomerManagementPage() {
                     </td>
                     <td>{customer.phone}</td>
                     <td>{customer.email}</td>
+                    <td className="admDim">{customer.referralCode || '—'}</td>
                     <td>{customer.orders}</td>
                     <td style={{ color: '#0A58A6', fontWeight: 700 }}>{formatGBP(customer.spent)}</td>
                     <td>{customer.joined}</td>
@@ -520,6 +517,14 @@ export default function AdminCustomerManagementPage() {
                 <h4 style={{ marginTop: 0 }}>Contact</h4>
                 <p style={{ marginBottom: '0.25rem' }}>{selectedCustomer.phone}</p>
                 <p style={{ margin: 0 }}>{selectedCustomer.email}</p>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.88rem' }}>
+                  <span className="admDim">Referral code:</span>{' '}
+                  {selectedCustomer.referralCode ? (
+                    <span className="admBadgeStatus admBlue">{selectedCustomer.referralCode}</span>
+                  ) : (
+                    <span className="admDim">None</span>
+                  )}
+                </p>
               </div>
               <div className="admGrid3" style={{ marginBottom: '0.8rem' }}>
                 <div className="admPanelBlock">

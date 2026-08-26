@@ -1,3 +1,4 @@
+import { fetchShopOwnerAdminNotificationItems } from './shopOwnerAdminNotifications';
 import { formatGBP } from './currency';
 import { getShopOwnerSession } from './shopOwnerAuth';
 import { shopOrderStatusLabel } from './shopOrderStatus';
@@ -95,9 +96,11 @@ function orderNotifCategory(status) {
 
 function orderTitle(status) {
   const s = normalizeStatus(status);
-  if (s === 'placed') return 'New order received';
+  if (s === 'placed') return 'New order — tap to confirm';
   if (s === 'cancelled') return 'Order cancelled';
   if (s === 'delivered') return 'Order delivered';
+  if (s === 'processing') return 'Order being prepared';
+  if (s === 'ready for delivery') return 'Order ready for pickup';
   return shopOrderStatusLabel(status);
 }
 
@@ -203,7 +206,7 @@ export async function fetchShopOwnerNotifications(session = getShopOwnerSession(
         sub: `${order.order_number} — ${qty} item${qty === 1 ? '' : 's'} · ${formatGBP(total)} · ${order.customer_full_name || 'Customer'}`,
         type: orderNotifType(order.status),
         category: orderNotifCategory(order.status),
-        link: '/shop-owner/orders',
+        link: `/shop-owner/orders/${order.id}`,
         read: readSet.has(id),
       });
     }
@@ -281,6 +284,12 @@ export async function fetchShopOwnerNotifications(session = getShopOwnerSession(
   } catch {
     // support optional
   }
+
+  const { items: adminItems, error: adminErr } = await fetchShopOwnerAdminNotificationItems(session.id, readSet);
+  if (adminErr) {
+    return { items: [], error: adminErr };
+  }
+  adminItems.forEach((n) => items.push(n));
 
   items.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
 

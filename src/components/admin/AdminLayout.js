@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { isAdminSignedIn, markAdminSignedOut } from '../../lib/adminAuth';
 import InGoLogo from '../InGoLogo';
+import AdminNewOrderNotifier from './AdminNewOrderNotifier';
 import { AdminHeaderActionsProvider, useAdminHeaderActions } from './adminHeaderActions';
 import '../../pages/adminPortal.css';
 import '../../pages/adminSidebarPremium.css';
@@ -21,12 +22,18 @@ const sectionItems = [
     items: [
       { to: '/admin/dashboard', name: 'Dashboard', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
       { to: '/admin/analytics', name: 'Analytics', icon: 'M4 19V5M4 19h16M8 14l3-3 3 2 4-5' },
+      { to: '/admin/bi', name: 'BI', icon: 'M4 20V10M10 20V4M16 20v-6M22 20V8' },
     ],
   },
   {
     label: 'MANAGEMENT',
     items: [
       { to: '/admin/customers', name: 'Customers', icon: 'M17 20a4 4 0 0 0-8 0M13 7a3 3 0 1 1-6 0M20 20a4 4 0 0 0-3-3.9M17 5a3 3 0 1 1 0 6' },
+      {
+        to: '/admin/search-promo-codes',
+        name: 'Search promo codes',
+        icon: 'M10 10a4 4 0 1 1 8 0 4 4 0 0 1-8 0M21 21l-4.3-4.3M7 7h.01M17 7h.01',
+      },
       {
         to: '/admin/driver-requests',
         name: 'Driver requests',
@@ -37,7 +44,17 @@ const sectionItems = [
         name: 'Drivers',
         icon: 'M8 11a4 4 0 1 1 8 0M6 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1M4 20h16',
       },
+      {
+        to: '/admin/driver-locations',
+        name: 'Drivers locations',
+        icon: 'M12 21s-6-5.7-6-10a6 6 0 1 1 12 0c0 4.3-6 10-6 10zM12 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+      },
       { to: '/admin/shop-owners', name: 'Shop Owners', icon: 'M3 11h18M5 11v8h14v-8M4 11l8-5 8 5' },
+      {
+        to: '/admin/products',
+        name: 'Products',
+        icon: 'M20 7 12 3 4 7v10l8 4 8-4V7zM4 7l8 4 8-4M12 11v10',
+      },
       {
         to: '/admin/delivery-orders',
         name: 'Delivery orders',
@@ -64,6 +81,11 @@ const sectionItems = [
     label: 'FINANCE',
     items: [
       { to: '/admin/payments', name: 'Payments', icon: 'M12 2v20M17 6a4 4 0 0 0-8 0c0 2 2 3 4 3s4 1 4 3a4 4 0 0 1-8 0' },
+      {
+        to: '/admin/wallets',
+        name: 'Ingo Km',
+        icon: 'M3 7h18v12H3zM3 10h18M16 14h.01',
+      },
       { to: '/admin/driver-withdrawals', name: 'Driver withdrawals', icon: 'M6 12h12M12 6l6 6-6 6M4 5h4M4 19h4' },
       { to: '/admin/shop-withdrawals', name: 'Shop withdrawals', icon: 'M6 12h12M12 6l6 6-6 6M4 5h4M4 19h4' },
       { to: '/admin/transactions', name: 'Transactions', icon: 'M16 3h5v5M8 21H3v-5M21 3l-7 7M3 21l7-7' },
@@ -84,6 +106,11 @@ const sectionItems = [
     label: 'OPERATIONS',
     items: [
       { to: '/admin/reviews', name: 'Reviews', icon: 'M12 17.3 5.8 20l1.1-6.7L2 8.6l6.8-1 3.2-6.1 3.2 6.1 6.8 1-4.9 4.7 1.1 6.7z' },
+      {
+        to: '/admin/cancelled-rides',
+        name: 'Cancelled rides',
+        icon: 'M18 6 6 18M6 6l12 12M4 12h16',
+      },
       { to: '/admin/communications', name: 'Communications', icon: 'M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
     ],
   },
@@ -120,6 +147,10 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pageTitle = location.pathname.includes('/admin/customers')
     ? 'Customer Management'
+    : location.pathname.includes('/admin/search-promo-codes')
+      ? 'Search promo codes'
+    : location.pathname.includes('/admin/driver-locations')
+      ? 'Drivers locations'
     : location.pathname.includes('/admin/our-drivers')
       ? 'Drivers'
       : location.pathname.includes('/admin/driver-requests')
@@ -148,14 +179,20 @@ export default function AdminLayout() {
               ? 'Shop delivery price'
             : location.pathname.includes('/admin/payments')
               ? 'Payments & Transactions'
+            : location.pathname.includes('/admin/wallets')
+              ? 'Ingo Kilometres'
             : location.pathname.includes('/admin/driver-withdrawals')
               ? 'Driver withdrawals'
             : location.pathname.includes('/admin/shop-withdrawals')
               ? 'Shop withdrawals'
             : location.pathname.includes('/admin/analytics')
               ? 'Analytics'
+              : location.pathname.includes('/admin/bi')
+                ? 'BI'
               : location.pathname.includes('/admin/shop-owners')
                 ? 'Shop Owners'
+              : location.pathname.includes('/admin/products')
+                ? 'Products'
                 : location.pathname.includes('/admin/transactions')
                   ? 'Transactions'
                   : location.pathname.includes('/admin/disputes')
@@ -164,6 +201,8 @@ export default function AdminLayout() {
                       ? 'Support Tickets'
                         : location.pathname.includes('/admin/reviews')
                           ? 'Reviews'
+                      : location.pathname.includes('/admin/cancelled-rides')
+                        ? 'Cancelled rides'
                       : location.pathname.includes('/admin/notifications')
                         ? 'Notifications'
                         : location.pathname.includes('/admin/communications')
@@ -189,6 +228,7 @@ export default function AdminLayout() {
 
   return (
     <AdminHeaderActionsProvider>
+    <AdminNewOrderNotifier />
     <div className="adm admShell">
       {sidebarOpen ? <button type="button" className="admSidebarOverlay" aria-label="Close menu" onClick={closeSidebar} /> : null}
       <aside className={`admSidebar${sidebarOpen ? ' admSidebar--open' : ''}`}>

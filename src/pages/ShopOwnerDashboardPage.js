@@ -2,19 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatGBP } from '../lib/currency';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
+import { shopOwnerOrderStatusLabel } from '../lib/shopOrderStatus';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerDashboardPremium.css';
 
 function displayStatus(raw) {
-  const s = String(raw || 'placed').toLowerCase().replace(/_/g, ' ');
-  if (s === 'placed') return 'Pending';
-  if (s === 'cancelled') return 'Cancelled';
-  if (s === 'delivered') return 'Delivered';
-  if (s === 'processing') return 'Processing';
-  if (s === 'ready for delivery') return 'Ready for delivery';
-  if (s === 'in transit') return 'In transit';
-  if (s === 'picked up') return 'Picked up';
-  return String(raw || 'Pending').replace(/^\w/, (c) => c.toUpperCase());
+  return shopOwnerOrderStatusLabel(raw);
 }
 
 function isSameDay(a, b) {
@@ -27,8 +20,10 @@ function isSameDay(a, b) {
 
 function badgeClass(s) {
   if (s === 'Delivered') return 'sod-badge sod-badge--delivered';
-  if (s === 'Cancelled') return 'sod-badge sod-badge--cancelled';
-  if (s === 'Pending' || s === 'Processing') return 'sod-badge sod-badge--pending';
+  if (s === 'Cancelled') return 'sod-badge sod-badge--cancel';
+  if (s === 'New order' || s === 'Preparing' || s === 'Pending' || s === 'Processing') {
+    return 'sod-badge sod-badge--pending';
+  }
   return 'sod-badge sod-badge--default';
 }
 
@@ -121,7 +116,7 @@ function WeekChart({ week }) {
         return <line key={g} x1={padL} y1={y} x2={w - padR} y2={y} stroke="#e5e7eb" strokeWidth="1" />;
       })}
       <text x="6" y={padT + 4} fontSize="7" fill="#9ca3af" fontWeight="600">
-        �$
+        Â$
       </text>
       <path d={areaPath} fill="rgba(7, 64, 143, 0.08)" stroke="none" />
       <path d={linePath} fill="none" stroke="#07408F" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
@@ -247,7 +242,7 @@ export default function ShopOwnerDashboardPage() {
         todayOrderCount += 1;
         todayRev += orderTotal;
       }
-      if (status === 'Pending' || status === 'Processing') pendingCount += 1;
+      if (status === 'New order' || status === 'Preparing') pendingCount += 1;
       if (status === 'In transit') activeCount += 1;
     });
     setTodayOrders(todayOrderCount);
@@ -304,7 +299,7 @@ export default function ShopOwnerDashboardPage() {
   return (
     <div className="sod-dash">
       <div className="sod-welcome">
-        <h2>Good Morning 👋</h2>
+        <h2>Good Morning ??</h2>
         <p>Here&apos;s your shop overview today</p>
       </div>
 
@@ -322,7 +317,7 @@ export default function ShopOwnerDashboardPage() {
             </span>
             <p className="sod-stat-label">Total orders today</p>
             <p className="sod-stat-value">{todayOrders}</p>
-            <p className="sod-stat-foot">{loading ? 'Loading…' : 'From today only'}</p>
+            <p className="sod-stat-foot">{loading ? 'Loading�' : 'From today only'}</p>
           </article>
           <article className="sod-stat">
             <span className="sod-stat-icon sod-stat-icon--green" aria-hidden>
@@ -330,13 +325,13 @@ export default function ShopOwnerDashboardPage() {
             </span>
             <p className="sod-stat-label">Today&apos;s revenue</p>
             <p className="sod-stat-value sod-stat-value--blue">{formatGBP(todayRevenue)}</p>
-            <p className="sod-stat-foot">{loading ? 'Loading…' : weekGrowthText}</p>
+            <p className="sod-stat-foot">{loading ? 'Loading�' : weekGrowthText}</p>
           </article>
           <article className="sod-stat">
             <span className="sod-stat-icon sod-stat-icon--orange" aria-hidden>
               <IcClock />
             </span>
-            <p className="sod-stat-label">Pending orders</p>
+            <p className="sod-stat-label">Orders needing action</p>
             <p className="sod-stat-value sod-stat-value--orange">{pendingOrders}</p>
             <p className="sod-stat-foot sod-stat-foot--orange">Needs attention</p>
           </article>
@@ -362,7 +357,7 @@ export default function ShopOwnerDashboardPage() {
           <h3 id="sod-best-title">Best Selling Today</h3>
           {loading ? (
             <p className="sod-best-empty">
-              <span>Loading products…</span>
+              <span>Loading products�</span>
             </p>
           ) : products.length === 0 ? (
             <div className="sod-best-empty">
@@ -406,7 +401,7 @@ export default function ShopOwnerDashboardPage() {
               {loading ? (
                 <tr>
                   <td colSpan={6} className="sod-table-empty">
-                    Loading recent orders…
+                    Loading recent orders�
                   </td>
                 </tr>
               ) : recent.length === 0 ? (

@@ -1,7 +1,7 @@
 /**
  * Supabase Edge: **paynow-result** — Paynow `resulturl` webhook (status updates).
  * Verifies SHA-512 hash, updates payment rows by `paynow_reference` (= merchant `reference`):
- * `shop_customer_orders`, else `driver_wallet_topups` (ING-DEP-* references).
+ * `shop_customer_orders`, else `customer_wallet_topups` (ING-CW-*), else `driver_wallet_topups` (ING-DEP-*).
  *
  * Deploy:
  *   supabase functions deploy paynow-result --no-verify-jwt
@@ -170,6 +170,113 @@ serve(async (req) => {
     }
 
     console.info('[paynow-result] Updated shop order ref=', reference, 'status=', statusRaw, '→', paymentStatus);
+    return new Response('OK', { status: 200, headers: { 'Content-Type': 'text/plain', ...corsHeaders } });
+  }
+
+  for (const table of ['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'] as const) {
+    const { data: rideRows, error: rideSelErr } = await supabase
+      .from(table)
+      .select('id')
+      .eq('paynow_reference', reference)
+      .limit(2);
+    if (rideSelErr) {
+      if (/does not exist|schema cache|column|paynow_reference/i.test(rideSelErr.message)) continue;
+      console.error('[paynow-result] Select error', table, rideSelErr.message);
+      return new Response('ERR', { status: 500, headers: corsHeaders });
+    }
+    if (!rideRows?.length) continue;
+
+    const { error: rideUpdErr } = await supabase.from(table).update(update).eq('paynow_reference', reference);
+    if (rideUpdErr) {
+      console.error('[paynow-result] Update error', table, rideUpdErr.message);
+      return new Response('ERR', { status: 500, headers: corsHeaders });
+    }
+
+    if (paymentStatus === 'paid') {
+      for (const row of rideRows) {
+        const oid = String(row.id || '');
+        if (!oid) continue;
+        void fetch(`${supabaseUrl}/functions/v1/driver-offer-push`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${serviceKey}`,
+            apikey: serviceKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ table, orderId: oid }),
+        }).catch(() => {});
+      }
+    }
+
+    console.info('[paynow-result] Updated', table, 'ref=', reference, 'status=', statusRaw, '→', paymentStatus);
+    return new Response('OK', { status: 200, headers: { 'Content-Type': 'text/plain', ...corsHeaders } });
+  }
+
+  const { data: cwRows, error: cwSelErr } = await supabase
+    .from('customer_wallet_topups')
+    .select('id, user_id, amount_gbp, package_label, km_credits, credited_at')
+    .eq('paynow_reference', reference)
+    .limit(2);
+
+  if (cwSelErr) {
+    if (!/does not exist|schema cache|Could not find the table/i.test(cwSelErr.message)) {
+      console.error('[paynow-result] Customer wallet select error', cwSelErr.message);
+      return new Response('ERR', { status: 500, headers: corsHeaders });
+    }
+  } else if (cwRows?.length) {
+    const { error: cwUpdErr } = await supabase
+      .from('customer_wallet_topups')
+      .update(update)
+      .eq('paynow_reference', reference);
+
+    if (cwUpdErr) {
+      console.error('[paynow-result] Customer wallet update error', cwUpdErr.message);
+      return new Response('ERR', { status: 500, headers: corsHeaders });
+    }
+
+    if (paymentStatus === 'paid' && cwRows[0]?.id) {
+      const { error: rpcErr } = await supabase.rpc('credit_customer_wallet_from_topup', {
+        p_topup_id: cwRows[0].id,
+      });
+      if (rpcErr) {
+        console.warn('[paynow-result] credit RPC failed, using fallback:', rpcErr.message);
+        const addAmt = Number(cwRows[0].amount_gbp);
+        const userId = String(cwRows[0].user_id || '');
+        if (Number.isFinite(addAmt) && addAmt > 0 && userId && !cwRows[0].credited_at) {
+          await supabase
+            .from('customer_wallets')
+            .upsert({ user_id: userId, balance_gbp: 0 }, { onConflict: 'user_id', ignoreDuplicates: true });
+          const { data: w } = await supabase
+            .from('customer_wallets')
+            .select('balance_gbp')
+            .eq('user_id', userId)
+            .maybeSingle();
+          const cur = Number(w?.balance_gbp) || 0;
+          const next = Math.round((cur + addAmt) * 100) / 100;
+          await supabase
+            .from('customer_wallets')
+            .update({ balance_gbp: next, updated_at: new Date().toISOString() })
+            .eq('user_id', userId);
+          await supabase.from('customer_wallet_transactions').insert({
+            user_id: userId,
+            entry_type: 'credit',
+            amount_gbp: addAmt,
+            balance_after: next,
+            label: String(cwRows[0].package_label || 'Wallet top-up'),
+            package_label: cwRows[0].package_label || null,
+            km_credits: cwRows[0].km_credits ?? null,
+            ref_type: 'topup',
+            ref_id: cwRows[0].id,
+          });
+          await supabase
+            .from('customer_wallet_topups')
+            .update({ credited_at: new Date().toISOString() })
+            .eq('id', cwRows[0].id);
+        }
+      }
+    }
+
+    console.info('[paynow-result] Updated customer wallet topup ref=', reference, 'status=', statusRaw, '→', paymentStatus);
     return new Response('OK', { status: 200, headers: { 'Content-Type': 'text/plain', ...corsHeaders } });
   }
 

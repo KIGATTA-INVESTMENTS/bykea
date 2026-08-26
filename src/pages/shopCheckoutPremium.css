@@ -203,6 +203,31 @@
   box-shadow: 0 0 0 3px rgba(7, 64, 143, 0.08);
 }
 
+.cko-addr-suggest {
+  width: 100%;
+}
+
+.cko-addr-suggest .flow-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid var(--cko-orange);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #111827;
+  background: #fff;
+}
+
+.cko-addr-suggest .flow-input:focus {
+  outline: none;
+  border-color: #cbd5e1;
+  border-left-color: var(--cko-orange);
+  box-shadow: 0 0 0 3px rgba(7, 64, 143, 0.08);
+}
+
 .cko-textarea {
   resize: vertical;
   min-height: 4.5rem;
@@ -280,6 +305,51 @@
   font-weight: 500;
   color: #6b7280;
   line-height: 1.35;
+}
+
+.cko-wallet-box {
+  margin: 0.75rem 0 0.15rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.cko-wallet-box__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: #4b5563;
+  padding: 0.25rem 0;
+}
+
+.cko-wallet-box__row--emph {
+  margin-top: 0.2rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #d1d5db;
+  font-weight: 750;
+  color: #111827;
+}
+
+.cko-wallet-box__neg {
+  color: #c62828;
+}
+
+.cko-wallet-box__warn {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: #b42318;
+  line-height: 1.35;
+}
+
+.cko-wallet-box__link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0a58a6;
+  text-decoration: none;
 }
 
 .cko-err {

@@ -3,9 +3,17 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import ShopOrderTrackingSteps from '../components/ShopOrderTrackingSteps';
 import { mapDriverRegistrationRow } from '../lib/customerOrderFeed';
 import { formatGBP } from '../lib/currency';
+import DeliveryPin from '../components/DeliveryPin';
+import { DELIVERY_PIN_CUSTOMER_HINT, storedDeliveryPin } from '../lib/deliveryConfirmationCode';
+import { buildLiveTrackingState } from '../lib/liveTrackingState';
 import { readShopOrderConfirmationState } from '../lib/shopOrderConfirmationSession';
 import { takePaynowReturnPath, peekPaynowReturnPath } from '../lib/paynowReturnSession';
 import { shopOrderProgressMessage, shopOrderStatusLabel } from '../lib/shopOrderStatus';
+import {
+  isDriverSearchTimedOut,
+  noDriverAvailableDetail,
+  noDriverAvailableHeadline,
+} from '../lib/driverSearchWait';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './orderConfirmationPremium.css';
 
@@ -64,33 +72,25 @@ export default function OrderConfirmationPage() {
 
   useLayoutEffect(() => {
     const ret = peekPaynowReturnPath();
-    if (!ret || ret !== '/driver/wallet') return;
+    if (!ret || (ret !== '/driver/wallet' && ret !== '/wallet')) return;
     const hasShopOrDelivery =
       order.source === 'shop' ||
       order.source === 'delivery' ||
       (order.source === 'ride' && order.taxiBookingId);
     if (hasShopOrDelivery) return;
     takePaynowReturnPath();
+    if (ret === '/wallet') {
+      navigate('/wallet', { replace: true, state: { paynowWalletReturn: true } });
+      return;
+    }
     navigate('/driver/wallet', { replace: true, state: { paynowDepositReturn: true } });
   }, [order, navigate]);
 
   useLayoutEffect(() => {
-    if (order.source !== 'ride' || !order.taxiBookingId) return;
-    navigate('/live-tracking', {
-      replace: true,
-      state: {
-        mode: order.mode || 'taxi',
-        pickup: order.pickup,
-        stops: order.stops,
-        rideType: order.rideType,
-        distanceKm: order.distanceKm,
-        quotedPrice: order.quotedPrice,
-        taxiBookingId: order.taxiBookingId,
-        bookingStorageTable: order.bookingStorageTable || 'taxi_bookings',
-        payment_method: order.payment_method || 'card',
-        eta: order.eta,
-      },
-    });
+    if (order.source === 'shop') return;
+    const ltState = buildLiveTrackingState(order);
+    if (!ltState) return;
+    navigate('/live-tracking', { replace: true, state: ltState });
   }, [order, navigate]);
 
   const orderId = formatOrderId(order.orderId != null ? String(order.orderId) : '');
@@ -108,8 +108,10 @@ export default function OrderConfirmationPage() {
 
   const customer = order.customer;
   const isShopOrder = order.source === 'shop';
-  const isRidePaynowReturn =
-    order.source === 'ride' && order.taxiBookingId != null && String(order.taxiBookingId).trim() !== '';
+  const isTrackablePaynowReturn =
+    order.source !== 'shop' &&
+    (order.supabaseOrderId != null || order.taxiBookingId != null) &&
+    String(order.supabaseOrderId || order.taxiBookingId || '').trim() !== '';
 
   const deliveryUuid = useMemo(() => {
     if (isShopOrder) return null;
@@ -120,6 +122,7 @@ export default function OrderConfirmationPage() {
 
   const [liveDriverRow, setLiveDriverRow] = useState(null);
   const [liveShopOrder, setLiveShopOrder] = useState(null);
+  const [waitTick, setWaitTick] = useState(0);
 
   const shopOrderDbId = useMemo(() => {
     if (!isShopOrder) return null;
@@ -138,7 +141,7 @@ export default function OrderConfirmationPage() {
       try {
         const { data: row, error } = await supabase
           .from('shop_customer_orders')
-          .select('id, status, assigned_driver_id')
+          .select('id, status, assigned_driver_id, placed_at, delivery_confirmation_code')
           .eq('id', shopOrderDbId)
           .maybeSingle();
         if (cancelled || error) return;
@@ -217,10 +220,44 @@ export default function OrderConfirmationPage() {
 
   const shopStatus = liveShopOrder?.status || 'placed';
   const shopHasDriver = Boolean(liveShopOrder?.assigned_driver_id);
-  const shopProgressMsg = useMemo(
-    () => shopOrderProgressMessage(shopStatus, { hasDriver: shopHasDriver }),
-    [shopStatus, shopHasDriver],
+  const shopDeliveryCode = useMemo(() => {
+    return (
+      storedDeliveryPin(liveShopOrder?.delivery_confirmation_code) ||
+      storedDeliveryPin(order.deliveryConfirmationCode) ||
+      ''
+    );
+  }, [liveShopOrder?.delivery_confirmation_code, order.deliveryConfirmationCode]);
+  const shopDelivered = String(shopStatus || '')
+    .toLowerCase()
+    .includes('deliver');
+  const shopAwaitingDriverAssignment =
+    isShopOrder &&
+    !shopHasDriver &&
+    String(shopStatus || '')
+      .toLowerCase()
+      .trim() === 'ready for delivery';
+  const shopDriverSearchTimedOut = useMemo(
+    () =>
+      isDriverSearchTimedOut({
+        liveRow: liveShopOrder,
+        order: { placedAt: liveShopOrder?.placed_at || placedAt },
+        hasDriver: shopHasDriver,
+      }),
+    [liveShopOrder, placedAt, shopHasDriver, waitTick],
   );
+
+  useEffect(() => {
+    if (!shopAwaitingDriverAssignment) return undefined;
+    const id = window.setInterval(() => setWaitTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [shopAwaitingDriverAssignment]);
+
+  const shopProgressMsg = useMemo(() => {
+    if (shopDriverSearchTimedOut && shopAwaitingDriverAssignment) {
+      return `${noDriverAvailableHeadline()}. ${noDriverAvailableDetail({ isShop: true })}`;
+    }
+    return shopOrderProgressMessage(shopStatus, { hasDriver: shopHasDriver });
+  }, [shopStatus, shopHasDriver, shopDriverSearchTimedOut, shopAwaitingDriverAssignment]);
   const shopStatusLabel = shopOrderStatusLabel(shopStatus);
   const shopOrderNavKey = shopOrderDbId ? `shop:${shopOrderDbId}` : null;
 
@@ -239,7 +276,7 @@ export default function OrderConfirmationPage() {
     );
   const showDriverSection = !isShopOrder || assignedDriverUi || shopAwaitingDriver;
 
-  if (isRidePaynowReturn) {
+  if (isTrackablePaynowReturn) {
     return (
       <div className="ty-page ty-page--loading" role="status" aria-live="polite">
         <p className="ty-loading-text">Opening live tracking…</p>
@@ -326,6 +363,14 @@ export default function OrderConfirmationPage() {
           </section>
         ) : null}
 
+        {shopDeliveryCode && !shopDelivered ? (
+          <section className="ty-card ty-delivery-code" aria-label="Delivery PIN">
+            <h2 className="ty-card__title">Your delivery PIN</h2>
+            <DeliveryPin value={shopDeliveryCode} readOnly ariaLabel="Your delivery PIN" />
+            <p className="ty-delivery-code__hint">{DELIVERY_PIN_CUSTOMER_HINT}</p>
+          </section>
+        ) : null}
+
         {customer ? (
           <section className="ty-card" aria-label={isShopOrder ? 'Your contact details' : 'Delivery contact'}>
             <h2 className="ty-card__title">{isShopOrder ? 'Your details' : 'Delivering to'}</h2>
@@ -361,11 +406,17 @@ export default function OrderConfirmationPage() {
                 ) : deliveryUuid || shopAwaitingDriver ? (
                   <>
                     <span className="ty-rider__role">{isShopOrder ? 'Driver' : 'Rider'}</span>
-                    <p className="ty-rider__name">Finding a driver…</p>
+                    <p className="ty-rider__name">
+                      {shopDriverSearchTimedOut && shopAwaitingDriverAssignment
+                        ? noDriverAvailableHeadline()
+                        : 'Finding a driver…'}
+                    </p>
                     <p className="ty-rider__hint">
-                      {isShopOrder
-                        ? 'Driver details appear here once someone accepts your shop delivery.'
-                        : 'Driver details appear here once someone accepts your delivery.'}
+                      {shopDriverSearchTimedOut && shopAwaitingDriverAssignment
+                        ? noDriverAvailableDetail({ isShop: isShopOrder, isRide: !isShopOrder })
+                        : isShopOrder
+                          ? 'Driver details appear here once someone accepts your shop delivery.'
+                          : 'Driver details appear here once someone accepts your delivery.'}
                     </p>
                   </>
                 ) : (

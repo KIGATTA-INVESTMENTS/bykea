@@ -291,6 +291,23 @@
   color: var(--ty-orange);
 }
 
+.ty-delivery-code__value {
+  margin: 0.35rem 0 0;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
+.ty-delivery-code__hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #6b7280;
+  font-weight: 500;
+}
+
 .ty-card__title {
   margin: 0 0 0.55rem;
   font-size: 0.72rem;

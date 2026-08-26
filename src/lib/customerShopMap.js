@@ -1,4 +1,5 @@
 import { mapShopProductRow } from './shopProductMap';
+import { resolveShelfImageUrl } from './shopProductImage';
 
 /** Card row for /shops list from `shop_owners`. */
 export function mapShopOwnerToCard(row) {
@@ -24,15 +25,33 @@ function truncateOneLine(text, max) {
 export function mapToCustomerProduct(mapped, shopId, shopName) {
   if (!mapped) return null;
   const inStock = Boolean(mapped.active && mapped.stock > 0);
+  const compareAtNum = mapped.compareAt != null && mapped.compareAt !== '' ? Number(mapped.compareAt) : NaN;
+  const onSale = Number.isFinite(compareAtNum) && compareAtNum > mapped.price;
+  const pctOff = onSale ? Math.round(((compareAtNum - mapped.price) / compareAtNum) * 100) : 0;
+  const gallery = Array.isArray(mapped.galleryImageUrls) ? mapped.galleryImageUrls : [];
+  const imageUrl =
+    resolveShelfImageUrl(mapped.primaryImageUrl) ||
+    gallery.map((u) => resolveShelfImageUrl(u)).find(Boolean) ||
+    '';
   return {
     id: mapped.id,
     name: mapped.name,
     price: mapped.price,
+    compareAt: onSale ? compareAtNum : null,
+    onSale,
+    percentOff: pctOff > 0 ? pctOff : null,
     category: mapped.category,
+    brandName: mapped.brandName || '',
     shopId,
     shopName,
-    imageUrl: mapped.primaryImageUrl || '',
+    imageUrl: imageUrl,
+    imageUrls: Array.isArray(mapped.galleryImageUrls) ? mapped.galleryImageUrls.filter(Boolean) : [],
     inStock,
+    stock: mapped.stock,
+    description: mapped.description || '',
+    tags: Array.isArray(mapped.tags) ? mapped.tags : [],
+    offersFreeDelivery: Boolean(mapped.offersFreeDelivery),
+    createdAt: mapped.createdAt || null,
   };
 }
 

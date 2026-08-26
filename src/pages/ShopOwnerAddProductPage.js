@@ -1,8 +1,12 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import ProductCategoryField from '../components/shopOwner/ProductCategoryField';
+import ProductTagsInput from '../components/shopOwner/ProductTagsInput';
 import { formatGBP } from '../lib/currency';
 import { compressImageToDataUrl } from '../lib/compressImageToDataUrl';
+import { normalizeProductCategory, normalizeProductTags } from '../lib/shopProductCategories';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
+import { resolveShopMediaUrl } from '../lib/shopMediaUpload';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
 import './shopOwnerDashboardPremium.css';
@@ -10,11 +14,11 @@ import './shopOwnerAddProductPremium.css';
 
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
 
-const CATS2 = ['Dairy', 'Bakery', 'Produce', 'Pantry', 'Beverages', 'Other'];
-
 const emptyForm = () => ({
   name: '',
-  category: CATS2[0],
+  category: 'Other',
+  brandName: '',
+  tags: [],
   description: '',
   price: '',
   compare: '',
@@ -22,6 +26,7 @@ const emptyForm = () => ({
   sku: '',
   weight: '',
   active: true,
+  offersFreeDelivery: false,
   hasVariants: false,
   variants: [],
 });
@@ -119,14 +124,6 @@ function IcWeight() {
   );
 }
 
-function IcChevronDown() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
-      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export default function ShopOwnerAddProductPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -164,10 +161,10 @@ export default function ShopOwnerAddProductPage() {
     const i = slotPickerRef.current;
     setImageBusy(true);
     try {
-      const dataUrl = await compressImageToDataUrl(file);
+      const dataUrl = await compressImageToDataUrl(file, 960, 0.78);
       setImages((m) => {
         const n = [...m];
-        n[i] = { dataUrl, name: file.name };
+        n[i] = { dataUrl, name: file.name, file };
         return n;
       });
     } catch (err) {
@@ -206,16 +203,32 @@ export default function ShopOwnerAddProductPage() {
       return;
     }
 
-    const primaryUrl = images[0]?.dataUrl ?? null;
-    const galleryUrls = [1, 2, 3, 4].map((idx) => images[idx]?.dataUrl).filter(Boolean);
-
     if (isSupabaseConfigured && supabase) {
       setSubmitting(true);
       try {
+        const productKey = `new_${Date.now()}`;
+        const slots = await Promise.all(
+          [0, 1, 2, 3, 4].map((idx) => {
+            const slot = images[idx];
+            if (!slot) return Promise.resolve(null);
+            return resolveShopMediaUrl({
+              ownerId: session.id,
+              productKey,
+              slotIndex: idx,
+              file: slot.file || null,
+              url: slot.dataUrl || null,
+            });
+          }),
+        );
+        const primaryUrl = slots[0] || null;
+        const galleryUrls = slots.slice(1).filter(Boolean);
+        const tags = normalizeProductTags(f.tags);
+
         const row = {
           shop_owner_id: session.id,
           name: f.name.trim() || 'New product',
-          category: f.category,
+          category: normalizeProductCategory(f.category),
+          brand_name: f.brandName.trim() || null,
           description: f.description.trim() || null,
           price,
           compare_at_price: f.compare ? parseFloat(f.compare) : null,
@@ -224,16 +237,26 @@ export default function ShopOwnerAddProductPage() {
           weight: f.weight.trim() || null,
           currency: 'USD',
           is_active: f.active,
+          offers_free_delivery: Boolean(f.offersFreeDelivery),
           has_variants: f.hasVariants,
           variants: f.variants,
           image_primary_url: primaryUrl,
           image_urls: galleryUrls,
+          tags,
         };
-        const { error } = await supabase.from('shop_products').insert(row);
+        let { error } = await supabase.from('shop_products').insert(row);
+        if (error && /brand_name|offers_free_delivery|schema cache/i.test(error.message || '')) {
+          const { brand_name: _b, offers_free_delivery: _f, ...withoutMarketplace } = row;
+          ({ error } = await supabase.from('shop_products').insert(withoutMarketplace));
+        }
+        if (error && /tags|column|schema cache/i.test(error.message || '')) {
+          const { tags: _omit, brand_name: _b2, offers_free_delivery: _f2, ...withoutTags } = row;
+          ({ error } = await supabase.from('shop_products').insert(withoutTags));
+        }
         if (error) {
           setSubmitError(
             error.message.includes('row-level security') || error.message.includes('shop_products')
-              ? `${error.message} — Run supabase/shop_products.sql in Supabase.`
+              ? `${error.message} — Run supabase/shop_products.sql (and shop_products_marketplace.sql) in Supabase.`
               : error.message,
           );
           return;
@@ -254,8 +277,8 @@ export default function ShopOwnerAddProductPage() {
       price,
       stock: Number.isFinite(st) ? st : 0,
       active: f.active,
-      primaryImageUrl: primaryUrl,
-      galleryImageUrls: galleryUrls,
+      primaryImageUrl: images[0]?.dataUrl ?? null,
+      galleryImageUrls: [1, 2, 3, 4].map((idx) => images[idx]?.dataUrl).filter(Boolean),
     };
     navigate('/shop-owner/products', { replace: true, state: { addedProduct: product } });
   };
@@ -421,28 +444,53 @@ export default function ShopOwnerAddProductPage() {
               <label className="soap-label" htmlFor="ap-cat">
                 Category
               </label>
-              <div className="soap-input-wrap">
+              <div className="soap-input-wrap soap-input-wrap--stack">
                 <span className="soap-iconbox" aria-hidden>
                   <IcCategory />
                 </span>
-                <div className="soap-select-wrap">
-                  <select className="soap-select" id="ap-cat" value={f.category} onChange={(e) => setF((x) => ({ ...x, category: e.target.value }))}>
-                    {CATS2.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="soap-select-chevron" aria-hidden>
-                    <IcChevronDown />
-                  </span>
-                </div>
+                <ProductCategoryField
+                  id="ap-cat"
+                  value={f.category}
+                  onChange={(category) => setF((x) => ({ ...x, category }))}
+                />
+              </div>
+              <p className="soap-field-hint">Pick a matching category, or choose Custom category…</p>
+            </div>
+
+            <div className="soap-field">
+              <label className="soap-label" htmlFor="ap-brand">
+                Brand name <span className="soap-label-optional">(optional — customers can shop by brand)</span>
+              </label>
+              <div className="soap-input-wrap">
+                <span className="soap-iconbox" aria-hidden>
+                  <IcTag />
+                </span>
+                <input
+                  className="soap-input"
+                  id="ap-brand"
+                  value={f.brandName}
+                  onChange={(e) => setF((x) => ({ ...x, brandName: e.target.value }))}
+                  placeholder="e.g. Nike, Samsung, Local Farm"
+                  maxLength={80}
+                />
               </div>
             </div>
 
             <div className="soap-field">
+              <label className="soap-label" htmlFor="ap-tags">
+                Search tags <span className="soap-label-optional">(helps customers find this)</span>
+              </label>
+              <ProductTagsInput
+                id="ap-tags"
+                tags={f.tags}
+                category={f.category}
+                onChange={(tags) => setF((x) => ({ ...x, tags }))}
+              />
+            </div>
+
+            <div className="soap-field">
               <label className="soap-label" htmlFor="ap-desc">
-                Description
+                Description <span className="soap-label-optional">(optional)</span>
               </label>
               <div className="soap-input-wrap soap-input-wrap--textarea">
                 <span className="soap-iconbox" aria-hidden style={{ alignSelf: 'flex-start', paddingTop: '0.85rem' }}>
@@ -485,7 +533,7 @@ export default function ShopOwnerAddProductPage() {
 
             <div className="soap-field">
               <label className="soap-label" htmlFor="ap-cmp">
-                Compare at Price <span className="soap-label-optional">(optional)</span>
+                Original price (on sale) <span className="soap-label-optional">(optional — like Etsy)</span>
               </label>
               <div className="soap-input-wrap">
                 <span className="soap-iconbox" aria-hidden>
@@ -497,18 +545,33 @@ export default function ShopOwnerAddProductPage() {
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder="Original / MSRP"
+                  placeholder="Was / MSRP — must be higher than price"
                   value={f.compare}
                   onChange={(e) => setF((x) => ({ ...x, compare: e.target.value }))}
                 />
               </div>
+              <p className="soap-field-hint">
+                Set this higher than Price to put the item on sale. Customers see a Sale badge and strikethrough.
+              </p>
             </div>
 
             {f.compare && f.price ? (
               <p className="soap-compare-note">
-                Compare: <s>{formatGBP(parseFloat(f.compare))}</s> now {formatGBP(parseFloat(f.price))}
+                On sale: <s>{formatGBP(parseFloat(f.compare))}</s> now {formatGBP(parseFloat(f.price))}
               </p>
             ) : null}
+
+            <div className="soap-field">
+              <label className="soap-row-check" htmlFor="ap-free-del">
+                <input
+                  id="ap-free-del"
+                  type="checkbox"
+                  checked={f.offersFreeDelivery}
+                  onChange={(e) => setF((x) => ({ ...x, offersFreeDelivery: e.target.checked }))}
+                />
+                <span>Offer free delivery on this product</span>
+              </label>
+            </div>
           </div>
 
           <div className="soap-group">
@@ -533,101 +596,10 @@ export default function ShopOwnerAddProductPage() {
               </div>
             </div>
 
-            <div className="soap-field">
-              <label className="soap-label" htmlFor="ap-sku">
-                SKU / Product Code <span className="soap-label-optional">(optional)</span>
-              </label>
-              <div className="soap-input-wrap">
-                <span className="soap-iconbox" aria-hidden>
-                  <IcBarcode />
-                </span>
-                <input className="soap-input" id="ap-sku" value={f.sku} onChange={(e) => setF((x) => ({ ...x, sku: e.target.value }))} />
-              </div>
-            </div>
           </div>
 
           <div className="soap-group">
-            <p className="soap-group-label">Delivery &amp; Options</p>
-
-            <div className="soap-field">
-              <label className="soap-label" htmlFor="ap-w">
-                Weight (for delivery)
-              </label>
-              <div className="soap-input-wrap">
-                <span className="soap-iconbox" aria-hidden>
-                  <IcWeight />
-                </span>
-                <input
-                  className="soap-input"
-                  id="ap-w"
-                  type="text"
-                  placeholder="e.g. 0.5 kg"
-                  value={f.weight}
-                  onChange={(e) => setF((x) => ({ ...x, weight: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="soap-row">
-              <span className="soap-label">Has variants?</span>
-              <button
-                type="button"
-                className={f.hasVariants ? 'soap-tgl soap-tgl--on' : 'soap-tgl'}
-                aria-pressed={f.hasVariants}
-                onClick={() => setF((x) => ({ ...x, hasVariants: !x.hasVariants }))}
-              />
-            </div>
-
-            {f.hasVariants && (
-              <div className="soap-variants">
-                <div className="soap-variants-row">
-                  <select className="soap-select-sm" value={vType} onChange={(e) => setVType(e.target.value)} aria-label="Variant type">
-                    <option>Size</option>
-                    <option>Color</option>
-                    <option>Style</option>
-                  </select>
-                  <div className="soap-input-wrap" style={{ flex: '1 1 5rem' }}>
-                    <input
-                      className="soap-input"
-                      placeholder="Name"
-                      value={vName}
-                      onChange={(e) => setVName(e.target.value)}
-                      aria-label="Variant name"
-                    />
-                  </div>
-                  <div className="soap-input-wrap soap-input-wrap--sm" style={{ flex: '0 0 4.5rem' }}>
-                    <input
-                      className="soap-input"
-                      placeholder="Price"
-                      value={vPrice}
-                      onChange={(e) => setVPrice(e.target.value)}
-                      type="number"
-                      step="0.01"
-                      aria-label="Variant price"
-                    />
-                  </div>
-                  <div className="soap-input-wrap soap-input-wrap--sm" style={{ flex: '0 0 4.5rem' }}>
-                    <input
-                      className="soap-input"
-                      placeholder="Stock"
-                      value={vStock}
-                      onChange={(e) => setVStock(e.target.value)}
-                      type="number"
-                      aria-label="Variant stock"
-                    />
-                  </div>
-                  <button type="button" className="soap-btn-sm" onClick={addVar}>
-                    Add variant
-                  </button>
-                </div>
-                {f.variants.map((v, j) => (
-                  <div key={j} className="soap-var-chip">
-                    {v.type}: {v.name} — {formatGBP(parseFloat(v.price) || 0)} / {v.stock} in stock
-                  </div>
-                ))}
-              </div>
-            )}
-
+            <p className="soap-group-label">Listing</p>
             <div className="soap-row">
               <span className="soap-label">Product is active</span>
               <button
@@ -638,6 +610,102 @@ export default function ShopOwnerAddProductPage() {
               />
             </div>
           </div>
+
+          <details className="soap-more">
+            <summary className="soap-more__summary">More options (SKU, weight, variants)</summary>
+            <div className="soap-more__body">
+              <div className="soap-field">
+                <label className="soap-label" htmlFor="ap-sku">
+                  SKU / Product Code <span className="soap-label-optional">(optional)</span>
+                </label>
+                <div className="soap-input-wrap">
+                  <span className="soap-iconbox" aria-hidden>
+                    <IcBarcode />
+                  </span>
+                  <input className="soap-input" id="ap-sku" value={f.sku} onChange={(e) => setF((x) => ({ ...x, sku: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="soap-field">
+                <label className="soap-label" htmlFor="ap-w">
+                  Weight (for delivery)
+                </label>
+                <div className="soap-input-wrap">
+                  <span className="soap-iconbox" aria-hidden>
+                    <IcWeight />
+                  </span>
+                  <input
+                    className="soap-input"
+                    id="ap-w"
+                    type="text"
+                    placeholder="e.g. 0.5 kg"
+                    value={f.weight}
+                    onChange={(e) => setF((x) => ({ ...x, weight: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="soap-row">
+                <span className="soap-label">Has variants?</span>
+                <button
+                  type="button"
+                  className={f.hasVariants ? 'soap-tgl soap-tgl--on' : 'soap-tgl'}
+                  aria-pressed={f.hasVariants}
+                  onClick={() => setF((x) => ({ ...x, hasVariants: !x.hasVariants }))}
+                />
+              </div>
+
+              {f.hasVariants && (
+                <div className="soap-variants">
+                  <div className="soap-variants-row">
+                    <select className="soap-select-sm" value={vType} onChange={(e) => setVType(e.target.value)} aria-label="Variant type">
+                      <option>Size</option>
+                      <option>Color</option>
+                      <option>Style</option>
+                    </select>
+                    <div className="soap-input-wrap" style={{ flex: '1 1 5rem' }}>
+                      <input
+                        className="soap-input"
+                        placeholder="Name"
+                        value={vName}
+                        onChange={(e) => setVName(e.target.value)}
+                        aria-label="Variant name"
+                      />
+                    </div>
+                    <div className="soap-input-wrap soap-input-wrap--sm" style={{ flex: '0 0 4.5rem' }}>
+                      <input
+                        className="soap-input"
+                        placeholder="Price"
+                        value={vPrice}
+                        onChange={(e) => setVPrice(e.target.value)}
+                        type="number"
+                        step="0.01"
+                        aria-label="Variant price"
+                      />
+                    </div>
+                    <div className="soap-input-wrap soap-input-wrap--sm" style={{ flex: '0 0 4.5rem' }}>
+                      <input
+                        className="soap-input"
+                        placeholder="Stock"
+                        value={vStock}
+                        onChange={(e) => setVStock(e.target.value)}
+                        type="number"
+                        aria-label="Variant stock"
+                      />
+                    </div>
+                    <button type="button" className="soap-btn-sm" onClick={addVar}>
+                      Add variant
+                    </button>
+                  </div>
+                  {f.variants.map((v, j) => (
+                    <div key={j} className="soap-var-chip">
+                      {v.type}: {v.name} — {formatGBP(parseFloat(v.price) || 0)} / {v.stock} in stock
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
         </section>
 
         <div className="soap-actions">

@@ -1,6 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import DeliveryPin from '../components/DeliveryPin';
+import PackagePhotoCapture from '../components/PackagePhotoCapture';
 import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
+import { DELIVERY_PIN_LENGTH } from '../lib/deliveryConfirmationCode';
+import { isPackagePhotoSrc, persistParcelPackagePhoto } from '../lib/packagePhoto';
+import { notifyShopOrderPickedUp } from '../lib/shopOrderPickedUpNotify';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './driverDelivery.css';
 
 const CHK = ['Package matches description', 'Package is sealed properly', 'Correct package size'];
@@ -37,34 +43,56 @@ export default function DriverPickupConfirmPage() {
     () => (state?.order ? { ...DEFAULT_DRIVER_ORDER, ...state.order } : { ...DEFAULT_DRIVER_ORDER }),
     [state],
   );
-  const [otp, setOtp] = useState(['', '', '', '']);
-  const [focus, setFocus] = useState(0);
+  const isParcel = String(o.bookingTable || '') === 'customer_delivery_orders' || String(o.bookingKind || '') === 'parcel';
+  const customerPhoto = isPackagePhotoSrc(o.packagePhotoDataUrl) ? o.packagePhotoDataUrl : '';
+  const [otp, setOtp] = useState('');
   const [checks, setChecks] = useState(() => ({}));
-  const [hasPhoto, setHasPhoto] = useState(false);
+  const [driverPhoto, setDriverPhoto] = useState(() =>
+    isPackagePhotoSrc(o.driverPackagePhotoDataUrl) ? o.driverPackagePhotoDataUrl : '',
+  );
+  const [photoErr, setPhotoErr] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const onOtp = (i, v) => {
-    const d = v.replace(/\D/g, '').slice(-1);
-    const n = [...otp];
-    n[i] = d;
-    setOtp(n);
-    if (d && i < 3) setFocus(i + 1);
-  };
   const toggleC = (label) => {
     setChecks((c) => ({ ...c, [label]: !c[label] }));
   };
-  const can = CHK.every((c) => checks[c]) && otp.join('').length === 4 && hasPhoto;
-  const next = useCallback(
-    () =>
-      navigate('/driver/delivery-status', { state: { order: o, fromPickup: true } }),
-    [navigate, o],
-  );
+  const can =
+    CHK.every((c) => checks[c]) && otp.length === DELIVERY_PIN_LENGTH && (!isParcel || Boolean(driverPhoto));
+  const next = useCallback(async () => {
+    if (!can || saving) return;
+    setPhotoErr('');
+    setSaving(true);
+    const orderId = o.supabaseOrderId;
+    if (isParcel && orderId && driverPhoto) {
+      const saved = await persistParcelPackagePhoto('driver', orderId, driverPhoto, 'driver-package.jpg');
+      if (!saved.ok) {
+        setSaving(false);
+        setPhotoErr(saved.error || 'Could not save package photo.');
+        return;
+      }
+    }
+    if (isSupabaseConfigured && supabase && String(o.bookingTable || '') === 'shop_customer_orders' && orderId) {
+      const { error } = await supabase.from('shop_customer_orders').update({ status: 'picked up' }).eq('id', orderId);
+      if (!error) notifyShopOrderPickedUp(supabase, orderId);
+    }
+    setSaving(false);
+    navigate('/driver/navigation', {
+      replace: true,
+      state: {
+        order: { ...o, driverPackagePhotoDataUrl: driverPhoto },
+        pickup: o.from,
+        dropoff: o.to,
+        dest: o.to,
+        navLeg: 'toDropoff',
+        phase: 'dropoff',
+        fromPickup: true,
+      },
+    });
+  }, [can, driverPhoto, isParcel, navigate, o, saving]);
 
   return (
     <div className="pu-page dd" role="main" aria-label="Confirm pickup">
-      <header
-        className="pu-h"
-        style={{ position: 'relative' }}
-      >
+      <header className="pu-h" style={{ position: 'relative' }}>
         <button type="button" className="pu-bk" onClick={() => navigate(-1)} aria-label="Back">
           <Back />
         </button>
@@ -100,57 +128,62 @@ export default function DriverPickupConfirmPage() {
         <p className="pu-ia2">{o.from}</p>
       </div>
       <div className="pu-s">
-        <h2 className="pu-secL">Verify with customer</h2>
-        <div className="pu-otpR" role="group" aria-label="Enter 4 digit OTP from customer">
-          {otp.map((d, i) => (
-            <input
-              key={i}
-              className="dd-inp"
-              value={d}
-              inputMode="numeric"
-              maxLength={1}
-              onFocus={() => setFocus(i)}
-              style={{ borderColor: focus === i ? '' : undefined }}
-              onChange={(e) => onOtp(i, e.target.value)}
-              onKeyDown={(e) => e.key === 'Backspace' && !otp[i] && i > 0 && setFocus(i - 1)}
-              id={`op-${i}`}
-            />
-          ))}
+        <h2 className="pu-secL">Verify with customer PIN</h2>
+        <div className="pu-otpR">
+          <DeliveryPin
+            idPrefix="pickup-pin"
+            value={otp}
+            onChange={setOtp}
+            ariaLabel="Enter 6-digit delivery PIN from customer"
+          />
         </div>
-        <h2 className="pu-secL" style={{ marginTop: 8 }}>Confirm package details</h2>
+        <h2 className="pu-secL" style={{ marginTop: 8 }}>
+          Confirm package details
+        </h2>
         <div className="pu-chL" role="list">
           {CHK.map((label) => (
-            <button
-              type="button"
-              key={label}
-              className="pu-chI"
-              onClick={() => toggleC(label)}
-            >
-              <span
-                className={checks[label] ? 'pu-cb pu-cb--on' : 'pu-cb'}
-                aria-hidden
-              >
+            <button type="button" key={label} className="pu-chI" onClick={() => toggleC(label)}>
+              <span className={checks[label] ? 'pu-cb pu-cb--on' : 'pu-cb'} aria-hidden>
                 {checks[label] ? '✓' : ''}
               </span>
               {label}
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="pu-pic"
-          onClick={() => setHasPhoto(true)}
-        >
-          <div style={{ color: '#7a7a7a' }}>📷</div>
-          <span className="pu-ptx">Take package photo</span>
-          {hasPhoto && <span className="pu-ps" aria-live="polite">Photo attached (demo)</span>}
-        </button>
-        <button type="button" className="pu-sub" onClick={next} disabled={!can}>
-          Confirm &amp; Start Delivery
+        {isParcel && customerPhoto ? (
+          <figure className="da-packagePhotoWrap" style={{ margin: '0.35rem auto', maxWidth: '20rem' }}>
+            <figcaption className="da-packagePhotoCap">Customer photo</figcaption>
+            <img className="da-packagePhotoImg" src={customerPhoto} alt="Customer package" />
+          </figure>
+        ) : null}
+        {isParcel ? (
+          <div style={{ maxWidth: '20rem', width: '100%', margin: '0.15rem auto 0.45rem' }}>
+            <PackagePhotoCapture
+              compact
+              required
+              value={driverPhoto}
+              onChange={(url) => {
+                setPhotoErr('');
+                setDriverPhoto(url || '');
+              }}
+              label="Your package photo"
+              hint="Take or upload a photo of the parcel you are picking up."
+            />
+          </div>
+        ) : null}
+        {photoErr ? (
+          <p className="pu-ia2" role="alert" style={{ color: '#b91c1c', textAlign: 'center' }}>
+            {photoErr}
+          </p>
+        ) : null}
+        <button type="button" className="pu-sub" onClick={next} disabled={!can || saving}>
+          {saving ? 'Saving photo…' : 'Confirm & Start Delivery'}
         </button>
         {!can && (
           <p className="pu-ia2" style={{ textAlign: 'center', color: '#999', fontSize: 11, margin: '0.1rem' }}>
-            Complete checklist, photo, and OTP
+            {isParcel
+              ? 'Complete checklist, package photo, and 6-digit PIN'
+              : 'Complete checklist and 6-digit PIN'}
           </p>
         )}
       </div>

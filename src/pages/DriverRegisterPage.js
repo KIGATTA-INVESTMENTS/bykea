@@ -1,7 +1,20 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  sanitizePhoneInput,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from '../lib/accountFieldValidation';
 import { dialCodeForIso, PHONE_COUNTRY_CODES } from '../lib/phoneCountryCodes';
-import { customerEmailVerifySend } from '../lib/customerEmailVerify';
+import { compressImageForUpload } from '../lib/compressImageToDataUrl';
+import {
+  ACCOUNT_MODE_COMPANY_OWNER,
+  ACCOUNT_MODE_SOLO,
+  emptyFleetBikeDraft,
+  registerCompanyOwnerWithFleet,
+  validateFleetBikesList,
+} from '../lib/driverCompany';
+import { validateReferralCodeOptional } from '../lib/referralCodes';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { formatVehicleTypeForDisplay } from '../lib/vehicleTypeDisplay';
 import { PARCEL_DRIVER_VEHICLE_TYPES } from '../lib/deliveryVehicleTypes';
@@ -16,7 +29,8 @@ const DOCS = [
 ];
 const DEPOSIT = 10;
 
-const STEP_LABELS = ['Personal Info', 'Vehicle Info', 'Documents'];
+const STEP_LABELS_SOLO = ['Account type', 'Personal Info', 'Vehicle Info', 'Documents'];
+const STEP_LABELS_COMPANY = ['Account type', 'Personal Info', 'Fleet bikes', 'Documents'];
 
 function BackIcon() {
   return (
@@ -202,10 +216,10 @@ function IconTag() {
   );
 }
 
-function StepProgress({ step }) {
+function StepProgress({ step, labels }) {
   return (
-    <div className="dp-reg-progress-track" aria-label={`Registration step ${step} of 3`}>
-      {STEP_LABELS.map((label, i) => {
+    <div className="dp-reg-progress-track" aria-label={`Registration step ${step} of ${labels.length}`}>
+      {labels.map((label, i) => {
         const num = i + 1;
         const isDone = step > num;
         const isActive = step === num;
@@ -219,7 +233,7 @@ function StepProgress({ step }) {
               </div>
               <span className={`dp-reg-progress-label ${labelClass}`}>{label}</span>
             </div>
-            {i < STEP_LABELS.length - 1 && (
+            {i < labels.length - 1 && (
               <div className={`dp-reg-progress-line ${step > num ? 'is-done' : ''}`} aria-hidden />
             )}
           </Fragment>
@@ -229,7 +243,7 @@ function StepProgress({ step }) {
   );
 }
 
-function RegField({ label, htmlFor, icon: Icon, children }) {
+function RegField({ label, htmlFor, icon: Icon, children, error, errorId }) {
   return (
     <div className="dp-reg-field">
       <label className="dp-reg-label" htmlFor={htmlFor}>
@@ -241,6 +255,11 @@ function RegField({ label, htmlFor, icon: Icon, children }) {
         </span>
         {children}
       </div>
+      {error ? (
+        <p className="dp-reg-mismatch" id={errorId} role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -277,6 +296,7 @@ function docColumnForUiId(id) {
 export default function DriverRegisterPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [accountType, setAccountType] = useState(ACCOUNT_MODE_SOLO);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [form, setForm] = useState({
@@ -292,7 +312,11 @@ export default function DriverRegisterPage() {
     vModel: '',
     vPlate: '',
     vColor: '',
+    referralCode: 'INGO-PROMO01',
+    companyName: '',
+    tradingName: '',
   });
+  const [fleetBikes, setFleetBikes] = useState(() => [emptyFleetBikeDraft(0)]);
   /** @type {{ [key: string]: { name: string, file: File } | null }} */
   const [docFiles, setDocFiles] = useState(() => initialFiles());
   /** Headshot step 1 — optional; saved as profile_photo_url */
@@ -301,6 +325,11 @@ export default function DriverRegisterPage() {
   const profilePhotoInputRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [touched, setTouched] = useState({ email: false, phone: false });
+  const [attemptedStep1, setAttemptedStep1] = useState(false);
+
+  const isCompany = accountType === ACCOUNT_MODE_COMPANY_OWNER;
+  const stepLabels = useMemo(() => (isCompany ? STEP_LABELS_COMPANY : STEP_LABELS_SOLO), [isCompany]);
 
   useEffect(
     () => () => {
@@ -311,7 +340,8 @@ export default function DriverRegisterPage() {
 
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
+    const next = name === 'phone' ? sanitizePhoneInput(value) : value;
+    setForm((f) => ({ ...f, [name]: next }));
   };
 
   const pick = (id) => {
@@ -346,15 +376,35 @@ export default function DriverRegisterPage() {
     }
   };
 
-  const canNext1 =
-    form.fullName &&
-    form.phone &&
-    form.email &&
-    form.nationalId &&
-    form.password &&
-    form.password === form.confirm;
-  const canNext2 = form.vMake && form.vModel && form.vPlate && form.vColor;
+  const phoneCheck = validatePhoneNumber(form.phone);
+  const emailCheck = validateEmailAddress(form.email);
+  const showPhoneError = (touched.phone || attemptedStep1) && !phoneCheck.ok;
+  const showEmailError = (touched.email || attemptedStep1) && !emailCheck.ok;
+
+  const goToStep2 = () => {
+    setErrorMessage('');
+    setAttemptedStep1(true);
+    if (!phoneCheck.ok || !emailCheck.ok) return;
+    if (!form.fullName || !form.nationalId || !form.password || form.password !== form.confirm) return;
+    if (isCompany && !form.companyName.trim()) {
+      setErrorMessage('Enter your delivery company name.');
+      return;
+    }
+    setStep(3);
+  };
+  const canNextVehicle = form.vMake && form.vModel && form.vPlate && form.vColor;
+  const canNextFleet = !validateFleetBikesList(fleetBikes);
   const canSubmit = DOCS.every((d) => docFiles[d.id]?.file);
+
+  const updateFleetBike = (index, key, value) => {
+    setFleetBikes((list) =>
+      list.map((b, i) => (i === index ? { ...b, [key]: key === 'bikerPhone' ? sanitizePhoneInput(value) : value } : b)),
+    );
+  };
+
+  const addFleetBike = () => setFleetBikes((list) => [...list, emptyFleetBikeDraft(list.length)]);
+  const removeFleetBike = (index) =>
+    setFleetBikes((list) => (list.length <= 1 ? list : list.filter((_, i) => i !== index)));
 
   const submitApplication = async () => {
     setErrorMessage('');
@@ -363,71 +413,139 @@ export default function DriverRegisterPage() {
       return;
     }
     if (!canSubmit) return;
+    const phoneCheckSubmit = validatePhoneNumber(form.phone);
+    if (!phoneCheckSubmit.ok) {
+      setErrorMessage(phoneCheckSubmit.error);
+      return;
+    }
+    const emailCheckSubmit = validateEmailAddress(form.email);
+    if (!emailCheckSubmit.ok) {
+      setErrorMessage(emailCheckSubmit.error);
+      return;
+    }
+    const referralCheck = validateReferralCodeOptional(form.referralCode);
+    if (!referralCheck.ok) {
+      setErrorMessage(referralCheck.error);
+      return;
+    }
+    if (isCompany) {
+      const fleetListErr = validateFleetBikesList(fleetBikes);
+      if (fleetListErr) {
+        setErrorMessage(fleetListErr);
+        return;
+      }
+    }
     setIsSubmitting(true);
     try {
-      const email = form.email.trim().toLowerCase();
+      const email = emailCheckSubmit.value;
       const uploadBatch = crypto.randomUUID();
-      const docUrls = {};
 
+      /** @type {{ kind: 'doc' | 'profile', col?: string, fallbackName: string, file: File, pathPrefix: string }[]} */
+      const uploadJobs = [];
       for (const d of DOCS) {
         const entry = docFiles[d.id];
         const col = docColumnForUiId(d.id);
         if (!entry?.file || !col) continue;
-        const ext =
-          extFromFile(entry.file) ||
-          (entry.file.type === 'application/pdf' ? '.pdf' : '.jpg');
-        const path = `applications/${uploadBatch}/${d.id}_${safeStorageName(entry.file.name.replace(/\.[^.]+$/, ''))}${ext}`;
-        const { error: upErr } = await supabase.storage.from(DRIVER_DOCS_BUCKET).upload(path, entry.file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: entry.file.type || 'application/octet-stream',
+        uploadJobs.push({
+          kind: 'doc',
+          col,
+          fallbackName: entry.name || entry.file.name,
+          file: entry.file,
+          pathPrefix: `${d.id}_`,
         });
-        if (upErr) {
-          docUrls[col] = `pending:${entry.name}`;
-        } else {
-          const { data: pub } = supabase.storage.from(DRIVER_DOCS_BUCKET).getPublicUrl(path);
-          docUrls[col] = pub?.publicUrl || `pending:${entry.name}`;
-        }
       }
-
-      let profilePhotoUrl = null;
       if (profilePhoto?.file) {
-        const pf = profilePhoto.file;
-        const ext = extFromFile(pf) || (pf.type === 'image/png' ? '.png' : '.jpg');
-        const path = `applications/${uploadBatch}/profile_${safeStorageName(pf.name.replace(/\.[^.]+$/, ''))}${ext}`;
-        const { error: pErr } = await supabase.storage.from(DRIVER_DOCS_BUCKET).upload(path, pf, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: pf.type || 'image/jpeg',
+        uploadJobs.push({
+          kind: 'profile',
+          fallbackName: profilePhoto.name || profilePhoto.file.name,
+          file: profilePhoto.file,
+          pathPrefix: 'profile_',
         });
-        if (pErr) {
-          profilePhotoUrl = `pending:${profilePhoto.name}`;
-        } else {
-          const { data: pub } = supabase.storage.from(DRIVER_DOCS_BUCKET).getPublicUrl(path);
-          profilePhotoUrl = pub?.publicUrl || `pending:${profilePhoto.name}`;
-        }
       }
 
-      const { data: inserted, error } = await supabase
+      const uploadResults = await Promise.all(
+        uploadJobs.map(async (job) => {
+          const body = await compressImageForUpload(job.file, 1600, 0.8);
+          const ext =
+            extFromFile(body) ||
+            (body.type === 'application/pdf' ? '.pdf' : body.type === 'image/png' ? '.png' : '.jpg');
+          const path = `applications/${uploadBatch}/${job.pathPrefix}${safeStorageName(
+            body.name.replace(/\.[^.]+$/, ''),
+          )}${ext}`;
+          const { error: upErr } = await supabase.storage.from(DRIVER_DOCS_BUCKET).upload(path, body, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: body.type || 'application/octet-stream',
+          });
+          if (upErr) {
+            return { kind: job.kind, col: job.col, url: `pending:${job.fallbackName}` };
+          }
+          const { data: pub } = supabase.storage.from(DRIVER_DOCS_BUCKET).getPublicUrl(path);
+          return {
+            kind: job.kind,
+            col: job.col,
+            url: pub?.publicUrl || `pending:${job.fallbackName}`,
+          };
+        }),
+      );
+
+      const docUrls = {};
+      let profilePhotoUrl = null;
+      for (const r of uploadResults) {
+        if (r.kind === 'profile') profilePhotoUrl = r.url;
+        else if (r.col) docUrls[r.col] = r.url;
+      }
+
+      const ownerBase = {
+        full_name: form.fullName.trim(),
+        phone: form.phone.trim(),
+        email,
+        national_id: form.nationalId.trim(),
+        password: form.password,
+        phone_country_code: dialCodeForIso(form.countryIso),
+        deposit_required_gbp: DEPOSIT,
+        profile_photo_url: profilePhotoUrl,
+        doc_national_id_url: docUrls.doc_national_id_url ?? null,
+        doc_license_url: docUrls.doc_license_url ?? null,
+        doc_vehicle_registration_url: docUrls.doc_vehicle_registration_url ?? null,
+        doc_profile_with_vehicle_url: docUrls.doc_profile_with_vehicle_url ?? null,
+        referral_code: referralCheck.value,
+        email_verified_at: new Date().toISOString(),
+      };
+
+      if (isCompany) {
+        const result = await registerCompanyOwnerWithFleet({
+          ownerPayload: ownerBase,
+          companyName: form.companyName,
+          tradingName: form.tradingName,
+          fleetBikes,
+          phoneCountryCode: dialCodeForIso(form.countryIso),
+        });
+        if (!result.ok) {
+          if (result.code === '23505') {
+            setErrorMessage('You already have a pending application with this email. Wait for review or contact support.');
+          } else {
+            setErrorMessage(result.error || 'Could not register your company.');
+          }
+          return;
+        }
+        navigate('/driver/login', {
+          replace: true,
+          state: { registered: true, companyRegistered: true },
+        });
+        return;
+      }
+
+      const { error } = await supabase
         .from('driver_registrations')
         .insert({
-          full_name: form.fullName.trim(),
-          phone: form.phone.trim(),
-          email,
-          national_id: form.nationalId.trim(),
-          password: form.password,
-          phone_country_code: dialCodeForIso(form.countryIso),
+          ...ownerBase,
+          account_mode: ACCOUNT_MODE_SOLO,
           vehicle_type: form.vehicleType,
           vehicle_make: form.vMake.trim(),
           vehicle_model: form.vModel.trim(),
           vehicle_plate: form.vPlate.trim(),
           vehicle_color: form.vColor.trim(),
-          deposit_required_gbp: DEPOSIT,
-          profile_photo_url: profilePhotoUrl,
-          doc_national_id_url: docUrls.doc_national_id_url ?? null,
-          doc_license_url: docUrls.doc_license_url ?? null,
-          doc_vehicle_registration_url: docUrls.doc_vehicle_registration_url ?? null,
-          doc_profile_with_vehicle_url: docUrls.doc_profile_with_vehicle_url ?? null,
         })
         .select('id')
         .single();
@@ -435,23 +553,28 @@ export default function DriverRegisterPage() {
       if (error) {
         if (error.code === '23505') {
           setErrorMessage('You already have a pending application with this email. Wait for review or contact support.');
+        } else if (/account_mode|column/i.test(error.message || '')) {
+          const { account_mode: _am, ...soloWithoutMode } = {
+            ...ownerBase,
+            account_mode: ACCOUNT_MODE_SOLO,
+            vehicle_type: form.vehicleType,
+            vehicle_make: form.vMake.trim(),
+            vehicle_model: form.vModel.trim(),
+            vehicle_plate: form.vPlate.trim(),
+            vehicle_color: form.vColor.trim(),
+          };
+          const retry = await supabase.from('driver_registrations').insert(soloWithoutMode).select('id').single();
+          if (retry.error) {
+            setErrorMessage(retry.error.message || 'Could not save your application.');
+            return;
+          }
         } else {
           setErrorMessage(error.message || 'Could not save your application. Please try again.');
+          return;
         }
-        return;
       }
 
-      const send = await customerEmailVerifySend({ email, password: form.password, realm: 'driver' });
-      if (!send.ok) {
-        await supabase.from('driver_registrations').delete().eq('id', inserted.id);
-        setErrorMessage(send.error || 'Could not send verification email. Try again in a moment.');
-        return;
-      }
-
-      navigate(`/verify-email?realm=driver&email=${encodeURIComponent(email)}`, {
-        replace: true,
-        state: { codeSent: true },
-      });
+      navigate('/driver/login', { replace: true, state: { registered: true } });
     } catch {
       setErrorMessage('Network error. Check your connection and try again.');
     } finally {
@@ -470,17 +593,49 @@ export default function DriverRegisterPage() {
         >
           <BackIcon />
         </button>
-        <h1 className="dp-reg-nav-title">Driver Registration</h1>
+        <h1 className="dp-reg-nav-title">{isCompany ? 'Company Registration' : 'Driver Registration'}</h1>
       </header>
 
       <div className="dp-reg-steps-panel">
-        <p className="dp-reg-step-count">Step {step} of 3</p>
-        <StepProgress step={step} />
+        <p className="dp-reg-step-count">
+          Step {step} of {stepLabels.length}
+        </p>
+        <StepProgress step={step} labels={stepLabels} />
       </div>
 
       <main className="dp-reg-main">
         <div className="dp-reg-card">
           {step === 1 && (
+            <>
+              <h2 className="dp-reg-docs-title">How will you use InGo?</h2>
+              <p className="dp-reg-sub" style={{ marginTop: 0 }}>
+                Choose solo if you ride yourself, or delivery company if you own multiple bikes and riders.
+              </p>
+              <div className="dp-reg-account-choice" role="radiogroup" aria-label="Account type">
+                <button
+                  type="button"
+                  className={`dp-reg-account-card${accountType === ACCOUNT_MODE_SOLO ? ' is-on' : ''}`}
+                  onClick={() => setAccountType(ACCOUNT_MODE_SOLO)}
+                >
+                  <strong>Solo biker</strong>
+                  <span>I ride and deliver myself. Same signup as before.</span>
+                </button>
+                <button
+                  type="button"
+                  className={`dp-reg-account-card${accountType === ACCOUNT_MODE_COMPANY_OWNER ? ' is-on' : ''}`}
+                  onClick={() => setAccountType(ACCOUNT_MODE_COMPANY_OWNER)}
+                >
+                  <strong>Delivery company</strong>
+                  <span>I own bikes and riders. Register my fleet and oversee jobs &amp; earnings.</span>
+                </button>
+              </div>
+              <button type="button" className="dp-reg-btn-next" onClick={() => setStep(2)}>
+                Next →
+              </button>
+            </>
+          )}
+
+          {step === 2 && (
             <>
               <div className="dp-reg-photo">
                 <input
@@ -554,15 +709,29 @@ export default function DriverRegisterPage() {
                     name="phone"
                     value={form.phone}
                     onChange={onChange}
+                    onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
                     type="tel"
-                    inputMode="numeric"
+                    inputMode="tel"
                     placeholder="300 1234567"
                     autoComplete="tel-national"
+                    aria-invalid={showPhoneError || undefined}
+                    aria-describedby={showPhoneError ? 'dr-phone-error' : undefined}
                   />
                 </div>
+                {showPhoneError ? (
+                  <p className="dp-reg-mismatch" id="dr-phone-error" role="alert">
+                    {phoneCheck.error}
+                  </p>
+                ) : null}
               </div>
 
-              <RegField label="Email Address" htmlFor="dr-e" icon={IconEnvelope}>
+              <RegField
+                label="Email Address"
+                htmlFor="dr-e"
+                icon={IconEnvelope}
+                error={showEmailError ? emailCheck.error : null}
+                errorId="dr-email-error"
+              >
                 <input
                   className="dp-reg-input"
                   id="dr-e"
@@ -570,8 +739,11 @@ export default function DriverRegisterPage() {
                   type="email"
                   value={form.email}
                   onChange={onChange}
+                  onBlur={() => setTouched((t) => ({ ...t, email: true }))}
                   autoComplete="email"
                   placeholder="you@email.com"
+                  aria-invalid={showEmailError || undefined}
+                  aria-describedby={showEmailError ? 'dr-email-error' : undefined}
                 />
               </RegField>
 
@@ -629,17 +801,54 @@ export default function DriverRegisterPage() {
                 </button>
               </RegField>
 
+              <RegField label="Referral code (optional)" htmlFor="dr-ref" icon={IconIdCard}>
+                <input
+                  className="dp-reg-input"
+                  id="dr-ref"
+                  name="referralCode"
+                  value={form.referralCode}
+                  onChange={(e) => setForm((f) => ({ ...f, referralCode: e.target.value.toUpperCase() }))}
+                  autoComplete="off"
+                  placeholder="e.g. INGO-PROMO01"
+                />
+              </RegField>
+
+              {isCompany ? (
+                <>
+                  <RegField label="Company name" htmlFor="dr-co" icon={IconTag}>
+                    <input
+                      className="dp-reg-input"
+                      id="dr-co"
+                      name="companyName"
+                      value={form.companyName}
+                      onChange={onChange}
+                      placeholder="e.g. City Express Deliveries"
+                    />
+                  </RegField>
+                  <RegField label="Trading name (optional)" htmlFor="dr-tr" icon={IconTag}>
+                    <input
+                      className="dp-reg-input"
+                      id="dr-tr"
+                      name="tradingName"
+                      value={form.tradingName}
+                      onChange={onChange}
+                      placeholder="Optional public brand name"
+                    />
+                  </RegField>
+                </>
+              ) : null}
+
               {form.password && form.confirm && form.password !== form.confirm && (
                 <p className="dp-reg-mismatch">Passwords do not match</p>
               )}
 
-              <button type="button" className="dp-reg-btn-next" onClick={() => setStep(2)} disabled={!canNext1}>
+              <button type="button" className="dp-reg-btn-next" onClick={goToStep2}>
                 Next →
               </button>
             </>
           )}
 
-          {step === 2 && (
+          {step === 3 && !isCompany && (
             <>
               <RegField label="Vehicle Type" htmlFor="dr-vt" icon={IconVehicle}>
                 <select
@@ -701,13 +910,147 @@ export default function DriverRegisterPage() {
                 />
               </RegField>
 
-              <button type="button" className="dp-reg-btn-next" onClick={() => setStep(3)} disabled={!canNext2}>
+              <button type="button" className="dp-reg-btn-next" onClick={() => setStep(4)} disabled={!canNextVehicle}>
                 Next →
               </button>
             </>
           )}
 
-          {step === 3 && (
+          {step === 3 && isCompany && (
+            <>
+              <h2 className="dp-reg-docs-title">Register your bikes</h2>
+              <p className="dp-reg-sub" style={{ marginTop: 0 }}>
+                Each biker gets their own email and password. They log in at Driver Login with those credentials after
+                admin approval. Every bike stays attached to your company for oversight.
+              </p>
+              {errorMessage && step === 3 ? (
+                <p className="dp-reg-error" role="alert">
+                  {errorMessage}
+                </p>
+              ) : null}
+              {fleetBikes.map((bike, index) => (
+                <div key={bike.key} className="dp-reg-fleet-card">
+                  <div className="dp-reg-fleet-card__head">
+                    <strong>Bike {index + 1}</strong>
+                    {fleetBikes.length > 1 ? (
+                      <button type="button" className="dp-reg-fleet-remove" onClick={() => removeFleetBike(index)}>
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                  <RegField label="Biker name" htmlFor={`fb-name-${index}`} icon={IconPerson}>
+                    <input
+                      className="dp-reg-input"
+                      id={`fb-name-${index}`}
+                      value={bike.bikerName}
+                      onChange={(e) => updateFleetBike(index, 'bikerName', e.target.value)}
+                      placeholder="Rider full name"
+                    />
+                  </RegField>
+                  <RegField label="Biker phone" htmlFor={`fb-phone-${index}`} icon={IconPhone}>
+                    <input
+                      className="dp-reg-input"
+                      id={`fb-phone-${index}`}
+                      value={bike.bikerPhone}
+                      onChange={(e) => updateFleetBike(index, 'bikerPhone', e.target.value)}
+                      inputMode="tel"
+                    />
+                  </RegField>
+                  <RegField label="Biker login email" htmlFor={`fb-email-${index}`} icon={IconEnvelope}>
+                    <input
+                      className="dp-reg-input"
+                      id={`fb-email-${index}`}
+                      type="email"
+                      value={bike.bikerEmail}
+                      onChange={(e) => updateFleetBike(index, 'bikerEmail', e.target.value)}
+                      placeholder="Their own email (unique)"
+                      autoComplete="off"
+                      required
+                    />
+                  </RegField>
+                  <RegField label="Biker login password" htmlFor={`fb-pass-${index}`} icon={IconLock}>
+                    <input
+                      className="dp-reg-input"
+                      id={`fb-pass-${index}`}
+                      type="password"
+                      value={bike.bikerPassword}
+                      onChange={(e) => updateFleetBike(index, 'bikerPassword', e.target.value)}
+                      placeholder="At least 6 characters"
+                      autoComplete="new-password"
+                      required
+                    />
+                  </RegField>
+                  <RegField label="Vehicle type" htmlFor={`fb-vt-${index}`} icon={IconVehicle}>
+                    <select
+                      className="dp-reg-input"
+                      id={`fb-vt-${index}`}
+                      value={bike.vehicleType}
+                      onChange={(e) => updateFleetBike(index, 'vehicleType', e.target.value)}
+                    >
+                      {VEHICLE_TYPES.map((v) => (
+                        <option key={v} value={v}>
+                          {formatVehicleTypeForDisplay(v)}
+                        </option>
+                      ))}
+                    </select>
+                  </RegField>
+                  <RegField label="Make" htmlFor={`fb-make-${index}`} icon={IconTag}>
+                    <input
+                      className="dp-reg-input"
+                      id={`fb-make-${index}`}
+                      value={bike.vMake}
+                      onChange={(e) => updateFleetBike(index, 'vMake', e.target.value)}
+                    />
+                  </RegField>
+                  <RegField label="Model" htmlFor={`fb-model-${index}`} icon={IconTag}>
+                    <input
+                      className="dp-reg-input"
+                      id={`fb-model-${index}`}
+                      value={bike.vModel}
+                      onChange={(e) => updateFleetBike(index, 'vModel', e.target.value)}
+                    />
+                  </RegField>
+                  <RegField label="Plate" htmlFor={`fb-plate-${index}`} icon={IconTag}>
+                    <input
+                      className="dp-reg-input"
+                      id={`fb-plate-${index}`}
+                      value={bike.vPlate}
+                      onChange={(e) => updateFleetBike(index, 'vPlate', e.target.value)}
+                    />
+                  </RegField>
+                  <RegField label="Colour" htmlFor={`fb-color-${index}`} icon={IconTag}>
+                    <input
+                      className="dp-reg-input"
+                      id={`fb-color-${index}`}
+                      value={bike.vColor}
+                      onChange={(e) => updateFleetBike(index, 'vColor', e.target.value)}
+                    />
+                  </RegField>
+                </div>
+              ))}
+              <button type="button" className="dp-reg-add-bike" onClick={addFleetBike}>
+                + Add another bike
+              </button>
+              <button
+                type="button"
+                className="dp-reg-btn-next"
+                onClick={() => {
+                  setErrorMessage('');
+                  const fleetListErr = validateFleetBikesList(fleetBikes);
+                  if (fleetListErr) {
+                    setErrorMessage(fleetListErr);
+                    return;
+                  }
+                  setStep(4);
+                }}
+                disabled={!canNextFleet}
+              >
+                Next →
+              </button>
+            </>
+          )}
+
+          {step === 4 && (
             <>
               {errorMessage ? (
                 <p className="dp-reg-error" role="alert">
@@ -715,7 +1058,9 @@ export default function DriverRegisterPage() {
                 </p>
               ) : null}
 
-              <h2 className="dp-reg-docs-title">Upload Your Documents</h2>
+              <h2 className="dp-reg-docs-title">
+                {isCompany ? 'Upload company owner documents' : 'Upload Your Documents'}
+              </h2>
 
               {DOCS.map((d) => (
                 <div key={d.id}>
@@ -746,13 +1091,18 @@ export default function DriverRegisterPage() {
                 </div>
               ))}
 
+              <p className="dp-reg-deposit-note">
+                A ${DEPOSIT} deposit is required after approval
+                {isCompany ? ' for fleet operations' : ''}.
+              </p>
+
               <button
                 type="button"
                 className="dp-reg-btn-next"
-                onClick={submitApplication}
                 disabled={!canSubmit || isSubmitting}
+                onClick={submitApplication}
               >
-                {isSubmitting ? 'Submitting…' : 'Submit Application'}
+                {isSubmitting ? 'Submitting…' : isCompany ? 'Submit company application' : 'Submit application'}
               </button>
               <p className="dp-reg-foot">Your application will be reviewed within 24 hours</p>
             </>

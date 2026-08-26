@@ -137,6 +137,7 @@ export default function AdminDriverRequestsPage() {
         r.vehicle_make,
         r.vehicle_model,
         r.national_id,
+        r.referral_code,
       ]
         .filter(Boolean)
         .join(' ')
@@ -249,6 +250,7 @@ export default function AdminDriverRequestsPage() {
                 <th>Submitted</th>
                 <th>Name</th>
                 <th>Email</th>
+                <th>Referral code</th>
                 <th>Phone</th>
                 <th>Vehicle</th>
                 <th>Plate</th>
@@ -259,13 +261,13 @@ export default function AdminDriverRequestsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
                     Loading…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '1.2rem', color: '#666' }}>
                     No registrations in this list.
                   </td>
                 </tr>
@@ -290,6 +292,7 @@ export default function AdminDriverRequestsPage() {
                       </div>
                     </td>
                     <td style={{ fontSize: '0.85rem' }}>{r.email}</td>
+                    <td className="admDim">{r.referral_code || '—'}</td>
                     <td>
                       {r.phone_country_code ? `${r.phone_country_code} ` : ''}
                       {r.phone}
@@ -365,6 +368,14 @@ export default function AdminDriverRequestsPage() {
               </p>
               <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: '#666' }}>
                 National ID: {selected.national_id} · Submitted {formatDt(selected.created_at)}
+              </p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+                <strong>Referral code:</strong>{' '}
+                {selected.referral_code ? (
+                  <span className="admBadgeStatus admBlue">{selected.referral_code}</span>
+                ) : (
+                  <span style={{ color: '#999' }}>None</span>
+                )}
               </p>
               <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
                 <strong>Vehicle:</strong> {formatVehicleTypeForDisplay(selected.vehicle_type) || selected.vehicle_type} —{' '}

@@ -107,3 +107,41 @@ export function isCustomerMarkedSignedIn() {
     return false;
   }
 }
+
+/**
+ * User id safe for FK inserts — verifies the cached session still exists in `app_users`.
+ * Reloads session by email when the cached id is stale.
+ * @param {import('./supabaseClient').SupabaseClient | null | undefined} supabase
+ * @param {string | null | undefined} [cachedUserId]
+ * @returns {Promise<string | null>}
+ */
+export async function resolveValidAppUserId(supabase, cachedUserId) {
+  if (!supabase) return null;
+  const id = String(cachedUserId || '').trim();
+  if (id) {
+    const { data, error } = await supabase.from('app_users').select('id').eq('id', id).maybeSingle();
+    if (!error && data?.id) return String(data.id);
+  }
+
+  const email = getSessionEmail();
+  if (!email) return null;
+
+  const { data: byEmail, error: emailErr } = await supabase
+    .from('app_users')
+    .select('id, full_name, phone, email, profile_photo_url')
+    .eq('email', email)
+    .maybeSingle();
+  if (emailErr || !byEmail?.id) return null;
+
+  saveCustomerSession(byEmail);
+  return String(byEmail.id);
+}
+
+/** @param {string | null | undefined} message */
+export function friendlyAppUserFkError(message) {
+  const m = String(message || '');
+  if (/app_user_id_fkey|foreign key constraint.*app_user/i.test(m)) {
+    return 'Your login session is out of date. Log out and sign in again, then place your order.';
+  }
+  return m || 'Could not save your request.';
+}

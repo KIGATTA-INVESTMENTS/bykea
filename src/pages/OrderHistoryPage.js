@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCustomerUnifiedOrders } from '../lib/customerOrderFeed';
 import { getCustomerSession } from '../lib/customerSession';
+import { formatDeliveryCodeDisplay } from '../lib/deliveryConfirmationCode';
 import { filterOrders, statusLabel } from '../data/mockOrders';
 import './customerAccount.css';
 
@@ -148,6 +149,21 @@ export default function OrderHistoryPage() {
                   </span>
                 </div>
                 {o.subtitle ? <p className="oh-card__sub">{o.subtitle}</p> : null}
+                {o.deliveryConfirmationCode &&
+                o.status !== 'delivered' &&
+                o.status !== 'cancelled' ? (
+                  <div className="oh-code" aria-label="Delivery PIN">
+                    <span className="oh-code__label">Delivery PIN</span>
+                    <span className="oh-code__value">{formatDeliveryCodeDisplay(o.deliveryConfirmationCode)}</span>
+                  </div>
+                ) : null}
+                {o.status === 'cancelled' && o.cancelReason ? (
+                  <p className="oh-cancelReason" role="status">
+                    {o.cancelledBy === 'driver' ? 'Driver cancelled' : 'Cancelled'}
+                    {' — '}
+                    {o.cancelReason}
+                  </p>
+                ) : null}
                 <div className="oh-locs">
                   <span className="oh-locs__line" aria-hidden />
                   <div className="oh-addr">

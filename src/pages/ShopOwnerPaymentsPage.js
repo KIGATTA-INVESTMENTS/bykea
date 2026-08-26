@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatGBP } from '../lib/currency';
+import { sanitizePhoneInput } from '../lib/accountFieldValidation';
 import { getShopOwnerSession } from '../lib/shopOwnerAuth';
+import {
+  MOBILE_MONEY_PROVIDERS,
+  PAYOUT_METHOD_BANK,
+  PAYOUT_METHOD_MOBILE,
+  buildShopOwnerPayoutPayload,
+  formatShopOwnerPayoutSummary,
+  payoutFormFromShopOwnerRow,
+  validateShopOwnerPayoutForm,
+} from '../lib/shopOwnerPayoutAccount';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './shopOwnerPortal.css';
 import './shopOwnerDashboardPremium.css';
@@ -104,6 +114,12 @@ export default function ShopOwnerPaymentsPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [payoutForm, setPayoutForm] = useState(() => payoutFormFromShopOwnerRow(null));
+  const [payoutSummary, setPayoutSummary] = useState(null);
+  const [editingPayout, setEditingPayout] = useState(false);
+  const [payoutBusy, setPayoutBusy] = useState(false);
+  const [payoutMsg, setPayoutMsg] = useState('');
+  const [payoutErr, setPayoutErr] = useState('');
 
   const session = getShopOwnerSession();
   const monthStart = startOfMonth();
@@ -130,6 +146,26 @@ export default function ShopOwnerPaymentsPage() {
       return;
     }
     setLoading(true);
+
+    const PAYOUT_COLS =
+      'bank_name, bank_account_name, bank_account_number, bank_branch, payout_method, mobile_money_provider, mobile_money_phone, mobile_money_account_name';
+    let { data: ownerRow } = await supabase
+      .from('shop_owners')
+      .select(PAYOUT_COLS)
+      .eq('id', session.id)
+      .maybeSingle();
+    if (!ownerRow) {
+      const fallback = await supabase
+        .from('shop_owners')
+        .select('bank_name, bank_account_name, bank_account_number, bank_branch')
+        .eq('id', session.id)
+        .maybeSingle();
+      ownerRow = fallback.data;
+    }
+    if (ownerRow) {
+      setPayoutForm(payoutFormFromShopOwnerRow(ownerRow));
+      setPayoutSummary(formatShopOwnerPayoutSummary(ownerRow));
+    }
 
     const { data: lineRows, error: lineErr } = await supabase
       .from('shop_customer_order_lines')
@@ -258,6 +294,48 @@ export default function ShopOwnerPaymentsPage() {
 
   const showTxEmpty = !loading && filteredRows.length === 0;
 
+  const setPayoutField = (key) => (e) => setPayoutForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const savePayoutAccount = async (e) => {
+    e.preventDefault();
+    setPayoutErr('');
+    setPayoutMsg('');
+    if (!session?.id || !supabase) {
+      setPayoutErr('Shop owner session is missing.');
+      return;
+    }
+    const check = validateShopOwnerPayoutForm(payoutForm);
+    if (!check.ok) {
+      setPayoutErr(check.error);
+      return;
+    }
+    setPayoutBusy(true);
+    const payload = buildShopOwnerPayoutPayload(payoutForm);
+    let { error } = await supabase.from('shop_owners').update(payload).eq('id', session.id);
+    if (error && /payout_method|mobile_money|column/i.test(error.message || '')) {
+      ({ error } = await supabase
+        .from('shop_owners')
+        .update({
+          bank_name: payload.bank_name,
+          bank_account_name: payload.bank_account_name,
+          bank_account_number: payload.bank_account_number,
+          bank_branch: payload.bank_branch,
+        })
+        .eq('id', session.id));
+      if (!error) {
+        setPayoutErr('Saved bank fields only. Run supabase/shop_owners_bank_details.sql for mobile money columns.');
+      }
+    }
+    setPayoutBusy(false);
+    if (error) {
+      setPayoutErr(error.message || 'Could not save payout details.');
+      return;
+    }
+    setPayoutSummary(formatShopOwnerPayoutSummary(payload));
+    setEditingPayout(false);
+    setPayoutMsg('Payout account updated.');
+  };
+
   const submitWithdrawal = async () => {
     setErr('');
     setMsg('');
@@ -326,18 +404,156 @@ export default function ShopOwnerPaymentsPage() {
       </div>
 
       <section className="sopay-payout" aria-labelledby="sopay-payout-title">
-        <h2 id="sopay-payout-title">Payout Account</h2>
+        <div className="sopay-payout-head">
+          <h2 id="sopay-payout-title">Payout Account</h2>
+          <button
+            type="button"
+            className="sopay-btn-edit-payout"
+            onClick={() => {
+              setPayoutErr('');
+              setPayoutMsg('');
+              setEditingPayout((v) => !v);
+            }}
+          >
+            {editingPayout ? 'Close' : 'Edit payout details'}
+          </button>
+        </div>
         <p className="sopay-account-line">
           <strong>{session?.business_name || 'Shop account'}</strong> · {session?.email || 'No email on file'}
           <span className="sopay-badge-primary">Primary</span>
         </p>
+        {payoutSummary ? (
+          <div className="sopay-payout-summary" aria-label="Saved payout details">
+            <p>
+              <strong>{payoutSummary.method}</strong>
+              {payoutSummary.provider ? ` · ${payoutSummary.provider}` : ''}
+            </p>
+            {payoutSummary.method === 'Mobile money' ? (
+              <>
+                <p>Name on account: {payoutSummary.accountName}</p>
+                <p>Phone: {payoutSummary.phone}</p>
+              </>
+            ) : (
+              <>
+                <p>Bank: {payoutSummary.bankName}</p>
+                <p>Account name: {payoutSummary.accountName}</p>
+                <p>Account number: {payoutSummary.accountNumber}</p>
+                {payoutSummary.branch && payoutSummary.branch !== '—' ? <p>Branch: {payoutSummary.branch}</p> : null}
+              </>
+            )}
+          </div>
+        ) : (
+          <p className="sopay-payout-missing">No payout account on file yet. Add Bank or Mobile money details below.</p>
+        )}
+
+        {editingPayout || !payoutSummary ? (
+          <form className="sopay-payout-form" onSubmit={savePayoutAccount}>
+            <div className="sopay-payout-choice" role="radiogroup" aria-label="Payout method">
+              <label className={`sopay-payout-chip${payoutForm.payoutMethod === PAYOUT_METHOD_BANK ? ' sopay-payout-chip--on' : ''}`}>
+                <input
+                  type="radio"
+                  name="sopay-method"
+                  checked={payoutForm.payoutMethod === PAYOUT_METHOD_BANK}
+                  onChange={() => setPayoutForm((p) => ({ ...p, payoutMethod: PAYOUT_METHOD_BANK }))}
+                />
+                Bank
+              </label>
+              <label className={`sopay-payout-chip${payoutForm.payoutMethod === PAYOUT_METHOD_MOBILE ? ' sopay-payout-chip--on' : ''}`}>
+                <input
+                  type="radio"
+                  name="sopay-method"
+                  checked={payoutForm.payoutMethod === PAYOUT_METHOD_MOBILE}
+                  onChange={() => setPayoutForm((p) => ({ ...p, payoutMethod: PAYOUT_METHOD_MOBILE }))}
+                />
+                Mobile money
+              </label>
+            </div>
+
+            {payoutForm.payoutMethod === PAYOUT_METHOD_BANK ? (
+              <div className="sopay-payout-fields">
+                <label>
+                  Bank name
+                  <input value={payoutForm.bankName} onChange={setPayoutField('bankName')} placeholder="e.g. CBZ Bank" />
+                </label>
+                <label>
+                  Account holder name
+                  <input
+                    value={payoutForm.bankAccountName}
+                    onChange={setPayoutField('bankAccountName')}
+                    placeholder="Name on the account"
+                  />
+                </label>
+                <label>
+                  Account number
+                  <input
+                    value={payoutForm.bankAccountNumber}
+                    onChange={setPayoutField('bankAccountNumber')}
+                    inputMode="numeric"
+                    placeholder="Account number"
+                  />
+                </label>
+                <label>
+                  Branch / code (optional)
+                  <input value={payoutForm.bankBranch} onChange={setPayoutField('bankBranch')} placeholder="Branch" />
+                </label>
+              </div>
+            ) : (
+              <div className="sopay-payout-fields">
+                <label>
+                  Provider
+                  <select value={payoutForm.mobileProvider} onChange={setPayoutField('mobileProvider')}>
+                    {MOBILE_MONEY_PROVIDERS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Name on mobile money account
+                  <input
+                    value={payoutForm.mobileAccountName}
+                    onChange={setPayoutField('mobileAccountName')}
+                    placeholder="Exactly as shown on the wallet"
+                  />
+                </label>
+                <label>
+                  Mobile money phone number
+                  <input
+                    value={payoutForm.mobilePhone}
+                    onChange={(e) =>
+                      setPayoutForm((p) => ({ ...p, mobilePhone: sanitizePhoneInput(e.target.value) }))
+                    }
+                    inputMode="tel"
+                    placeholder="Registered wallet number"
+                  />
+                </label>
+              </div>
+            )}
+
+            {payoutErr ? (
+              <p className="sopay-flash sopay-flash--err" role="alert">
+                {payoutErr}
+              </p>
+            ) : null}
+            {payoutMsg ? (
+              <p className="sopay-flash sopay-flash--ok" role="status">
+                {payoutMsg}
+              </p>
+            ) : null}
+            <button type="submit" className="sopay-btn-withdraw" disabled={payoutBusy}>
+              {payoutBusy ? 'Saving…' : 'Save payout details'}
+            </button>
+          </form>
+        ) : null}
+
         <p className="sopay-available">
           Available to withdraw: <strong>{formatGBP(availableToWithdraw)}</strong>
         </p>
         <div className="sopay-withdraw-row">
           <div className="sopay-amount-wrap">
             <span className="sopay-amount-prefix" aria-hidden>
-              �$
+              $
             </span>
             <input
               type="text"

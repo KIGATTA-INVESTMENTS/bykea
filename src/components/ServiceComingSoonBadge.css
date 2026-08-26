@@ -1,0 +1,74 @@
+.svc-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg, #ec6c23 0%, #f59a5c 55%, #07408f 100%);
+  box-shadow: 0 2px 10px rgba(236, 108, 35, 0.35);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.svc-soon-badge__dot {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: #fff;
+  animation: svc-soon-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes svc-soon-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+}
+
+.ch-svc-card--soon {
+  cursor: default;
+  opacity: 0.92;
+}
+
+.ch-svc-card--soon .ch-svc-card__icon {
+  filter: grayscale(0.15);
+}
+
+.ch-svc-card--soon .ch-svc-card__sub {
+  color: #9ca3af;
+}
+
+.ch-svc-card__soon-wrap {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.35rem;
+  z-index: 1;
+}
+
+.rsc-row--soon {
+  cursor: default;
+  opacity: 0.92;
+  position: relative;
+  border-color: #e8ecf2;
+  background: linear-gradient(135deg, #fafbfc 0%, #f4f7fb 100%);
+}
+
+.rsc-row--soon:active {
+  border-color: #e8ecf2;
+  background: linear-gradient(135deg, #fafbfc 0%, #f4f7fb 100%);
+}
+
+.rsc-row__soon-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+}

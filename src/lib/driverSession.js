@@ -1,5 +1,26 @@
 const SIGNED_KEY = 'ingo_driver_signed_in';
 const PROFILE_KEY = 'ingo_driver_profile';
+const ONLINE_KEY = 'ingo_driver_online';
+const REMEMBER_EMAIL_KEY = 'ingo_driver_remember_email';
+
+function clearDriverKeysFrom(storage) {
+  try {
+    storage.removeItem(SIGNED_KEY);
+    storage.removeItem(PROFILE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function getActiveDriverStorage() {
+  try {
+    if (sessionStorage.getItem(SIGNED_KEY) === '1') return sessionStorage;
+    if (localStorage.getItem(SIGNED_KEY) === '1') return localStorage;
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * @param {{
@@ -14,12 +35,31 @@ const PROFILE_KEY = 'ingo_driver_profile';
  *   vehicle_plate?: string | null,
  *   vehicle_color?: string | null,
  *   status?: string | null,
+ *   created_at?: string | null,
+ *   account_mode?: string | null,
+ *   company_id?: string | null,
  * }} profile
+ * @param {{ rememberMe?: boolean }} [options] - `true`: persist until logout (localStorage).
+ *   `false`: this browser tab only (sessionStorage). Omit: keep active store, else localStorage.
  */
-export function saveDriverSession(profile) {
+export function saveDriverSession(profile, options = {}) {
+  const { rememberMe } = options;
+  let targetStorage;
+  if (rememberMe === true) {
+    targetStorage = localStorage;
+    clearDriverKeysFrom(sessionStorage);
+  } else if (rememberMe === false) {
+    targetStorage = sessionStorage;
+    clearDriverKeysFrom(localStorage);
+  } else {
+    targetStorage = getActiveDriverStorage() || localStorage;
+    const other = targetStorage === localStorage ? sessionStorage : localStorage;
+    clearDriverKeysFrom(other);
+  }
+
   try {
-    localStorage.setItem(SIGNED_KEY, '1');
-    localStorage.setItem(
+    targetStorage.setItem(SIGNED_KEY, '1');
+    targetStorage.setItem(
       PROFILE_KEY,
       JSON.stringify({
         id: profile.id,
@@ -33,6 +73,9 @@ export function saveDriverSession(profile) {
         vehicle_plate: profile.vehicle_plate ?? '',
         vehicle_color: profile.vehicle_color ?? '',
         status: profile.status ?? 'approved',
+        created_at: profile.created_at ?? null,
+        account_mode: profile.account_mode ?? 'solo',
+        company_id: profile.company_id ?? null,
       }),
     );
   } catch {
@@ -42,11 +85,15 @@ export function saveDriverSession(profile) {
 
 export function getDriverSession() {
   try {
-    const raw = localStorage.getItem(PROFILE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || !parsed.id) return null;
-    return parsed;
+    for (const storage of [sessionStorage, localStorage]) {
+      if (storage.getItem(SIGNED_KEY) !== '1') continue;
+      const raw = storage.getItem(PROFILE_KEY);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || !parsed.id) continue;
+      return parsed;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -54,8 +101,18 @@ export function getDriverSession() {
 
 export function clearDriverSession() {
   try {
-    localStorage.removeItem(SIGNED_KEY);
-    localStorage.removeItem(PROFILE_KEY);
+    const prev = getDriverSession();
+    clearDriverKeysFrom(localStorage);
+    clearDriverKeysFrom(sessionStorage);
+    // Best-effort: drop this device's FCM token so offline rings stop after logout.
+    if (prev?.id) {
+      try {
+        // Dynamic import avoids circular deps at module load.
+        void import('./driverPush').then((m) => m.clearDriverPushToken(prev.id)).catch(() => {});
+      } catch {
+        // ignore
+      }
+    }
   } catch {
     // ignore
   }
@@ -63,8 +120,56 @@ export function clearDriverSession() {
 
 export function isDriverSignedIn() {
   try {
-    return localStorage.getItem(SIGNED_KEY) === '1' && Boolean(getDriverSession()?.id);
+    return Boolean(getDriverSession()?.id);
   } catch {
     return false;
+  }
+}
+
+/** Last email used with Remember me (for login form prefill). */
+export function getRememberedDriverEmail() {
+  try {
+    return String(localStorage.getItem(REMEMBER_EMAIL_KEY) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/** @param {string | null | undefined} email */
+export function setRememberedDriverEmail(email) {
+  try {
+    const v = String(email || '').trim().toLowerCase();
+    if (v) localStorage.setItem(REMEMBER_EMAIL_KEY, v);
+    else localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Whether the driver wants to receive live offers (persists across app reopens). */
+export function getDriverOnlinePreference() {
+  try {
+    const raw = localStorage.getItem(ONLINE_KEY);
+    if (raw === null) {
+      // Migrate legacy tab-only preference once.
+      const legacy = sessionStorage.getItem(ONLINE_KEY);
+      if (legacy !== null) {
+        localStorage.setItem(ONLINE_KEY, legacy);
+        return legacy === '1';
+      }
+      return true;
+    }
+    return raw === '1';
+  } catch {
+    return true;
+  }
+}
+
+/** @param {boolean} online */
+export function setDriverOnlinePreference(online) {
+  try {
+    localStorage.setItem(ONLINE_KEY, online ? '1' : '0');
+  } catch {
+    // ignore
   }
 }

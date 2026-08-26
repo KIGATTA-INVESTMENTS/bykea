@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { customerEmailVerifySend, customerEmailVerifySubmit } from '../lib/customerEmailVerify';
 import { getCustomerSession, isCustomerMarkedSignedIn, saveCustomerSession } from '../lib/customerSession';
+import {
+  sanitizePhoneInput,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from '../lib/accountFieldValidation';
 import { dialCodeForIso, PHONE_COUNTRY_CODES } from '../lib/phoneCountryCodes';
+import { validateReferralCodeOptional } from '../lib/referralCodes';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import InGoLogo from '../components/InGoLogo';
 import { LOGIN_HERO_ART, LOGIN_HERO_ICONS } from '../lib/ingoLogo';
@@ -238,11 +243,8 @@ export default function RegisterPage() {
   const [agree, setAgree] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [infoMessage, setInfoMessage] = useState('');
-  /** @type {'form' | 'verify'} */
-  const [step, setStep] = useState('form');
-  const [pendingProfile, setPendingProfile] = useState(null);
-  const [verifyCode, setVerifyCode] = useState('');
+  const [touched, setTouched] = useState({ email: false, phone: false });
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
     name: '',
     countryIso: 'ZW',
@@ -250,35 +252,45 @@ export default function RegisterPage() {
     email: '',
     password: '',
     confirm: '',
+    referralCode: 'INGO-PROMO01',
   });
 
   const fieldsOk =
     form.name.trim().length > 0 &&
-    form.phone.trim().length > 0 &&
-    form.email.trim().length > 0 &&
+    validatePhoneNumber(form.phone).ok &&
+    validateEmailAddress(form.email).ok &&
     form.password.length > 0 &&
     form.password === form.confirm &&
     agree;
 
-  const verifyCodeOk = verifyCode.trim().length === 6 && /^\d{6}$/.test(verifyCode.trim());
 
-  const canSubmit = fieldsOk;
+  const phoneCheck = validatePhoneNumber(form.phone);
+  const emailCheck = validateEmailAddress(form.email);
+  const showPhoneError = (touched.phone || attemptedSubmit) && !phoneCheck.ok;
+  const showEmailError = (touched.email || attemptedSubmit) && !emailCheck.ok;
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
-    setInfoMessage('');
+    setAttemptedSubmit(true);
+    if (!phoneCheck.ok || !emailCheck.ok) return;
     if (!isSupabaseConfigured || !supabase) {
       setErrorMessage('Supabase is not configured. Add env vars and restart npm start.');
       return;
     }
     if (!fieldsOk) return;
+    const referralCheck = validateReferralCodeOptional(form.referralCode);
+    if (!referralCheck.ok) {
+      setErrorMessage(referralCheck.error);
+      return;
+    }
     setIsSubmitting(true);
-    const email = form.email.trim().toLowerCase();
+    const email = emailCheck.value;
     try {
       const dial = dialCodeForIso(form.countryIso);
       const national = form.phone.trim();
       const phoneStored = national ? `${dial} ${national}` : '';
+      const verifiedAt = new Date().toISOString();
       const { data: created, error } = await supabase
         .from('app_users')
         .insert({
@@ -286,6 +298,8 @@ export default function RegisterPage() {
           phone: phoneStored,
           email,
           password: form.password,
+          referral_code: referralCheck.value,
+          email_verified_at: verifiedAt,
         })
         .select('id, full_name, phone, email')
         .single();
@@ -299,66 +313,11 @@ export default function RegisterPage() {
         return;
       }
 
-      const send = await customerEmailVerifySend({ email, password: form.password, realm: 'customer' });
-      if (!send.ok) {
-        await supabase.from('app_users').delete().eq('id', created.id);
-        setErrorMessage(send.error || 'Could not send verification email. Try again in a moment.');
-        return;
-      }
-
-      setPendingProfile(created);
-      setVerifyCode('');
-      setStep('verify');
-      setInfoMessage(`We sent a 6-digit code to ${email}. Enter it below to finish sign-up.`);
-    } catch {
-      setErrorMessage('Network error. Please check internet and try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    setErrorMessage('');
-    setInfoMessage('');
-    const email = form.email.trim().toLowerCase();
-    if (!email || !form.password) {
-      setErrorMessage('Password is required to resend the code.');
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const send = await customerEmailVerifySend({ email, password: form.password, realm: 'customer' });
-      if (!send.ok) {
-        setErrorMessage(send.error || 'Could not resend code.');
-        return;
-      }
-      setInfoMessage(`A new code was sent to ${email}.`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleVerifySubmit = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setInfoMessage('');
-    if (!verifyCodeOk || !pendingProfile) {
-      setErrorMessage('Enter the 6-digit code from your email.');
-      return;
-    }
-    const email = form.email.trim().toLowerCase();
-    setIsSubmitting(true);
-    try {
-      const v = await customerEmailVerifySubmit({ email, code: verifyCode.trim(), realm: 'customer' });
-      if (!v.ok) {
-        setErrorMessage(v.error || 'Invalid or expired code.');
-        return;
-      }
       markLoggedIn();
-      saveCustomerSession(pendingProfile);
+      saveCustomerSession(created);
       navigate('/home', { replace: true });
     } catch {
-      setErrorMessage('Network error. Please try again.');
+      setErrorMessage('Network error. Please check internet and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -368,29 +327,6 @@ export default function RegisterPage() {
     return <Navigate to="/home" replace />;
   }
 
-  const handleStartOver = async () => {
-    if (!supabase || !pendingProfile?.id) {
-      setStep('form');
-      setPendingProfile(null);
-      setVerifyCode('');
-      setInfoMessage('');
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      await supabase.from('app_users').delete().eq('id', pendingProfile.id);
-    } catch {
-      // ignore
-    } finally {
-      setStep('form');
-      setPendingProfile(null);
-      setVerifyCode('');
-      setInfoMessage('');
-      setErrorMessage('');
-      setIsSubmitting(false);
-    }
-  };
-
   const loginFoot = (
     <p className="auth-register-foot">
       Already have an account?{' '}
@@ -399,71 +335,6 @@ export default function RegisterPage() {
       </Link>
     </p>
   );
-
-  if (step === 'verify' && pendingProfile) {
-    return (
-      <RegisterShell
-        back={
-          <button type="button" className="auth-login-hero-back" onClick={handleStartOver} aria-label="Start over">
-            <IconBack />
-          </button>
-        }
-        foot={loginFoot}
-      >
-        <form className="auth-login-form" onSubmit={handleVerifySubmit} noValidate>
-          <h2 className="auth-register-title">Verify your email</h2>
-          <p className="auth-register-verify-sub" role="status">
-            {infoMessage || `Enter the code we sent to ${form.email.trim().toLowerCase()}.`}
-          </p>
-
-          <div className="auth-field auth-field--last">
-            <label className="auth-login-label" htmlFor="reg-verify-code">
-              6-digit code
-            </label>
-            <div className="auth-login-input-wrap">
-              <span className="auth-login-iconbox" aria-hidden>
-                <IconEnvelope />
-              </span>
-              <input
-                id="reg-verify-code"
-                className="auth-login-input"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="000000"
-                value={verifyCode}
-                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              />
-            </div>
-          </div>
-
-          <button type="submit" className="auth-register-btn" disabled={!verifyCodeOk || isSubmitting}>
-            {isSubmitting ? 'Verifying…' : 'Verify & continue'}
-          </button>
-          <button
-            type="button"
-            className="auth-btn-secondary"
-            style={{ marginTop: '0.65rem', width: '100%' }}
-            disabled={isSubmitting}
-            onClick={handleResendCode}
-          >
-            Resend code
-          </button>
-          <button
-            type="button"
-            className="auth-link-inline"
-            style={{ marginTop: '0.75rem', border: 'none', background: 'none', cursor: 'pointer', width: '100%' }}
-            onClick={handleStartOver}
-          >
-            Start over with a different email
-          </button>
-
-          {errorMessage ? <p className="auth-message auth-message--error">{errorMessage}</p> : null}
-        </form>
-      </RegisterShell>
-    );
-  }
 
   return (
     <RegisterShell
@@ -528,9 +399,17 @@ export default function RegisterPage() {
               inputMode="tel"
               placeholder="7700 900123"
               value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, phone: sanitizePhoneInput(e.target.value) }))}
+              onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
+              aria-invalid={showPhoneError || undefined}
+              aria-describedby={showPhoneError ? 'reg-phone-error' : undefined}
             />
           </div>
+          {showPhoneError ? (
+            <p className="auth-field-hint" id="reg-phone-error" role="alert">
+              {phoneCheck.error}
+            </p>
+          ) : null}
         </div>
 
         <div className="auth-field">
@@ -550,8 +429,16 @@ export default function RegisterPage() {
               placeholder="you@example.com"
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+              aria-invalid={showEmailError || undefined}
+              aria-describedby={showEmailError ? 'reg-email-error' : undefined}
             />
           </div>
+          {showEmailError ? (
+            <p className="auth-field-hint" id="reg-email-error" role="alert">
+              {emailCheck.error}
+            </p>
+          ) : null}
         </div>
 
         <div className="auth-field">
@@ -583,7 +470,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="auth-field auth-field--last">
+        <div className="auth-field">
           <label className="auth-login-label" htmlFor="reg-confirm">
             Confirm Password
           </label>
@@ -612,6 +499,27 @@ export default function RegisterPage() {
           </div>
         </div>
 
+        <div className="auth-field auth-field--last">
+          <label className="auth-login-label" htmlFor="reg-referral">
+            Referral code (optional)
+          </label>
+          <div className="auth-login-input-wrap">
+            <span className="auth-login-iconbox" aria-hidden>
+              <IconEnvelope />
+            </span>
+            <input
+              id="reg-referral"
+              className="auth-login-input"
+              type="text"
+              name="referralCode"
+              autoComplete="off"
+              placeholder="e.g. INGO-XXXXXX"
+              value={form.referralCode}
+              onChange={(e) => setForm((f) => ({ ...f, referralCode: e.target.value.toUpperCase() }))}
+            />
+          </div>
+        </div>
+
         <label className="auth-register-terms" htmlFor="reg-terms">
           <input
             id="reg-terms"
@@ -633,7 +541,7 @@ export default function RegisterPage() {
           </span>
         </label>
 
-        <button type="submit" className="auth-register-btn" disabled={!canSubmit || isSubmitting}>
+        <button type="submit" className="auth-register-btn" disabled={isSubmitting}>
           {isSubmitting ? 'Creating Account...' : 'Create Account'}
         </button>
         {errorMessage ? <p className="auth-message auth-message--error">{errorMessage}</p> : null}

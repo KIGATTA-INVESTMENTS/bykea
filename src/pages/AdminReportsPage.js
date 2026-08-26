@@ -8,15 +8,7 @@ import {
 import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
-
-const categories = [
-  { key: 'revenue', title: 'Revenue report', color: 'green', icon: '📊', description: 'Booking value vs prior window, breakdown by delivery, taxi, tuk & shop.', anchor: 'adm-report-revenue' },
-  { key: 'orders', title: 'Orders report', color: 'blue', icon: '📦', description: 'Placements, completion-style outcomes and cancellations.', anchor: 'adm-report-orders' },
-  { key: 'drivers', title: 'Driver performance', color: 'purple', icon: '🚚', description: 'Approved / pending onboarding plus withdrawal queues.', anchor: 'adm-report-drivers' },
-  { key: 'customers', title: 'Customer insight', color: 'orange', icon: '👥', description: 'Registered profiles and new sign-ups per window.', anchor: 'adm-report-customers' },
-  { key: 'reviews', title: 'Reviews report', color: 'red', icon: '⭐', description: 'Trip review volumes and averages from trip_reviews.', anchor: 'adm-report-reviews' },
-  { key: 'payouts', title: 'Payout report', color: 'green', icon: '💵', description: 'Withdrawals requested during the recent window.', anchor: 'adm-report-payouts' },
-];
+import './adminReportsPremium.css';
 
 function pct(prev, curr) {
   if (prev <= 0 && curr > 0) return 'New vs prior window';
@@ -34,11 +26,6 @@ export default function AdminReportsPage() {
 
   /** @type {null | string} */
   const [loadErr, setLoadErr] = useState(null);
-
-  const scrollToAnchor = useCallback((id) => {
-    const node = typeof document !== 'undefined' ? document.getElementById(id) : null;
-    node?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -93,6 +80,13 @@ export default function AdminReportsPage() {
       .filter(Boolean);
   }, [payload]);
 
+  const showReviews =
+    payload?.ok &&
+    payload.sources?.reviews &&
+    (payload.reviews.countCurr > 0 || payload.reviews.countPrev > 0);
+
+  const showWithdrawals = payload?.ok && payload.sources?.withdrawals && withdrawalRows.length > 0;
+
   useSetAdminHeaderActions(
     <>
       <AdminHeaderOutlineBtn type="button" disabled={loading || pdfWorking || !payload?.ok} onClick={onDownloadPdf}>
@@ -104,85 +98,74 @@ export default function AdminReportsPage() {
   );
 
   return (
-    <div className="adm">
-      <div className="admToolbar">
-        <p className="admDim" style={{ margin: 0, fontSize: '0.82rem' }}>
-          Rolling {ADMIN_REPORT_PERIOD_DAYS}-day slice · {payload?.ok ? payload.meta.rangeLabel : '—'}
-        </p>
-        <div className="admFilters">
-          <input className="admInput admDateInput" readOnly value={`${ADMIN_REPORT_PERIOD_DAYS}d × 2 comparison`} />
+    <div className="adm admrep-page">
+      <div className="admrep-meta">
+        <div>
+          <p className="admrep-meta__period">
+            Last {ADMIN_REPORT_PERIOD_DAYS} days · live database
+          </p>
+          <p className="admrep-meta__sub">
+            {payload?.ok ? payload.meta.rangeLabel : loading ? 'Loading…' : '—'}
+          </p>
         </div>
+        {payload?.ok ? (
+          <p className="admrep-meta__sub" style={{ margin: 0 }}>
+            Updated {new Date(payload.meta.generatedAtISO).toLocaleString()}
+          </p>
+        ) : null}
       </div>
 
       {loadErr ? (
-        <p className="admModalErr" role="alert" style={{ marginBottom: '0.75rem' }}>
+        <p className="admModalErr" role="alert" style={{ margin: 0 }}>
           {loadErr}
         </p>
       ) : null}
-
-      <section className="admReportsGrid" style={{ marginBottom: '0.9rem' }}>
-        {categories.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className="admCard admReportCard"
-            onClick={() => scrollToAnchor(item.anchor)}
-          >
-            <span className={`admReportIcon ${item.color}`}>{item.icon}</span>
-            <strong>{item.title}</strong>
-            <small>{item.description}</small>
-            <span className={`admReportLink ${item.color}`}>View section ↓</span>
-          </button>
-        ))}
-      </section>
 
       {loading ? (
         <section className="admCard admDim">Loading reports from database…</section>
       ) : !payload?.ok ? null : (
         <>
-          <section id="adm-report-revenue" className="admCard" style={{ marginBottom: '0.85rem' }}>
+          <section className="admGrid4 admrep-kpi">
+            <article className="admCard admSmallCard">
+              <p className="k">Gross booking value</p>
+              <p className="v">{formatGBP(payload.totals.revenueCurr)}</p>
+              <small className="admDim">{pct(payload.totals.revenuePrev, payload.totals.revenueCurr)} vs prior</small>
+            </article>
+            <article className="admCard admSmallCard">
+              <p className="k">Orders placed</p>
+              <p className="v">{payload.totals.ordersCurr.toLocaleString()}</p>
+              <small className="admDim">{pct(payload.totals.ordersPrev, payload.totals.ordersCurr)} vs prior</small>
+            </article>
+            <article className="admCard admSmallCard">
+              <p className="k">New customer sign-ups</p>
+              <p className="v">{payload.customers.signupsCurr.toLocaleString()}</p>
+              <small className="admDim">Prior window: {payload.customers.signupsPrev.toLocaleString()}</small>
+            </article>
+            <article className="admCard admSmallCard">
+              <p className="k">Approved drivers</p>
+              <p className="v">{payload.drivers.approved.toLocaleString()}</p>
+              <small className="admDim">Pending onboarding: {payload.drivers.pendingRegistrations.toLocaleString()}</small>
+            </article>
+          </section>
+
+          <section className="admCard">
             <div className="admSectionHeader">
               <div>
-                <h3 style={{ margin: 0 }}>Revenue overview</h3>
+                <h3 style={{ margin: 0 }}>Revenue &amp; orders by channel</h3>
                 <p className="admDim" style={{ margin: '0.2rem 0 0', fontSize: '0.8rem' }}>
-                  Gross booking amounts exclude cancelled bookings; taxis use quoted_price at booking time.
+                  Delivery, taxi, tuk-tuk and shop — amounts exclude cancelled bookings.
                 </p>
               </div>
             </div>
-            <div className="admGrid4" style={{ marginBottom: '0.75rem' }}>
-              <div className="admCard admSmallCard">
-                <p className="k">Recent GMV</p>
-                <p className="v">{formatGBP(payload.totals.revenueCurr)}</p>
-                <small className="admDim">{pct(payload.totals.revenuePrev, payload.totals.revenueCurr)} vs prior window</small>
-              </div>
-              <div className="admCard admSmallCard">
-                <p className="k">Prior GMV</p>
-                <p className="v">{formatGBP(payload.totals.revenuePrev)}</p>
-              </div>
-              <div className="admCard admSmallCard">
-                <p className="k">Commission policy</p>
-                <p className="v" style={{ fontSize: '0.85rem' }}>
-                  See PDF
-                </p>
-                <small className="admDim">{payload.meta.commissionNote}</small>
-              </div>
-              <div className="admCard admSmallCard">
-                <p className="k">Generated snapshot</p>
-                <p className="v" style={{ fontSize: '0.92rem', fontVariantNumeric: 'tabular-nums' }}>
-                  {new Date(payload.meta.generatedAtISO).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
             <div className="admTableWrap">
               <table className="admTable">
                 <thead>
                   <tr>
                     <th>Channel</th>
                     <th>Orders (recent)</th>
-                    <th>GMV recent</th>
+                    <th>GMV (recent)</th>
                     <th>Orders (prior)</th>
-                    <th>GMV prior</th>
+                    <th>GMV (prior)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -200,149 +183,92 @@ export default function AdminReportsPage() {
             </div>
           </section>
 
-          <section id="adm-report-orders" className="admCard" style={{ marginBottom: '0.85rem' }}>
+          <section className="admCard">
             <div className="admSectionHeader">
-              <h3 style={{ margin: 0 }}>Orders</h3>
+              <h3 style={{ margin: 0 }}>Order outcomes (recent window)</h3>
             </div>
-            <div className="admGrid3" style={{ marginBottom: '0.65rem' }}>
+            <div className="admGrid3">
               <article className="admCard admSmallCard">
-                <p className="k">Orders placed · recent</p>
-                <p className="v">{payload.totals.ordersCurr}</p>
-              </article>
-              <article className="admCard admSmallCard">
-                <p className="k">Completion-style rate∗ · recent</p>
+                <p className="k">Completion rate</p>
                 <p className="v">{payload.totals.completionCurr}%</p>
                 <small className="admDim">
-                  Done {payload.totals.doneCurr} / Total {payload.totals.ordersCurr}
+                  {payload.totals.doneCurr} delivered / completed of {payload.totals.ordersCurr} orders
                 </small>
               </article>
               <article className="admCard admSmallCard">
-                <p className="k">Cancellations · recent</p>
+                <p className="k">Cancellations</p>
                 <p className="v" style={{ color: '#d34444' }}>
                   {payload.totals.cancelCurr}
                 </p>
-              </article>
-            </div>
-            <p className="admDim" style={{ fontSize: '0.75rem', margin: '0 0 0.5rem' }}>
-              ∗ Deliveries/shops counted when status is delivered; rides when completed — same logic as Analytics.
-            </p>
-          </section>
-
-          <section id="adm-report-drivers" className="admCard" style={{ marginBottom: '0.85rem' }}>
-            <div className="admSectionHeader">
-              <h3 style={{ margin: 0 }}>Drivers</h3>
-            </div>
-            <div className="admGrid2" style={{ marginBottom: '0.65rem', maxWidth: 520 }}>
-              <article className="admCard admSmallCard">
-                <p className="k">Approved drivers</p>
-                <p className="v">{payload.drivers.approved}</p>
+                <small className="admDim">Prior window: {payload.totals.cancelPrev}</small>
               </article>
               <article className="admCard admSmallCard">
-                <p className="k">Pending registration</p>
-                <p className="v">{payload.drivers.pendingRegistrations}</p>
+                <p className="k">Prior-window orders</p>
+                <p className="v">{payload.totals.ordersPrev.toLocaleString()}</p>
+                <small className="admDim">For comparison with recent {ADMIN_REPORT_PERIOD_DAYS} days</small>
               </article>
             </div>
           </section>
 
-          <section id="adm-report-customers" className="admCard" style={{ marginBottom: '0.85rem' }}>
-            <div className="admSectionHeader">
-              <h3 style={{ margin: 0 }}>Customers</h3>
-            </div>
-            <div className="admGrid3" style={{ marginBottom: '0.65rem' }}>
-              <article className="admCard admSmallCard">
-                <p className="k">Registered profiles∗∗</p>
-                <p className="v">{payload.customers.totalUsersApprox}</p>
-              </article>
-              <article className="admCard admSmallCard">
-                <p className="k">New registrations · recent</p>
-                <p className="v">{payload.customers.signupsCurr}</p>
-              </article>
-              <article className="admCard admSmallCard">
-                <p className="k">New registrations · prior</p>
-                <p className="v">{payload.customers.signupsPrev}</p>
-              </article>
-            </div>
-            <small className="admDim">
-              ∗∗ app_users approximate count · guests without accounts excluded.
-            </small>
-          </section>
-
-          <section id="adm-report-reviews" className="admCard" style={{ marginBottom: '0.85rem' }}>
-            <div className="admSectionHeader">
-              <h3 style={{ margin: 0 }}>Trip reviews</h3>
-            </div>
-            <div className="admGrid2" style={{ maxWidth: 520 }}>
-              <article className="admCard admSmallCard">
-                <p className="k">Recent window · count / avg ★</p>
-                <p className="v">
-                  {payload.reviews.countCurr} /{' '}
-                  {payload.reviews.avgCurr != null ? `${payload.reviews.avgCurr}` : '—'}
-                </p>
-              </article>
-              <article className="admCard admSmallCard">
-                <p className="k">Prior window · count / avg ★</p>
-                <p className="v">
-                  {payload.reviews.countPrev} /{' '}
-                  {payload.reviews.avgPrev != null ? `${payload.reviews.avgPrev}` : '—'}
-                </p>
-              </article>
-            </div>
-          </section>
-
-          <section id="adm-report-payouts" className="admCard" style={{ marginBottom: '0.85rem' }}>
-            <div className="admSectionHeader">
-              <h3 style={{ margin: 0 }}>Withdrawals (recent window)</h3>
-              <p className="admDim" style={{ margin: 0 }}>
-                requested_at filtered to rolling recent window · values are requested amounts.
-              </p>
-            </div>
-            <div className="admTableWrap">
-              <table className="admTable">
-                <thead>
-                  <tr>
-                    <th>Status</th>
-                    <th>Requests</th>
-                    <th>Total amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {withdrawalRows.length === 0 ? (
+          {showWithdrawals ? (
+            <section className="admCard">
+              <div className="admSectionHeader">
+                <h3 style={{ margin: 0 }}>Driver withdrawals (recent window)</h3>
+              </div>
+              <div className="admTableWrap">
+                <table className="admTable">
+                  <thead>
                     <tr>
-                      <td colSpan={3} className="admDim">
-                        No withdrawal rows in recent window.
-                      </td>
+                      <th>Status</th>
+                      <th>Requests</th>
+                      <th>Amount requested</th>
                     </tr>
-                  ) : (
-                    withdrawalRows.map((w) => (
+                  </thead>
+                  <tbody>
+                    {withdrawalRows.map((w) => (
                       <tr key={w.status}>
                         <td style={{ textTransform: 'capitalize' }}>{w.status}</td>
                         <td>{w.count}</td>
                         <td style={{ fontWeight: 700 }}>{formatGBP(w.sum)}</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
 
-          <section className="admCard admInsightCard">
-            <h4 style={{ marginTop: 0 }}>📌 Highlights</h4>
-            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-              {payload.insights.map((ln) => (
-                <li key={ln}>{ln}</li>
-              ))}
-            </ul>
-            <p style={{ margin: '0.75rem 0 0', fontSize: '0.8rem' }} className="admDim">
-              Every section above — plus geography — ships together inside the downloadable PDF bundle.
-            </p>
-          </section>
+          {showReviews ? (
+            <section className="admCard">
+              <div className="admSectionHeader">
+                <h3 style={{ margin: 0 }}>Trip reviews</h3>
+              </div>
+              <div className="admGrid2" style={{ maxWidth: 520 }}>
+                <article className="admCard admSmallCard">
+                  <p className="k">Recent window</p>
+                  <p className="v">
+                    {payload.reviews.countCurr} reviews
+                    {payload.reviews.avgCurr != null ? ` · avg ${payload.reviews.avgCurr}★` : ''}
+                  </p>
+                </article>
+                <article className="admCard admSmallCard">
+                  <p className="k">Prior window</p>
+                  <p className="v">
+                    {payload.reviews.countPrev} reviews
+                    {payload.reviews.avgPrev != null ? ` · avg ${payload.reviews.avgPrev}★` : ''}
+                  </p>
+                </article>
+              </div>
+            </section>
+          ) : null}
+
+          <p className="admrep-foot">
+            All figures above are aggregated from your Supabase booking and account tables for the rolling{' '}
+            {ADMIN_REPORT_PERIOD_DAYS}-day windows. Download PDF for the full export including geography and narrative
+            notes.
+          </p>
         </>
       )}
-
-      <section className="admCard admDim" style={{ marginTop: '0.9rem', fontSize: '0.82rem' }}>
-        Automated email scheduling is not hooked up server-side yet. Export the bundled PDF locally and circulate as needed.
-      </section>
     </div>
   );
 }

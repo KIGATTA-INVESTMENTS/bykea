@@ -5,6 +5,18 @@ const cors = require('cors');
 const { Paynow } = require('paynow');
 const { createClient } = require('@supabase/supabase-js');
 const { processPaynowResult } = require('./paynowResult');
+const {
+  ecocashConfig,
+  normalizeZwMsisdn,
+  orderTableForKind,
+  chargeEcocash,
+  queryEcocashTransaction,
+  processEcocashNotify,
+  applyEcocashPaymentUpdate,
+  extractStatusFromPayload,
+  extractServerRef,
+  mapEcocashStatus,
+} = require('./ecocash');
 
 const PORT = Number(process.env.PORT) || 4000;
 
@@ -23,13 +35,21 @@ const PAYNOW_RETURN_URL =
   String(process.env.PAYNOW_RETURN_URL || '').trim() ||
   `${DEFAULT_CUSTOMER_APP.replace(/\/$/, '')}/order-confirmation`;
 
+const ECOCASH_NOTIFY_URL =
+  String(process.env.ECOCASH_NOTIFY_URL || '').trim() ||
+  `${DEFAULT_PUBLIC_PAYNOW_API.replace(/\/$/, '')}/ecocash/notify`;
+
 function paynowCredentialFlags() {
   const id = String(process.env.PAYNOW_INTEGRATION_ID || '').trim();
   const key = String(process.env.PAYNOW_INTEGRATION_KEY || '').trim();
+  const eco = ecocashConfig();
   return {
     paynowIntegrationIdSet: Boolean(id),
     paynowIntegrationKeySet: Boolean(key),
     paynowCredentialsReady: Boolean(id && key),
+    ecocashMerchantCodeSet: Boolean(eco.merchantCode),
+    ecocashMerchantNumberSet: Boolean(eco.merchantNumber),
+    ecocashReady: Boolean(eco.username && eco.password && eco.merchantCode && eco.merchantPin && eco.merchantNumber),
   };
 }
 
@@ -52,7 +72,15 @@ app.get('/', (_req, res) => {
     ...paynowCredentialFlags(),
     hint:
       'Shop/taxi Paynow flows POST to /paynow/initiate. Default CRA origin: https://bykea-production.up.railway.app (override with REACT_APP_SHOP_PAYNOW_LOCAL_URL).',
-    endpoints: ['GET /health', 'POST /paynow/initiate', 'POST /paynow/relay-initiate', 'POST /paynow/result'],
+    endpoints: [
+      'GET /health',
+      'POST /paynow/initiate',
+      'POST /paynow/relay-initiate',
+      'POST /paynow/result',
+      'POST /ecocash/charge',
+      'POST /ecocash/notify',
+      'GET /ecocash/status',
+    ],
   });
 });
 
@@ -221,6 +249,13 @@ app.post('/paynow/initiate', async (req, res) => {
   else if (rawKind === 'tuk' || rawKind === 'tuktuk' || rawKind === 'tuk_tuk') orderKind = 'tuk';
   else if (rawKind === 'driver_deposit' || rawKind === 'driverdeposit' || rawKind === 'driver_wallet')
     orderKind = 'driver_deposit';
+  else if (
+    rawKind === 'customer_wallet' ||
+    rawKind === 'customerwallet' ||
+    rawKind === 'wallet_topup' ||
+    rawKind === 'wallet'
+  )
+    orderKind = 'customer_wallet';
 
   const orderNum = String(orderNumber || '').trim();
   const orderUuid = String(orderId || '').trim();
@@ -247,6 +282,8 @@ app.post('/paynow/initiate', async (req, res) => {
             ? `Tuk-Tuk ${orderNum} (${customerName})`
             : orderKind === 'driver_deposit'
               ? `Driver wallet deposit ${orderNum} (${customerName})`
+              : orderKind === 'customer_wallet'
+                ? `Wallet top-up ${orderNum} (${customerName})`
             : `Shop order ${orderNum} (${customerName})`;
     payment.add(lineLabel, rounded);
 
@@ -284,6 +321,8 @@ app.post('/paynow/initiate', async (req, res) => {
               ? 'tuk_tuk_bookings'
               : orderKind === 'driver_deposit'
                 ? 'driver_wallet_topups'
+                : orderKind === 'customer_wallet'
+                  ? 'customer_wallet_topups'
               : 'shop_customer_orders';
       const { error: updErr } = await supabase.from(table).update(updatePayload).eq('id', orderUuid);
 
@@ -312,9 +351,228 @@ app.post('/paynow/initiate', async (req, res) => {
   }
 });
 
+/**
+ * EcoCash Instant Payments — charge (customer approves on phone).
+ * Body: { orderId, orderNumber, amount, phone, orderKind, customerName?, remarks? }
+ */
+app.post('/ecocash/charge', async (req, res) => {
+  const flags = paynowCredentialFlags();
+  if (!flags.ecocashReady) {
+    return res.status(500).json({
+      ok: false,
+      error:
+        'EcoCash is not configured. Set ECOCASH_MERCHANT_CODE, ECOCASH_MERCHANT_PIN, ECOCASH_MERCHANT_NUMBER (and optional ECOCASH_API_USERNAME / ECOCASH_API_PASSWORD) on this server.',
+      diagnostics: flags,
+    });
+  }
+
+  const {
+    orderNumber,
+    orderId,
+    amount,
+    phone,
+    customerName: nameIn,
+    orderKind: kindIn,
+    remarks: remarksIn,
+  } = req.body || {};
+
+  const rawKind = String(kindIn || 'shop').toLowerCase();
+  let orderKind = 'shop';
+  if (rawKind === 'delivery') orderKind = 'delivery';
+  else if (rawKind === 'taxi') orderKind = 'taxi';
+  else if (rawKind === 'tuk' || rawKind === 'tuktuk' || rawKind === 'tuk_tuk') orderKind = 'tuk';
+  else if (rawKind === 'driver_deposit' || rawKind === 'driverdeposit' || rawKind === 'driver_wallet')
+    orderKind = 'driver_deposit';
+  else if (
+    rawKind === 'customer_wallet' ||
+    rawKind === 'customerwallet' ||
+    rawKind === 'wallet_topup' ||
+    rawKind === 'wallet'
+  )
+    orderKind = 'customer_wallet';
+
+  const orderNum = String(orderNumber || '').trim();
+  const orderUuid = String(orderId || '').trim();
+  const amt = Number(amount);
+  const customerName = String(nameIn || '').trim() || 'Customer';
+  const endUserId = normalizeZwMsisdn(phone);
+
+  if (!orderNum || !orderUuid || !Number.isFinite(amt) || amt <= 0) {
+    return res.status(400).json({ ok: false, error: 'orderNumber, orderId and amount are required.' });
+  }
+  if (!endUserId) {
+    return res.status(400).json({
+      ok: false,
+      error: 'Enter a valid Zimbabwe EcoCash number (e.g. 0771234567 or 263771234567).',
+    });
+  }
+
+  const clientCorrelation = `${Date.now()}${Math.floor(Math.random() * 900 + 100)}`.slice(0, 18);
+  const referenceCode = orderNum.slice(0, 40);
+  const remarks =
+    String(remarksIn || '').trim() ||
+    (orderKind === 'delivery'
+      ? `Delivery ${orderNum} (${customerName})`
+      : orderKind === 'taxi'
+        ? `Taxi ${orderNum} (${customerName})`
+        : orderKind === 'tuk'
+          ? `Tuk-Tuk ${orderNum} (${customerName})`
+          : orderKind === 'customer_wallet'
+            ? `Wallet top-up ${orderNum}`
+            : orderKind === 'driver_deposit'
+              ? `Driver deposit ${orderNum}`
+              : `Shop order ${orderNum} (${customerName})`);
+
+  try {
+    const charge = await chargeEcocash({
+      amount: amt,
+      endUserId,
+      referenceCode,
+      clientCorrelation,
+      notifyUrl: ECOCASH_NOTIFY_URL,
+      remarks,
+    });
+
+    if (!charge.ok) {
+      return res.status(200).json({
+        ok: false,
+        error: 'EcoCash charge request failed.',
+        details: charge.body || charge.raw,
+        httpStatus: charge.httpStatus,
+      });
+    }
+
+    const updatePayload = {
+      payment_method: 'ecocash',
+      payment_gateway: 'ecocash',
+      payment_status: 'pending',
+      paynow_reference: clientCorrelation,
+      payment_started_at: new Date().toISOString(),
+    };
+
+    const supabaseUrl = process.env.SUPABASE_URL || '';
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    if (supabaseUrl && serviceKey) {
+      const { createClient } = require('@supabase/supabase-js');
+      const supabase = createClient(supabaseUrl, serviceKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const table = orderTableForKind(orderKind);
+      const { error: updErr } = await supabase.from(table).update(updatePayload).eq('id', orderUuid);
+      if (updErr) {
+        return res.status(500).json({
+          ok: false,
+          error: 'EcoCash started but Supabase order update failed.',
+          details: updErr.message,
+          clientCorrelation,
+        });
+      }
+    }
+
+    return res.json({
+      ok: true,
+      clientCorrelation,
+      referenceCode,
+      phone: endUserId,
+      amount: Number(amt.toFixed(2)),
+      message: 'Approve the payment on your EcoCash phone when prompted.',
+      ecoCashResponse: charge.body,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: e instanceof Error ? e.message : 'Unknown EcoCash error',
+    });
+  }
+});
+
+/** EcoCash completion webhook (COMPLETED / FAILED). */
+app.post('/ecocash/notify', express.json({ limit: '256kb' }), async (req, res) => {
+  const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
+  const serviceKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  if (!supabaseUrl || !serviceKey) {
+    // eslint-disable-next-line no-console
+    console.warn('[ecocash/notify] Missing Supabase service env — payment rows will not update.');
+    res.status(200).json({ ok: true });
+    return;
+  }
+
+  try {
+    const payload = req.body && typeof req.body === 'object' ? req.body : {};
+    const result = await processEcocashNotify(payload, { supabaseUrl, serviceKey });
+    if (!result.ok) {
+      // eslint-disable-next-line no-console
+      console.error('[ecocash/notify] Failed:', result.reason);
+      res.status(500).json({ ok: false, reason: result.reason });
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.info(
+      `[ecocash/notify] ${result.kind || result.reason || 'ok'} ref=${result.reference} → ${result.paymentStatus}`,
+    );
+    res.status(200).json({ ok: true });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[ecocash/notify] Exception:', e instanceof Error ? e.message : e);
+    res.status(500).json({ ok: false });
+  }
+});
+
+/**
+ * Poll EcoCash + sync DB.
+ * Query: ?clientCorrelation=&phone=
+ */
+app.get('/ecocash/status', async (req, res) => {
+  const clientCorrelation = String(req.query.clientCorrelation || req.query.clientCorrelator || '').trim();
+  const phone = normalizeZwMsisdn(String(req.query.phone || ''));
+  if (!clientCorrelation) {
+    return res.status(400).json({ ok: false, error: 'clientCorrelation is required.' });
+  }
+  if (!phone) {
+    return res.status(400).json({ ok: false, error: 'Valid phone (MSISDN) is required.' });
+  }
+
+  try {
+    const q = await queryEcocashTransaction({ clientCorrelation, endUserId: phone });
+    const statusRaw = extractStatusFromPayload(q.body) || (q.ok ? 'CHARGED' : 'FAILED');
+    const serverReference = extractServerRef(q.body);
+    const paymentStatus = mapEcocashStatus(statusRaw);
+
+    const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
+    const serviceKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+    if (supabaseUrl && serviceKey && (paymentStatus === 'paid' || paymentStatus === 'failed')) {
+      await applyEcocashPaymentUpdate({
+        clientCorrelation,
+        statusRaw,
+        serverReference,
+        supabaseUrl,
+        serviceKey,
+        endUserId: phone,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      clientCorrelation,
+      paymentStatus,
+      statusRaw,
+      serverReference: serverReference || null,
+      ecoCash: q.body,
+      httpStatus: q.httpStatus,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: e instanceof Error ? e.message : 'Status lookup failed',
+    });
+  }
+});
+
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
-  console.log(`Paynow API listening on port ${PORT}`);
+  console.log(`Payments API listening on port ${PORT}`);
   // eslint-disable-next-line no-console
-  console.log('POST /paynow/initiate  |  POST /paynow/relay-initiate  |  POST /paynow/result  |  GET /health');
+  console.log(
+    'POST /paynow/initiate | /paynow/result | /ecocash/charge | /ecocash/notify | GET /ecocash/status | GET /health',
+  );
 });

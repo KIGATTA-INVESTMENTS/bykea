@@ -1,6 +1,9 @@
 import { shopOrderGrandTotal } from './shopDeliverySettings';
 import { shopOrderCustomerBadgeKey, shopOrderStatusLabel } from './shopOrderStatus';
+import { sweepAutoCancelStaleBookings, canCustomerCancelBooking, isAwaitingDriverBooking, isStaleUnfinishedBooking, CANCEL_REASON_STALE } from './customerOrderCancel';
+import { storedDeliveryPin } from './deliveryConfirmationCode';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
+import { statusLabel } from '../data/mockOrders';
 import { formatVehicleTypeForDisplay } from './vehicleTypeDisplay';
 
 /** @typedef {'delivery' | 'taxi' | 'tuk' | 'shop'} OrderKind */
@@ -68,6 +71,28 @@ function formatListDate(iso) {
   }
 }
 
+function orderListStatusText(row, kind, uiStatus) {
+  if (uiStatus === 'cancelled') return 'Cancelled';
+  if (isAwaitingDriverBooking(row, kind)) return 'Finding driver';
+  if (uiStatus === 'transit') return 'In transit';
+  return statusLabel(uiStatus);
+}
+
+function applyStaleListStatus(row, kind, uiStatus) {
+  if (isStaleUnfinishedBooking(row, kind)) return 'cancelled';
+  return uiStatus;
+}
+
+function overlayStaleRow(row, kind) {
+  if (!row || !isStaleUnfinishedBooking(row, kind)) return row;
+  return {
+    ...row,
+    status: 'cancelled',
+    cancel_reason: row.cancel_reason || CANCEL_REASON_STALE,
+    cancelled_by: row.cancelled_by || 'system',
+  };
+}
+
 /** Map various DB statuses to order-history UI buckets */
 function uiStatusDelivery(db) {
   const s = String(db || '').toLowerCase();
@@ -123,6 +148,8 @@ export async function fetchCustomerUnifiedOrders(session) {
   const email = session.email ? String(session.email).trim().toLowerCase() : '';
   const phone = session.phone || '';
 
+  await sweepAutoCancelStaleBookings(uid, { email, phone });
+
   const out = [];
   let firstError = null;
 
@@ -140,8 +167,10 @@ export async function fetchCustomerUnifiedOrders(session) {
   const driverById = await fetchDriverRowsByIds(supabase, assignIds);
 
   for (const row of deliveryRows) {
-    const st = uiStatusDelivery(row.status);
+    const st = applyStaleListStatus(row, 'delivery', uiStatusDelivery(row.status));
     const drvRow = row.assigned_driver_id ? driverById[row.assigned_driver_id] : null;
+    const code = storedDeliveryPin(row.delivery_confirmation_code);
+    const stale = st === 'cancelled' && isStaleUnfinishedBooking(row, 'delivery');
     out.push({
       navKey: `delivery:${row.id}`,
       kind: 'delivery',
@@ -154,14 +183,21 @@ export async function fetchCustomerUnifiedOrders(session) {
       sortAt: row.created_at,
       subtitle: 'Parcel delivery',
       driver: drvRow ? mapDriverRegistrationRow(drvRow) : null,
+      canCancel: !stale && canCustomerCancelBooking(row, 'delivery'),
+      awaitingDriver: !stale && isAwaitingDriverBooking(row, 'delivery'),
+      statusText: orderListStatusText(row, 'delivery', st),
+      deliveryConfirmationCode: code || null,
+      cancelReason: row.cancel_reason?.trim() || (stale ? CANCEL_REASON_STALE : null),
+      cancelledBy: row.cancelled_by?.trim() || (stale ? 'system' : null),
     });
   }
 
   if (tErr) firstError = firstError || tErr.message;
   for (const row of taxiRows) {
-    const st = uiStatusRide(row.status);
+    const st = applyStaleListStatus(row, 'taxi', uiStatusRide(row.status));
     const price = row.quoted_price != null ? Number(row.quoted_price) : null;
     const drvRow = row.assigned_driver_id ? driverById[row.assigned_driver_id] : null;
+    const stale = st === 'cancelled' && isStaleUnfinishedBooking(row, 'taxi');
     out.push({
       navKey: `taxi:${row.id}`,
       kind: 'taxi',
@@ -174,14 +210,20 @@ export async function fetchCustomerUnifiedOrders(session) {
       sortAt: row.created_at,
       subtitle: taxiOrderSubtitle(row),
       driver: drvRow ? mapDriverRegistrationRow(drvRow) : null,
+      canCancel: !stale && canCustomerCancelBooking(row, 'taxi'),
+      awaitingDriver: !stale && isAwaitingDriverBooking(row, 'taxi'),
+      statusText: orderListStatusText(row, 'taxi', st),
+      cancelReason: row.cancel_reason?.trim() || (stale ? CANCEL_REASON_STALE : null),
+      cancelledBy: row.cancelled_by?.trim() || (stale ? 'system' : null),
     });
   }
 
   if (uErr) firstError = firstError || uErr.message;
   for (const row of tukRows) {
-    const st = uiStatusRide(row.status);
+    const st = applyStaleListStatus(row, 'tuk', uiStatusRide(row.status));
     const price = row.quoted_price != null ? Number(row.quoted_price) : null;
     const drvRow = row.assigned_driver_id ? driverById[row.assigned_driver_id] : null;
+    const stale = st === 'cancelled' && isStaleUnfinishedBooking(row, 'tuk');
     out.push({
       navKey: `tuk:${row.id}`,
       kind: 'tuk',
@@ -194,6 +236,11 @@ export async function fetchCustomerUnifiedOrders(session) {
       sortAt: row.created_at,
       subtitle: 'Tuk-tuk',
       driver: drvRow ? mapDriverRegistrationRow(drvRow) : null,
+      canCancel: !stale && canCustomerCancelBooking(row, 'tuk'),
+      awaitingDriver: !stale && isAwaitingDriverBooking(row, 'tuk'),
+      statusText: orderListStatusText(row, 'tuk', st),
+      cancelReason: row.cancel_reason?.trim() || (stale ? CANCEL_REASON_STALE : null),
+      cancelledBy: row.cancelled_by?.trim() || (stale ? 'system' : null),
     });
   }
 
@@ -204,19 +251,23 @@ export async function fetchCustomerUnifiedOrders(session) {
     const okPhone = phone && phonesMatch(phone, row.customer_phone);
     if (!okEmail && !okPhone) return;
     shopSeen.add(row.id);
-    const st = shopOrderCustomerBadgeKey(row.status);
+    const st = applyStaleListStatus(row, 'shop', shopOrderCustomerBadgeKey(row.status));
+    const stale = st === 'cancelled' && isStaleUnfinishedBooking(row, 'shop');
+    const code = storedDeliveryPin(row.delivery_confirmation_code);
     out.push({
       navKey: `shop:${row.id}`,
       kind: 'shop',
       id: row.order_number || `Shop · ${String(row.id).slice(0, 8)}`,
       status: st,
-      statusText: shopOrderStatusLabel(row.status),
+      statusText: stale ? 'Cancelled' : shopOrderStatusLabel(row.status),
       from: 'Shop order',
       to: row.customer_address || '—',
       date: formatListDate(row.placed_at),
       price: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(shopOrderGrandTotal(row)),
       sortAt: row.placed_at,
       subtitle: 'Shop',
+      deliveryConfirmationCode: code || null,
+      cancelReason: stale ? CANCEL_REASON_STALE : null,
     });
   };
 
@@ -251,6 +302,8 @@ export async function fetchCustomerOrderDetail(navKey, session) {
   const email = session.email ? String(session.email).trim().toLowerCase() : '';
   const phone = session.phone || '';
 
+  await sweepAutoCancelStaleBookings(uid, { email, phone });
+
   if (p.kind === 'delivery') {
     const { data, error } = await supabase.from('customer_delivery_orders').select('*').eq('id', p.id).maybeSingle();
     if (error) return { data: null, error: error.message };
@@ -264,7 +317,7 @@ export async function fetchCustomerOrderDetail(navKey, session) {
         .maybeSingle();
       if (!dErr && dRow) driverRow = dRow;
     }
-    return { data: { kind: 'delivery', row: data, driver: driverRow }, error: null };
+    return { data: { kind: 'delivery', row: overlayStaleRow(data, 'delivery'), driver: driverRow }, error: null };
   }
 
   if (p.kind === 'taxi') {
@@ -280,7 +333,7 @@ export async function fetchCustomerOrderDetail(navKey, session) {
         .maybeSingle();
       if (!dErr && dRow) driverRow = dRow;
     }
-    return { data: { kind: 'taxi', row: data, driver: driverRow }, error: null };
+    return { data: { kind: 'taxi', row: overlayStaleRow(data, 'taxi'), driver: driverRow }, error: null };
   }
 
   if (p.kind === 'tuk') {
@@ -296,7 +349,7 @@ export async function fetchCustomerOrderDetail(navKey, session) {
         .maybeSingle();
       if (!dErr && dRow) driverRow = dRow;
     }
-    return { data: { kind: 'tuk', row: data, driver: driverRow }, error: null };
+    return { data: { kind: 'tuk', row: overlayStaleRow(data, 'tuk'), driver: driverRow }, error: null };
   }
 
   if (p.kind === 'shop') {
@@ -316,7 +369,7 @@ export async function fetchCustomerOrderDetail(navKey, session) {
         .maybeSingle();
       if (!dErr && dRow) driverRow = dRow;
     }
-    return { data: { kind: 'shop', row: data, lines: lines || [], driver: driverRow }, error: null };
+    return { data: { kind: 'shop', row: overlayStaleRow(data, 'shop'), lines: lines || [], driver: driverRow }, error: null };
   }
 
   return { data: null, error: 'Unknown order type.' };

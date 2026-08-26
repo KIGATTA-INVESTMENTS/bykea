@@ -1,8 +1,22 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { compressImageToDataUrl } from '../lib/compressImageToDataUrl';
+import { saveShopOwnerSession } from '../lib/shopOwnerAuth';
 import { SHOP_BUSINESS_TYPES } from '../lib/shopBusinessTypes';
-import { customerEmailVerifySend } from '../lib/customerEmailVerify';
+import {
+  sanitizePhoneInput,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from '../lib/accountFieldValidation';
+import { validateReferralCodeOptional } from '../lib/referralCodes';
+import { uploadShopOwnerLogo } from '../lib/shopMediaUpload';
+import {
+  MOBILE_MONEY_PROVIDERS,
+  PAYOUT_METHOD_BANK,
+  PAYOUT_METHOD_MOBILE,
+  buildShopOwnerPayoutPayload,
+  validateShopOwnerPayoutForm,
+} from '../lib/shopOwnerPayoutAccount';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import InGoLogo from '../components/InGoLogo';
 import './shopOwnerRegisterPremium.css';
@@ -123,6 +137,25 @@ function IconEye({ open }) {
   );
 }
 
+function IconBank() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 10h16M5 10 12 4l7 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 10v7M10 10v7M14 10v7M18 10v7M4 20h16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconCard() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M3 10h18" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M7 15h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconChevronDown() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -155,18 +188,36 @@ export default function ShopOwnerRegisterPage() {
     pass2: '',
     type: SHOP_BUSINESS_TYPES[0],
     address: '',
+    referralCode: 'INGO-PROMO01',
+    payoutMethod: PAYOUT_METHOD_BANK,
+    bankName: '',
+    bankAccountName: '',
+    bankAccountNumber: '',
+    bankBranch: '',
+    mobileProvider: 'ecocash',
+    mobilePhone: '',
+    mobileAccountName: '',
   });
   const [agree, setAgree] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [showPass2, setShowPass2] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [touched, setTouched] = useState({ email: false, phone: false });
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const shopImgRef = useRef(null);
+  const shopImageFileRef = useRef(null);
   const [shopImageUrl, setShopImageUrl] = useState(null);
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState('');
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setPhone = (e) => setForm((f) => ({ ...f, phone: sanitizePhoneInput(e.target.value) }));
+
+  const phoneCheck = validatePhoneNumber(form.phone);
+  const emailCheck = validateEmailAddress(form.email);
+  const showPhoneError = (touched.phone || attemptedSubmit) && !phoneCheck.ok;
+  const showEmailError = (touched.email || attemptedSubmit) && !emailCheck.ok;
 
   const pickShopImage = () => {
     setImageError('');
@@ -188,7 +239,8 @@ export default function ShopOwnerRegisterPage() {
     }
     setImageBusy(true);
     try {
-      const dataUrl = await compressImageToDataUrl(file);
+      const dataUrl = await compressImageToDataUrl(file, 720, 0.8);
+      shopImageFileRef.current = file;
       setShopImageUrl(dataUrl);
     } catch (err) {
       setImageError(err?.message || 'Could not process this image.');
@@ -198,6 +250,7 @@ export default function ShopOwnerRegisterPage() {
   };
 
   const clearShopImage = () => {
+    shopImageFileRef.current = null;
     setShopImageUrl(null);
     setImageError('');
   };
@@ -205,6 +258,7 @@ export default function ShopOwnerRegisterPage() {
   const submit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setAttemptedSubmit(true);
     if (form.pass !== form.pass2) {
       setErrorMessage('Passwords do not match.');
       return;
@@ -213,28 +267,78 @@ export default function ShopOwnerRegisterPage() {
       setErrorMessage('Please agree to the terms.');
       return;
     }
+    if (!phoneCheck.ok || !emailCheck.ok) return;
     if (!isSupabaseConfigured || !supabase) {
       setErrorMessage('Supabase is not configured. Add env vars and restart npm start.');
       return;
     }
 
-    const emailNorm = form.email.trim().toLowerCase();
+    const referralCheck = validateReferralCodeOptional(form.referralCode);
+    if (!referralCheck.ok) {
+      setErrorMessage(referralCheck.error);
+      return;
+    }
+
+    const payoutCheck = validateShopOwnerPayoutForm(form);
+    if (!payoutCheck.ok) {
+      setErrorMessage(payoutCheck.error);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const { data: inserted, error } = await supabase
-        .from('shop_owners')
-        .insert({
-          business_name: form.business.trim(),
-          owner_full_name: form.owner.trim(),
-          phone: form.phone.trim(),
-          email: emailNorm,
-          password: form.pass,
-          business_type: form.type,
-          business_address: form.address.trim(),
-          shop_image_url: shopImageUrl || null,
-        })
-        .select('id')
-        .single();
+      const payoutPayload = buildShopOwnerPayoutPayload(form);
+      const basePayload = {
+        business_name: form.business.trim(),
+        owner_full_name: form.owner.trim(),
+        phone: phoneCheck.value,
+        email: emailCheck.value,
+        password: form.pass,
+        business_type: form.type,
+        business_address: form.address.trim(),
+        shop_image_url: null,
+        referral_code: referralCheck.value,
+        email_verified_at: new Date().toISOString(),
+        ...payoutPayload,
+      };
+      const bankPayload = { ...payoutPayload };
+
+      const insertRow = (payload) =>
+        supabase
+          .from('shop_owners')
+          .insert(payload)
+          .select('id, business_name, owner_full_name, phone, email, shop_image_url')
+          .single();
+
+      let { data: inserted, error } = await insertRow(basePayload);
+
+      if (error && /payout_method|mobile_money|bank_name|bank_account_name|bank_account_number|bank_branch|column/i.test(error.message || '')) {
+        console.warn('[ShopOwnerRegister] payout columns missing — run supabase/shop_owners_bank_details.sql. Saving without payout details.');
+        const {
+          payout_method: _pm,
+          mobile_money_provider: _mp,
+          mobile_money_phone: _mph,
+          mobile_money_account_name: _mn,
+          bank_name: _bn,
+          bank_account_name: _ban,
+          bank_account_number: _bac,
+          bank_branch: _bb,
+          ...withoutPayout
+        } = basePayload;
+        ({ data: inserted, error } = await insertRow(withoutPayout));
+        if (!error && Object.keys(bankPayload).length) {
+          // Try legacy bank-only columns if present
+          await supabase
+            .from('shop_owners')
+            .update({
+              bank_name: bankPayload.bank_name,
+              bank_account_name: bankPayload.bank_account_name,
+              bank_account_number: bankPayload.bank_account_number,
+              bank_branch: bankPayload.bank_branch,
+            })
+            .eq('id', inserted.id);
+        }
+      }
 
       if (error) {
         if (error.code === '23505') {
@@ -245,14 +349,24 @@ export default function ShopOwnerRegisterPage() {
         return;
       }
 
-      const send = await customerEmailVerifySend({ email: emailNorm, password: form.pass, realm: 'shop_owner' });
-      if (!send.ok) {
-        await supabase.from('shop_owners').delete().eq('id', inserted.id);
-        setErrorMessage(send.error || 'Could not send verification email. Try again in a moment.');
-        return;
+      if (inserted?.id && shopImageFileRef.current) {
+        try {
+          const logoUrl = await uploadShopOwnerLogo(inserted.id, shopImageFileRef.current);
+          const { data: withLogo } = await supabase
+            .from('shop_owners')
+            .update({ shop_image_url: logoUrl })
+            .eq('id', inserted.id)
+            .select('id, business_name, owner_full_name, phone, email, shop_image_url')
+            .maybeSingle();
+          if (withLogo) inserted = withLogo;
+          else inserted = { ...inserted, shop_image_url: logoUrl };
+        } catch {
+          // Keep account even if logo upload fails.
+        }
       }
 
-      navigate(`/verify-email?realm=shop_owner&email=${encodeURIComponent(emailNorm)}`, { replace: true });
+      saveShopOwnerSession(inserted, { rememberMe: true });
+      navigate('/shop-owner/dashboard', { replace: true });
     } catch {
       setErrorMessage('Network error. Please check internet and try again.');
     } finally {
@@ -321,7 +435,17 @@ export default function ShopOwnerRegisterPage() {
                 />
               </RegField>
 
-              <RegField label="Phone number" id="sor-ph">
+              <RegField
+                label="Phone number"
+                id="sor-ph"
+                hint={
+                  showPhoneError ? (
+                    <p className="so-reg-hint" id="sor-ph-error" role="alert">
+                      {phoneCheck.error}
+                    </p>
+                  ) : null
+                }
+              >
                 <span className="so-reg-iconbox" aria-hidden>
                   <IconPhone />
                 </span>
@@ -330,14 +454,28 @@ export default function ShopOwnerRegisterPage() {
                   id="sor-ph"
                   type="tel"
                   value={form.phone}
-                  onChange={set('phone')}
+                  onChange={setPhone}
+                  onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
+                  inputMode="tel"
                   required
                   autoComplete="tel"
                   placeholder="+44 7XXX XXXXXX"
+                  aria-invalid={showPhoneError || undefined}
+                  aria-describedby={showPhoneError ? 'sor-ph-error' : undefined}
                 />
               </RegField>
 
-              <RegField label="Email address" id="sor-em">
+              <RegField
+                label="Email address"
+                id="sor-em"
+                hint={
+                  showEmailError ? (
+                    <p className="so-reg-hint" id="sor-em-error" role="alert">
+                      {emailCheck.error}
+                    </p>
+                  ) : null
+                }
+              >
                 <span className="so-reg-iconbox" aria-hidden>
                   <IconEnvelope />
                 </span>
@@ -347,9 +485,12 @@ export default function ShopOwnerRegisterPage() {
                   type="email"
                   value={form.email}
                   onChange={set('email')}
+                  onBlur={() => setTouched((t) => ({ ...t, email: true }))}
                   required
                   autoComplete="email"
                   placeholder="you@shop.com"
+                  aria-invalid={showEmailError || undefined}
+                  aria-describedby={showEmailError ? 'sor-em-error' : undefined}
                 />
               </RegField>
             </section>
@@ -416,6 +557,20 @@ export default function ShopOwnerRegisterPage() {
                 >
                   <IconEye open={!showPass2} />
                 </button>
+              </RegField>
+
+              <RegField label="Referral code (optional)" id="sor-ref">
+                <span className="so-reg-iconbox" aria-hidden>
+                  <IconTag />
+                </span>
+                <input
+                  className="so-reg-input"
+                  id="sor-ref"
+                  value={form.referralCode}
+                  onChange={(e) => setForm((f) => ({ ...f, referralCode: e.target.value.toUpperCase() }))}
+                  autoComplete="off"
+                  placeholder="e.g. INGO-PROMO01"
+                />
               </RegField>
             </section>
 
@@ -513,6 +668,151 @@ export default function ShopOwnerRegisterPage() {
                   later from your profile when that is available.
                 </p>
               </div>
+            </section>
+
+            <section className="so-reg-group" aria-labelledby="so-reg-grp-payout">
+              <h2 id="so-reg-grp-payout" className="so-reg-group-label">
+                Payout Account Details
+              </h2>
+              <p className="so-reg-group-note">
+                Choose Bank or Mobile money for withdrawals. Used by admin to pay out your earnings.
+              </p>
+
+              <fieldset className="so-reg-payout-choice">
+                <legend className="so-reg-label">Payout method</legend>
+                <div className="so-reg-payout-choice__row" role="radiogroup" aria-label="Payout method">
+                  <label className={`so-reg-payout-chip${form.payoutMethod === PAYOUT_METHOD_BANK ? ' so-reg-payout-chip--on' : ''}`}>
+                    <input
+                      type="radio"
+                      name="sor-payout-method"
+                      value={PAYOUT_METHOD_BANK}
+                      checked={form.payoutMethod === PAYOUT_METHOD_BANK}
+                      onChange={() => setForm((f) => ({ ...f, payoutMethod: PAYOUT_METHOD_BANK }))}
+                    />
+                    Bank account
+                  </label>
+                  <label className={`so-reg-payout-chip${form.payoutMethod === PAYOUT_METHOD_MOBILE ? ' so-reg-payout-chip--on' : ''}`}>
+                    <input
+                      type="radio"
+                      name="sor-payout-method"
+                      value={PAYOUT_METHOD_MOBILE}
+                      checked={form.payoutMethod === PAYOUT_METHOD_MOBILE}
+                      onChange={() => setForm((f) => ({ ...f, payoutMethod: PAYOUT_METHOD_MOBILE }))}
+                    />
+                    Mobile money
+                  </label>
+                </div>
+              </fieldset>
+
+              {form.payoutMethod === PAYOUT_METHOD_BANK ? (
+                <>
+                  <RegField label="Bank name" id="sor-bank">
+                    <span className="so-reg-iconbox" aria-hidden>
+                      <IconBank />
+                    </span>
+                    <input
+                      className="so-reg-input"
+                      id="sor-bank"
+                      value={form.bankName}
+                      onChange={set('bankName')}
+                      autoComplete="off"
+                      placeholder="e.g. CBZ Bank, Steward Bank"
+                    />
+                  </RegField>
+
+                  <RegField label="Account holder name" id="sor-bankname">
+                    <span className="so-reg-iconbox" aria-hidden>
+                      <IconPerson />
+                    </span>
+                    <input
+                      className="so-reg-input"
+                      id="sor-bankname"
+                      value={form.bankAccountName}
+                      onChange={set('bankAccountName')}
+                      autoComplete="off"
+                      placeholder="Name as it appears on the account"
+                    />
+                  </RegField>
+
+                  <RegField label="Account number" id="sor-bankacc">
+                    <span className="so-reg-iconbox" aria-hidden>
+                      <IconCard />
+                    </span>
+                    <input
+                      className="so-reg-input"
+                      id="sor-bankacc"
+                      value={form.bankAccountNumber}
+                      onChange={set('bankAccountNumber')}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="Bank account number"
+                    />
+                  </RegField>
+
+                  <RegField label="Branch / branch code" id="sor-bankbr">
+                    <span className="so-reg-iconbox" aria-hidden>
+                      <IconPin />
+                    </span>
+                    <input
+                      className="so-reg-input"
+                      id="sor-bankbr"
+                      value={form.bankBranch}
+                      onChange={set('bankBranch')}
+                      autoComplete="off"
+                      placeholder="Branch name or code"
+                    />
+                  </RegField>
+                </>
+              ) : (
+                <>
+                  <RegField label="Mobile money provider" id="sor-mm-provider" wrapClass="so-reg-select-wrap">
+                    <span className="so-reg-iconbox" aria-hidden>
+                      <IconPhone />
+                    </span>
+                    <select
+                      className="so-reg-select"
+                      id="sor-mm-provider"
+                      value={form.mobileProvider}
+                      onChange={set('mobileProvider')}
+                    >
+                      {MOBILE_MONEY_PROVIDERS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </RegField>
+
+                  <RegField label="Name on mobile money account" id="sor-mm-name">
+                    <span className="so-reg-iconbox" aria-hidden>
+                      <IconPerson />
+                    </span>
+                    <input
+                      className="so-reg-input"
+                      id="sor-mm-name"
+                      value={form.mobileAccountName}
+                      onChange={set('mobileAccountName')}
+                      autoComplete="off"
+                      placeholder="Exactly as shown on EcoCash / OneMoney / InnBucks"
+                    />
+                  </RegField>
+
+                  <RegField label="Mobile money phone number" id="sor-mm-phone">
+                    <span className="so-reg-iconbox" aria-hidden>
+                      <IconPhone />
+                    </span>
+                    <input
+                      className="so-reg-input"
+                      id="sor-mm-phone"
+                      value={form.mobilePhone}
+                      onChange={(e) => setForm((f) => ({ ...f, mobilePhone: sanitizePhoneInput(e.target.value) }))}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="Registered wallet number"
+                    />
+                  </RegField>
+                </>
+              )}
             </section>
 
             <label className="so-reg-terms">

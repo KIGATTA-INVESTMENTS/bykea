@@ -92,8 +92,6 @@ export default function AdminAnalyticsPage() {
   const [error, setError] = useState('');
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
 
-  const [rangeLabel, setRangeLabel] = useState('');
-
   const [totalOrdersCurr, setTotalOrdersCurr] = useState(0);
   const [totalOrdersPrev, setTotalOrdersPrev] = useState(0);
   const [revenueCurr, setRevenueCurr] = useState(0);
@@ -131,8 +129,6 @@ export default function AdminAnalyticsPage() {
     const prevStart = startOfLocalDay(new Date(prevPeriodEnd.getFullYear(), prevPeriodEnd.getMonth(), prevPeriodEnd.getDate() - (PERIOD_DAYS - 1))).toISOString();
 
     try {
-      setRangeLabel(`${new Date(currStart).toLocaleDateString()} – ${new Date(currEnd).toLocaleDateString()} vs prior ${PERIOD_DAYS} days`);
-
       const [{ count: nuCurr, error: ucErr }, { count: nuPrev, error: upErr }] = await Promise.all([
         supabase.from('app_users').select('*', { count: 'exact', head: true }).gte('created_at', currStart).lte('created_at', currEnd),
         supabase.from('app_users').select('*', { count: 'exact', head: true }).gte('created_at', prevStart).lte('created_at', prevEnd),
@@ -368,11 +364,8 @@ export default function AdminAnalyticsPage() {
     <div className="adm">
       <div className="admToolbar">
         <p className="admDim" style={{ margin: 0, fontSize: '0.82rem' }}>
-          Recent {PERIOD_DAYS}-day slice · {loading ? 'Loading…' : lastLoadedAt ? `Updated ${lastLoadedAt.toLocaleTimeString()}` : rangeLabel || '—'}
+          Recent {PERIOD_DAYS}-day slice · {loading ? 'Loading…' : lastLoadedAt ? `Updated ${lastLoadedAt.toLocaleTimeString()}` : '—'}
         </p>
-        <div className="admFilters">
-          <input className="admInput admDateInput" readOnly value={rangeLabel || '—'} title="Rolling comparison window" />
-        </div>
       </div>
 
       {error ? (

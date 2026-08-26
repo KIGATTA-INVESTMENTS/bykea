@@ -1,6 +1,11 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { saveDriverSession } from '../lib/driverSession';
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import {
+  getRememberedDriverEmail,
+  isDriverSignedIn,
+  saveDriverSession,
+  setRememberedDriverEmail,
+} from '../lib/driverSession';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import InGoLogo from '../components/InGoLogo';
 import { LOGIN_HERO_ART } from '../lib/ingoLogo';
@@ -118,17 +123,25 @@ const TRUST_BADGES = [
 export default function DriverLoginPage() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => getRememberedDriverEmail());
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [unverifiedEmail, setUnverifiedEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (isDriverSignedIn()) {
+    const from = state?.from;
+    const target =
+      typeof from === 'string' && from.startsWith('/driver') && !from.startsWith('/driver/login')
+        ? from
+        : '/driver/home';
+    return <Navigate to={target} replace />;
+  }
 
   const submit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
-    setUnverifiedEmail('');
     if (!isSupabaseConfigured || !supabase) {
       setErrorMessage('Supabase is not configured. Add env vars and restart the dev server.');
       return;
@@ -138,14 +151,25 @@ export default function DriverLoginPage() {
 
     setIsSubmitting(true);
     try {
-      const { data: rows, error: qErr } = await supabase
+      let { data: rows, error: qErr } = await supabase
         .from('driver_registrations')
         .select(
-          'id, full_name, email, phone, phone_country_code, password, status, vehicle_type, vehicle_make, vehicle_model, vehicle_plate, vehicle_color, email_verified_at',
+          'id, full_name, email, phone, phone_country_code, password, status, vehicle_type, vehicle_make, vehicle_model, vehicle_plate, vehicle_color, created_at, account_mode, company_id',
         )
         .eq('email', emailTrim)
         .order('created_at', { ascending: false })
         .limit(8);
+
+      if (qErr && /account_mode|company_id|column/i.test(qErr.message || '')) {
+        ({ data: rows, error: qErr } = await supabase
+          .from('driver_registrations')
+          .select(
+            'id, full_name, email, phone, phone_country_code, password, status, vehicle_type, vehicle_make, vehicle_model, vehicle_plate, vehicle_color, created_at',
+          )
+          .eq('email', emailTrim)
+          .order('created_at', { ascending: false })
+          .limit(8));
+      }
 
       if (qErr) {
         setErrorMessage(qErr.message || 'Could not verify your account.');
@@ -161,12 +185,9 @@ export default function DriverLoginPage() {
           setErrorMessage('Incorrect password.');
           return;
         }
-        if (approved.email_verified_at == null) {
-          setUnverifiedEmail(emailTrim);
-          setErrorMessage('Please verify your email before logging in. Use the link below to enter your code.');
-          return;
-        }
-        saveDriverSession(approved);
+        saveDriverSession(approved, { rememberMe: remember });
+        if (remember) setRememberedDriverEmail(emailTrim);
+        else setRememberedDriverEmail('');
         const from = state?.from;
         const target =
           typeof from === 'string' && from.startsWith('/driver') && !from.startsWith('/driver/login')
@@ -179,11 +200,6 @@ export default function DriverLoginPage() {
       if (latest) {
         if (latest.password !== password) {
           setErrorMessage('Incorrect password.');
-          return;
-        }
-        if (latest.email_verified_at == null) {
-          setUnverifiedEmail(emailTrim);
-          setErrorMessage('Please verify your email before logging in. Use the link below to enter your code.');
           return;
         }
         const st = String(latest.status || '').toLowerCase();
@@ -240,7 +256,9 @@ export default function DriverLoginPage() {
         <div className="dp-login-card">
           <form className="dp-login-form" onSubmit={submit} autoComplete="on">
             <h1 className="dp-login-title">Welcome Back, Driver</h1>
-            <p className="dp-login-subtitle">Login to start delivering (approved drivers only)</p>
+            <p className="dp-login-subtitle">
+              Log in with your email and password (solo riders and company bikes). Approved drivers only.
+            </p>
 
             {state?.passwordReset && (
               <p className="dp-login-flash" role="status">
@@ -255,23 +273,15 @@ export default function DriverLoginPage() {
             )}
             {state?.registered && (
               <p className="dp-login-flash" role="status">
-                Application received. Check your email for a verification code, then wait for admin approval before you
-                can log in.
+                {state?.companyRegistered
+                  ? 'Company application received. Give each biker their own email and password so they can log in after admin approval. Then open Fleet to oversee riders, orders, and earnings.'
+                  : 'Application received. Wait for admin approval before you can log in and start working.'}
               </p>
             )}
 
             {errorMessage ? (
               <p className="dp-login-error" role="alert">
                 {errorMessage}
-              </p>
-            ) : null}
-            {unverifiedEmail && unverifiedEmail === email.trim().toLowerCase() ? (
-              <p className="dp-login-verify">
-                <Link
-                  to={`/verify-email?realm=driver&email=${encodeURIComponent(unverifiedEmail)}`}
-                >
-                  Verify email or resend code
-                </Link>
               </p>
             ) : null}
 
@@ -289,10 +299,7 @@ export default function DriverLoginPage() {
                   name="email"
                   type="email"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setUnverifiedEmail('');
-                  }}
+                  onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
                   placeholder="you@example.com"
                   required
@@ -331,6 +338,14 @@ export default function DriverLoginPage() {
             </div>
 
             <div className="dp-login-forgot-row">
+              <label className="dp-login-chk">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                Remember me
+              </label>
               <Link to="/forgot-password?realm=driver" className="dp-login-forgot">
                 Forgot password
               </Link>

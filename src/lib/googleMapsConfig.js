@@ -131,7 +131,19 @@ export function publicPlaceMapUrl(query) {
   return placeEmbedUrlWithKey(query) || mapsLegacyPlaceEmbedUrl(query);
 }
 
+/** Keyed Embed API first; classic `output=embed` only if the key is missing. */
+export function publicPlaceMapUrlRobust(query) {
+  return placeEmbedUrlWithKey(query) || mapsLegacyPlaceEmbedUrl(query);
+}
+
 export function publicDirectionsMapUrl(origin, destination, waypoints = []) {
+  return (
+    directionsEmbedUrlWithKey(origin, destination, waypoints) ||
+    mapsLegacyDirectionsEmbedUrl(origin, destination, waypoints)
+  );
+}
+
+export function publicDirectionsMapUrlRobust(origin, destination, waypoints = []) {
   return (
     directionsEmbedUrlWithKey(origin, destination, waypoints) ||
     mapsLegacyDirectionsEmbedUrl(origin, destination, waypoints)
@@ -146,8 +158,175 @@ export function publicDirectionsCoordsMapUrl(oLat, oLng, dLat, dLng, waypointLat
   );
 }
 
+export function publicDirectionsCoordsMapUrlRobust(oLat, oLng, dLat, dLng, waypointLatLngPairs = []) {
+  return (
+    directionsEmbedCoordsUrlWithKey(oLat, oLng, dLat, dLng, waypointLatLngPairs) ||
+    mapsLegacyDirectionsCoordsEmbedUrl(oLat, oLng, dLat, dLng)
+  );
+}
+
 export function publicViewMapUrl(lat, lng, zoom = 13) {
   return viewEmbedUrlWithKey(lat, lng, zoom) || mapsLegacyViewEmbedUrl(lat, lng, zoom);
+}
+
+export function publicViewMapUrlRobust(lat, lng, zoom = 13) {
+  return viewEmbedUrlWithKey(lat, lng, zoom) || mapsLegacyViewEmbedUrl(lat, lng, zoom);
+}
+
+/**
+ * Driver portal maps — prefer classic `output=embed` so the map still renders when
+ * Maps Embed API / billing / HTTP referrers block the keyed iframe (common after
+ * reopen / login on localhost and native WebViews).
+ */
+export function publicViewMapUrlDriver(lat, lng, zoom = 13) {
+  return mapsLegacyViewEmbedUrl(lat, lng, zoom) || viewEmbedUrlWithKey(lat, lng, zoom);
+}
+
+export function publicPlaceMapUrlDriver(query) {
+  return mapsLegacyPlaceEmbedUrl(query) || placeEmbedUrlWithKey(query);
+}
+
+export function publicDirectionsMapUrlDriver(origin, destination, waypoints = []) {
+  return (
+    mapsLegacyDirectionsEmbedUrl(origin, destination, waypoints) ||
+    directionsEmbedUrlWithKey(origin, destination, waypoints)
+  );
+}
+
+export function publicDirectionsCoordsMapUrlDriver(oLat, oLng, dLat, dLng, waypointLatLngPairs = []) {
+  return (
+    mapsLegacyDirectionsCoordsEmbedUrl(oLat, oLng, dLat, dLng) ||
+    directionsEmbedCoordsUrlWithKey(oLat, oLng, dLat, dLng, waypointLatLngPairs)
+  );
+}
+
+/** Default map center when GPS is denied or unavailable (Harare, Zimbabwe). */
+export const DEFAULT_MAP_FALLBACK = Object.freeze({
+  lat: -17.8292,
+  lng: 31.0522,
+  zoom: 13,
+  label: 'Harare, Zimbabwe',
+});
+
+/** Zimbabwe — reject wrong-continent network geolocation (e.g. London IP/Wi‑Fi fixes). */
+export const SERVICE_AREA_BOUNDS = Object.freeze({
+  minLat: -22.75,
+  maxLat: -15.45,
+  minLng: 25.0,
+  maxLng: 33.9,
+});
+
+/** Persisted GPS cache TTL — stale fixes must not pin the map to an old city. */
+export const GEO_CACHE_MAX_AGE_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * @param {number} lat
+ * @param {number} lng
+ * @returns {boolean}
+ */
+export function isInServiceArea(lat, lng) {
+  const la = Number(lat);
+  const lo = Number(lng);
+  if (!isReliableGpsLatLng(la, lo)) return false;
+  return (
+    la >= SERVICE_AREA_BOUNDS.minLat &&
+    la <= SERVICE_AREA_BOUNDS.maxLat &&
+    lo >= SERVICE_AREA_BOUNDS.minLng &&
+    lo <= SERVICE_AREA_BOUNDS.maxLng
+  );
+}
+
+/**
+ * Device GPS we trust for maps / pickup — must fall inside the Zimbabwe service box.
+ * @param {number} lat
+ * @param {number} lng
+ * @returns {boolean}
+ */
+export function isAcceptableDeviceFix(lat, lng) {
+  return isInServiceArea(lat, lng);
+}
+
+/**
+ * Map center for display: live GPS when in service area, otherwise Harare fallback.
+ * @param {{ lat?: number, lng?: number } | null | undefined} center
+ * @param {{ lat: number, lng: number }} [fallback]
+ */
+export function trustedMapCenter(center, fallback = DEFAULT_MAP_FALLBACK) {
+  if (center && isInServiceArea(center.lat, center.lng)) {
+    return { lat: Number(center.lat), lng: Number(center.lng) };
+  }
+  return { lat: fallback.lat, lng: fallback.lng };
+}
+
+/** Map embed URL centered on Harare when live GPS is unavailable. */
+export function publicDefaultViewMapUrl(zoom = DEFAULT_MAP_FALLBACK.zoom) {
+  return publicViewMapUrlRobust(DEFAULT_MAP_FALLBACK.lat, DEFAULT_MAP_FALLBACK.lng, zoom);
+}
+
+const DRIVER_MAP_FALLBACK = DEFAULT_MAP_FALLBACK;
+
+/**
+ * Driver active-delivery / navigation map — address route immediately, GPS+coords when ready.
+ * Pass `routedOrigin` (first stable GPS fix) so the iframe URL does not change every second.
+ * @param {{
+ *   pickup?: string,
+ *   dropoff?: string,
+ *   navTarget?: string,
+ *   toDropoff?: boolean,
+ *   routedOrigin?: { lat: number, lng: number } | null,
+ *   pickupGeo?: { lat: number, lng: number } | null,
+ *   dropoffGeo?: { lat: number, lng: number } | null,
+ *   destGeo?: { lat: number, lng: number } | null,
+ * }} opts
+ */
+export function buildDriverRouteMapUrl(opts = {}) {
+  const pu = String(opts.pickup || '').trim();
+  const dr = String(opts.dropoff || pu).trim();
+  const toDropoff = Boolean(opts.toDropoff);
+  const target = String(opts.navTarget || (toDropoff ? dr : pu)).trim() || pu || dr;
+  const origin = opts.routedOrigin;
+  const pickupGeo = opts.pickupGeo;
+  const dropoffGeo = opts.dropoffGeo;
+  const destGeo = opts.destGeo;
+  const hasOrigin =
+    origin &&
+    Number.isFinite(Number(origin.lat)) &&
+    Number.isFinite(Number(origin.lng)) &&
+    isReliableGpsLatLng(origin.lat, origin.lng);
+
+  if (hasOrigin && destGeo) {
+    const leg = publicDirectionsCoordsMapUrlDriver(origin.lat, origin.lng, destGeo.lat, destGeo.lng);
+    if (leg) return leg;
+    const legAddr = publicDirectionsMapUrlDriver(`${origin.lat},${origin.lng}`, target);
+    if (legAddr) return legAddr;
+  }
+
+  if (pickupGeo && dropoffGeo) {
+    if (hasOrigin && !toDropoff) {
+      const viaPickup = publicDirectionsCoordsMapUrlDriver(
+        origin.lat,
+        origin.lng,
+        dropoffGeo.lat,
+        dropoffGeo.lng,
+        [[pickupGeo.lat, pickupGeo.lng]],
+      );
+      if (viaPickup) return viaPickup;
+    }
+    const full = publicDirectionsCoordsMapUrlDriver(pickupGeo.lat, pickupGeo.lng, dropoffGeo.lat, dropoffGeo.lng);
+    if (full) return full;
+  }
+
+  if (pu && dr) {
+    const route = publicDirectionsMapUrlDriver(pu, dr);
+    if (route) return route;
+  }
+
+  if (target) {
+    const place = publicPlaceMapUrlDriver(target);
+    if (place) return place;
+  }
+
+  return publicViewMapUrlDriver(DRIVER_MAP_FALLBACK.lat, DRIVER_MAP_FALLBACK.lng, DRIVER_MAP_FALLBACK.zoom);
 }
 
 /**

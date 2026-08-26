@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatShopOwnerPayoutSummary } from '../lib/shopOwnerPayoutAccount';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import './adminPortal.css';
 
 function formatDt(iso) {
-  if (!iso) return '—';
+  if (!iso) return '�';
   try {
     return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
@@ -53,10 +54,12 @@ export default function AdminShopWithdrawalsPage() {
     if (ids.length) {
       const { data: shops } = await supabase
         .from('shop_owners')
-        .select('id, business_name, email')
+        .select(
+          'id, business_name, email, bank_name, bank_account_name, bank_account_number, bank_branch, payout_method, mobile_money_provider, mobile_money_phone, mobile_money_account_name',
+        )
         .in('id', ids);
       const m = {};
-      for (const s of shops || []) m[s.id] = s;
+      for (const s of shops || []) m[s.id] = { ...s, payoutSummary: formatShopOwnerPayoutSummary(s) };
       setShopMap(m);
     } else {
       setShopMap({});
@@ -132,7 +135,7 @@ export default function AdminShopWithdrawalsPage() {
           </p>
         ) : loading ? (
           <p className="admDim" style={{ padding: '1rem' }}>
-            Loading shop withdrawals…
+            Loading shop withdrawals�
           </p>
         ) : filtered.length === 0 ? (
           <p className="admDim" style={{ padding: '1rem' }}>
@@ -163,8 +166,29 @@ export default function AdminShopWithdrawalsPage() {
                         <div className="admDim" style={{ fontSize: '0.76rem' }}>
                           {s?.email || r.shop_owner_id}
                         </div>
+                        {s?.payoutSummary ? (
+                          <div className="admDim" style={{ fontSize: '0.74rem', marginTop: '0.35rem', lineHeight: 1.4 }}>
+                            {s.payoutSummary.method === 'Mobile money' ? (
+                              <>
+                                <div>
+                                  <strong>Mobile money</strong> � {s.payoutSummary.provider}
+                                </div>
+                                <div>{s.payoutSummary.accountName}</div>
+                                <div>{s.payoutSummary.phone}</div>
+                              </>
+                            ) : (
+                              <>
+                                <div>
+                                  <strong>Bank</strong> � {s.payoutSummary.bankName}
+                                </div>
+                                <div>{s.payoutSummary.accountName}</div>
+                                <div>{s.payoutSummary.accountNumber}</div>
+                              </>
+                            )}
+                          </div>
+                        ) : null}
                       </td>
-                      <td style={{ fontWeight: 800 }}>�${Number(r.amount || 0).toFixed(2)}</td>
+                      <td style={{ fontWeight: 800 }}>�${Number(r.amount || 0).toFixed(2)}</td>
                       <td>
                         <span className={statusClass(r.status)}>{String(r.status || 'pending')}</span>
                       </td>

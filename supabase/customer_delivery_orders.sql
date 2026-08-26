@@ -28,6 +28,7 @@ create table if not exists public.customer_delivery_orders (
   -- Snapshot of fare at checkout (from service_pricing + distance at estimate time)
   base_fare_amount numeric(12, 4) not null default 0,
   distance_fee_amount numeric(12, 4) not null default 0,
+  time_fee_amount numeric(12, 4) not null default 0,
   service_fee_amount numeric(12, 4) not null default 0,
   total_amount numeric(12, 4) not null,
   currency text not null default 'USD',
@@ -75,6 +76,8 @@ create index if not exists customer_delivery_orders_delivery_request_id_idx
 
 comment on table public.customer_delivery_orders is 'Customer placed order: route, package, pricing snapshot, payment (no driver yet)';
 comment on column public.customer_delivery_orders.delivery_request_id is 'FK to delivery_requests when app passes id through the flow';
+alter table public.customer_delivery_orders add column if not exists time_fee_amount numeric(12, 4) not null default 0;
+comment on column public.customer_delivery_orders.time_fee_amount is 'Snapshot: estimated minutes × price_per_minute at checkout';
 comment on column public.customer_delivery_orders.payment_method is 'ecocash = bank transfer UI id; adjust CHECK if you rename methods';
 
 alter table public.customer_delivery_orders enable row level security;

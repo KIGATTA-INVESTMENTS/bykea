@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { isDriverSignedIn } from '../../lib/driverSession';
 import DriverApprovalGate from './DriverApprovalGate';
 import DriverBottomNav from './DriverBottomNav';
+import { DriverOffersProvider } from './DriverOffersProvider';
 import './DriverApp.css';
 
 export default function DriverLayout() {
@@ -11,12 +12,14 @@ export default function DriverLayout() {
   }
   return (
     <DriverApprovalGate>
-      <div className="driver-app">
-        <div className="driver-app__outlet">
-          <Outlet />
+      <DriverOffersProvider>
+        <div className="driver-app">
+          <div className="driver-app__outlet">
+            <Outlet />
+          </div>
+          <DriverBottomNav />
         </div>
-        <DriverBottomNav />
-      </div>
+      </DriverOffersProvider>
     </DriverApprovalGate>
   );
 }

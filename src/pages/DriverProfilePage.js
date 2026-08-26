@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { clearDriverSession, getDriverSession } from '../lib/driverSession';
-import { formatGBP } from '../lib/currency';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { formatVehicleTypeForDisplay } from '../lib/vehicleTypeDisplay';
 import './driverEarningsWalletProfile.css';
 import './driverProfilePremium.css';
+import './driverNotifications.css';
 
 const DOC_ROWS = [
   { key: 'doc_national_id_url', label: 'National ID / Passport' },
@@ -166,15 +166,43 @@ function ProfileAvatar({ profile }) {
   return <div className="dpr-avInitials">{initials(profile.full_name)}</div>;
 }
 
+function IcBell() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
+      <path
+        d="M12 3a4.5 4.5 0 0 0-4.5 4.5V10l-1.2 2.4A1 1 0 0 1 7.2 14h9.6a1 1 0 0 1 .9-1.6L17 10V7.5A4.5 4.5 0 0 0 12 3Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        fill="none"
+      />
+      <path d="M10.5 18a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcChevron() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden>
+      <path
+        d="M9 6l6 6-6 6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function PremiumProfileShell({ children, profile }) {
   return (
     <div className="dpr dpr--premium" role="main" aria-label="Driver profile">
       <header className="dpr-nav">
         <span className="dpr-navSpacer" aria-hidden />
         <h1>Profile</h1>
-        <span className="dpr-settings" aria-hidden>
+        <Link to="/driver/notifications" className="dpr-settings" aria-label="Notification settings">
           <IcSettings />
-        </span>
+        </Link>
       </header>
       <div className="dpr-headerBand">
         <div className="dpr-av" aria-hidden>
@@ -238,11 +266,21 @@ export default function DriverProfilePage() {
 
   if (!profile) return null;
 
-  const deposit = Number(profile.deposit_required_gbp ?? 10);
-  const paid = Boolean(profile.deposit_paid);
-
   return (
     <PremiumProfileShell profile={profile}>
+      <Link to="/driver/notifications" className="dn-menuRow">
+        <span className="dn-menuRow__icon" aria-hidden>
+          <IcBell />
+        </span>
+        <span className="dn-menuRow__text">
+          <span className="dn-menuRow__title">Notifications</span>
+          <span className="dn-menuRow__sub">Manage offer alerts, ring, and push</span>
+        </span>
+        <span className="dn-menuRow__chev" aria-hidden>
+          <IcChevron />
+        </span>
+      </Link>
+
       <Link to="/driver/chat" className="dpr-chatBtn">
         💬 Chat with Support
       </Link>
@@ -289,26 +327,6 @@ export default function DriverProfilePage() {
               </div>
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="dpr-section" aria-labelledby="dpr-deposit-h">
-        <h2 id="dpr-deposit-h" className="dpr-secH">
-          Deposit (registration)
-        </h2>
-        <div className="dpr-secB dprRegCard">
-          <div className="dprRegRow">
-            <div className="dprRegLab">Amount</div>
-            <div className="dprRegVal dpr-depositAmt">{formatGBP(deposit)}</div>
-          </div>
-          <div className="dprRegRow">
-            <div className="dprRegLab">Status</div>
-            <div className="dprRegVal">
-              <span className={`dpr-statusPill${paid ? ' dpr-statusPill--paid' : ' dpr-statusPill--unpaid'}`}>
-                {paid ? 'Paid' : 'Not paid yet'}
-              </span>
-            </div>
-          </div>
         </div>
       </section>
 

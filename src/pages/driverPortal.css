@@ -553,6 +553,7 @@
   overflow: hidden;
   background: linear-gradient(160deg, #cfd8dc 0%, #90a4ae 100%);
   pointer-events: none;
+  touch-action: none;
 }
 .dh__mapWrap--gmap {
   pointer-events: auto;
@@ -972,6 +973,42 @@
   background: linear-gradient(180deg, var(--s) 0%, #2f7ec6 55%, var(--g) 100%);
 }
 
+.dh-offerCard--ringing {
+  animation: dhOfferRingPulse 0.85s ease-in-out 4;
+  border-color: rgba(241, 134, 49, 0.45);
+  box-shadow:
+    0 0 0 3px rgba(241, 134, 49, 0.22),
+    0 6px 24px rgba(241, 134, 49, 0.18);
+}
+
+@keyframes dhOfferRingPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 3px rgba(241, 134, 49, 0.22),
+      0 6px 24px rgba(241, 134, 49, 0.18);
+  }
+  50% {
+    transform: scale(1.012);
+    box-shadow:
+      0 0 0 6px rgba(241, 134, 49, 0.12),
+      0 8px 28px rgba(241, 134, 49, 0.28);
+  }
+}
+
+.dh__srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .dh-offerCard__head {
   display: flex;
   align-items: flex-start;
@@ -1137,14 +1174,21 @@
 
 .dh-offerCard__pay {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
   margin: 0 0 0.75rem;
-  padding: 0.5rem 0.65rem;
+  padding: 0.55rem 0.65rem;
   border-radius: 12px;
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid #e2e8f0;
+}
+
+.dh-offerCard__payTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .dh-offerCard__payLbl {
@@ -1157,8 +1201,38 @@
 
 .dh-offerCard__payVal {
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 800;
   color: #0f766e;
+}
+
+.dh-offerCard__pay--wallet {
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: #6ee7b7;
+}
+
+.dh-offerCard__pay--wallet .dh-offerCard__payVal {
+  color: #047857;
+}
+
+.dh-offerCard__pay--cash {
+  background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+  border-color: #fdba74;
+}
+
+.dh-offerCard__pay--cash .dh-offerCard__payVal {
+  color: #c2410c;
+}
+
+.dh-offerCard__payNote {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: #065f46;
+}
+
+.dh-offerCard__payNote--cash {
+  color: #9a3412;
 }
 
 .dh-offerCard__priceBand {
@@ -1231,10 +1305,161 @@
 .dh-offerCard__actions {
   display: flex;
   flex-direction: row;
-  gap: 0.65rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   width: 100%;
   margin-top: 0.1rem;
   padding-top: 0.05rem;
+}
+
+.dh-offerCard__minBid {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.dh-offerCard__myBid {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: #eef4ff;
+  border: 1px solid #c7daf5;
+}
+
+.dh-offerCard__myBidLbl {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #07408f;
+}
+
+.dh-offerCard__myBidAmt {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #07408f;
+}
+
+.dh-offerCard__myBidNote {
+  flex-basis: 100%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.dh-acceptedCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 0.9rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #067a3e, #0aa155);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(6, 122, 62, 0.28);
+  animation: dhAcceptedPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dhAcceptedPulse {
+  0%,
+  100% {
+    box-shadow: 0 10px 24px rgba(6, 122, 62, 0.28);
+  }
+  50% {
+    box-shadow: 0 10px 30px rgba(6, 122, 62, 0.5);
+  }
+}
+
+.dh-acceptedCard__body {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.dh-acceptedCard__badge {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.dh-acceptedCard__title {
+  margin: 0.35rem 0 0.15rem;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.dh-acceptedCard__route {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.92;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dh-acceptedCard__btn {
+  flex: 0 0 auto;
+  border: none;
+  cursor: pointer;
+  padding: 0.7rem 1.15rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #067a3e;
+  background: #fff;
+}
+
+.dh-acceptedCard__btn:hover {
+  background: #f0fff6;
+}
+
+.dh-offerCard__bidForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.dh-offerCard__bidLbl {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.dh-offerCard__bidInput {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.dh-offerCard__btn--bidOpen {
+  border: 1.5px solid #07408f;
+  background: #fff;
+  color: #07408f;
+}
+
+.dh-offerCard__btn--bid {
+  border: none;
+  background: #07408f;
+  color: #fff;
+  width: 100%;
+  flex: 1 1 100%;
 }
 
 .dh-offerCard__btn {
