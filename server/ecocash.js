@@ -57,6 +57,64 @@ function orderTableForKind(orderKind) {
   return 'shop_customer_orders';
 }
 
+function sanitizeRemark(raw) {
+  return String(raw || 'InGo payment').replace(/[<>&]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) ||
+    'InGo payment';
+}
+
+function sanitizeReference(raw) {
+  const s = String(raw || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+  return s || `ING${Date.now()}`.slice(0, 40);
+}
+
+function substituteVars(text, variables) {
+  let t = String(text || '');
+  const vars = Array.isArray(variables) ? variables : variables != null ? [variables] : [];
+  vars.forEach((v, i) => {
+    t = t.split(`%${i + 1}`).join(String(v));
+  });
+  return t;
+}
+
+function summarizeEcocashFailure(charge) {
+  const body = charge.body && typeof charge.body === 'object' ? charge.body : {};
+  const reqErr = body.requestError || body.requesterror || {};
+  const se = reqErr.serviceException || reqErr.policyException || body.serviceException || body.policyException;
+  const bits = [];
+  if (se && typeof se === 'object') {
+    const text = substituteVars(se.text || se.message || '', se.variables);
+    if (text) bits.push(text);
+  }
+  for (const key of ['remarks', 'error', 'errorMessage', 'message', 'faultstring', 'description']) {
+    const v = String(body[key] || '').trim();
+    if (v && !bits.includes(v)) bits.push(v);
+  }
+  if (!bits.length && charge.raw) {
+    const clipped = String(charge.raw).replace(/\s+/g, ' ').trim().slice(0, 240);
+    if (clipped) bits.push(clipped);
+  }
+  let msg = bits.join(' — ') || 'EcoCash charge request failed.';
+  const lower = msg.toLowerCase();
+  if (/whitelist|not (registered|allowed|authori[sz]ed)|test (environment|platform|msisdn)/i.test(lower)) {
+    msg += ' Ask EcoCash to whitelist this phone on preprod, or set production ECOCASH_* secrets.';
+  }
+  if (charge.httpStatus === 401 || charge.httpStatus === 403) {
+    msg += ' Check ECOCASH_API_USERNAME / password and merchant code, pin, and number.';
+  }
+  if (charge.httpStatus >= 400) msg += ` (HTTP ${charge.httpStatus})`;
+  if (charge.httpStatus === 0) msg += ' Could not reach the EcoCash gateway.';
+  return msg.replace(/\s+/g, ' ').trim();
+}
+
+function isChargeAccepted(charge) {
+  if (!charge.ok) return false;
+  const status = String(extractStatusFromPayload(charge.body) || '').toUpperCase();
+  if (status === 'FAILED' || status === 'REJECTED' || status === 'CANCELLED' || status === 'CANCELED') {
+    return false;
+  }
+  return true;
+}
+
 function buildChargeBody({
   cfg,
   clientCorrelation,
@@ -66,25 +124,28 @@ function buildChargeBody({
   remarks,
   notifyUrl,
 }) {
-  const amt = Number(Number(amount).toFixed(2));
+  const amt = Math.round(Number(amount) * 100) / 100;
+  const remark = sanitizeRemark(remarks);
+  const ref = sanitizeReference(referenceCode);
   return {
     clientCorrelation,
+    clientCorrelator: clientCorrelation,
     notifyUrl,
-    referenceCode,
+    referenceCode: ref,
     tranType: 'MER',
     endUserId,
-    remarks: remarks || 'InGo payment',
+    remarks: remark,
     transactionOperationStatus: 'Charged',
     paymentAmount: {
       charginginformation: {
         amount: amt,
         currency: cfg.currency,
-        description: remarks || 'InGo Online Payment',
+        description: remark || 'InGo Online Payment',
       },
       chargeMetaData: {
         channel: 'WEB',
         purchaseCategoryCode: 'Online Payment',
-        onBeHalfOf: 'InGo',
+        onBeHalfOf: cfg.merchantName || 'InGo',
       },
       merchantCode: cfg.merchantCode,
       merchantPin: cfg.merchantPin,
@@ -113,23 +174,33 @@ async function chargeEcocash(params) {
   const cfg = ecocashConfig();
   const url = `${cfg.base}/transactions/amount`;
   const body = buildChargeBody({ cfg, ...params });
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: basicAuthHeader(cfg.username, cfg.password),
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  let json = null;
   try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: basicAuthHeader(cfg.username, cfg.password),
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'User-Agent': 'InGo-EcoCash/1.0',
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = { raw: text };
+    }
+    return { httpStatus: res.status, ok: res.ok, body: json, raw: text };
+  } catch (e) {
+    return {
+      httpStatus: 0,
+      ok: false,
+      body: null,
+      raw: e instanceof Error ? e.message : String(e),
+    };
   }
-  return { httpStatus: res.status, ok: res.ok, body: json, raw: text };
 }
 
 /**
@@ -297,5 +368,7 @@ module.exports = {
   applyEcocashPaymentUpdate,
   extractStatusFromPayload,
   extractServerRef,
+  summarizeEcocashFailure,
+  isChargeAccepted,
   basicAuthHeader,
 };

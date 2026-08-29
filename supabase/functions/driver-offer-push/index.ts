@@ -69,7 +69,7 @@ function placeLabel(raw: unknown): string {
 function shortAmount(n: unknown): string {
   const v = Number(n);
   if (!Number.isFinite(v)) return '';
-  return `£${v.toFixed(2)}`;
+  return `$${v.toFixed(2)}`;
 }
 
 function rideCardPaymentPending(row: Record<string, unknown>): boolean {

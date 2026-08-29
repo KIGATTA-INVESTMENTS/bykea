@@ -45,6 +45,25 @@ async function readEcocashEdgeFailure(result, fallback) {
 }
 
 /**
+ * Prefer EcoCash's own error text over the generic "charge request failed".
+ * @param {Record<string, unknown> | null | undefined} charge
+ * @param {string} [fallback]
+ */
+export function formatEcocashChargeError(charge, fallback = 'Could not start EcoCash payment.') {
+  if (!charge) return fallback;
+  const err = String(charge.error || '').trim();
+  if (err && !/^EcoCash charge request failed\.?$/i.test(err)) return err;
+  const d = charge.details;
+  if (typeof d === 'string' && d.trim()) return d.replace(/\s+/g, ' ').trim().slice(0, 280);
+  if (d && typeof d === 'object') {
+    const extra = d.remarks || d.error || d.message || d.errorMessage || d.faultstring;
+    if (extra) return String(extra).trim();
+  }
+  if (charge.httpStatus) return `${err || fallback} (HTTP ${charge.httpStatus})`;
+  return err || fallback;
+}
+
+/**
  * @param {{
  *   orderId: string,
  *   orderNumber: string,
@@ -66,7 +85,7 @@ export async function postEcocashCharge(params) {
 
   if (result.error || (result.data && result.data.ok === false)) {
     if (result.data && typeof result.data === 'object' && result.data.ok === false) {
-      return result.data;
+      return { ...result.data, error: formatEcocashChargeError(result.data) };
     }
     return readEcocashEdgeFailure(result, 'EcoCash charge invoke failed.');
   }

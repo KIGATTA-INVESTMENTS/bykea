@@ -125,6 +125,75 @@ function extractServerRef(payload: Record<string, unknown> | null): string {
   );
 }
 
+function newClientCorrelation(): string {
+  return `${Date.now()}${Math.floor(Math.random() * 900 + 100)}`.slice(0, 16);
+}
+
+function sanitizeRemark(raw: string): string {
+  return String(raw || 'InGo payment').replace(/[<>&]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) ||
+    'InGo payment';
+}
+
+function sanitizeReference(raw: string): string {
+  const s = String(raw || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+  return s || `ING${Date.now()}`.slice(0, 40);
+}
+
+function substituteVars(text: string, variables: unknown): string {
+  let t = text;
+  const vars = Array.isArray(variables) ? variables : variables != null ? [variables] : [];
+  vars.forEach((v, i) => {
+    t = t.replaceAll(`%${i + 1}`, String(v));
+  });
+  return t;
+}
+
+function summarizeEcocashFailure(charge: {
+  httpStatus: number;
+  body: Record<string, unknown> | null;
+  raw: string;
+}): string {
+  const body = charge.body && typeof charge.body === 'object' ? charge.body : {};
+  const reqErr = (body.requestError || body.requesterror) as Record<string, unknown> | undefined;
+  const se = (reqErr?.serviceException ||
+    reqErr?.policyException ||
+    body.serviceException ||
+    body.policyException) as Record<string, unknown> | undefined;
+  const bits: string[] = [];
+  if (se) {
+    const text = substituteVars(String(se.text || se.message || ''), se.variables);
+    if (text) bits.push(text);
+  }
+  for (const key of ['remarks', 'error', 'errorMessage', 'message', 'faultstring', 'description']) {
+    const v = String(body[key] || '').trim();
+    if (v && !bits.includes(v)) bits.push(v);
+  }
+  if (!bits.length && charge.raw) {
+    const clipped = charge.raw.replace(/\s+/g, ' ').trim().slice(0, 240);
+    if (clipped) bits.push(clipped);
+  }
+  let msg = bits.join(' — ') || 'EcoCash charge request failed.';
+  const lower = msg.toLowerCase();
+  if (/whitelist|not (registered|allowed|authori[sz]ed)|test (environment|platform|msisdn)/i.test(lower)) {
+    msg += ' Ask EcoCash to whitelist this phone on preprod, or set production ECOCASH_* secrets.';
+  }
+  if (charge.httpStatus === 401 || charge.httpStatus === 403) {
+    msg += ' Check ECOCASH_API_USERNAME / password and merchant code, pin, and number.';
+  }
+  if (charge.httpStatus >= 400) msg += ` (HTTP ${charge.httpStatus})`;
+  if (charge.httpStatus === 0) msg += ' Could not reach the EcoCash gateway.';
+  return msg.replace(/\s+/g, ' ').trim();
+}
+
+function isChargeAccepted(charge: { ok: boolean; body: Record<string, unknown> | null }): boolean {
+  if (!charge.ok) return false;
+  const status = extractStatusFromPayload(charge.body).toUpperCase();
+  if (status === 'FAILED' || status === 'REJECTED' || status === 'CANCELLED' || status === 'CANCELED') {
+    return false;
+  }
+  return true;
+}
+
 function notifyUrlDefault(): string {
   const fromEnv = (Deno.env.get('ECOCASH_NOTIFY_URL') || '').trim();
   if (fromEnv) return fromEnv;
@@ -141,25 +210,28 @@ async function chargeEcocash(params: {
   remarks: string;
 }) {
   const cfg = ecocashConfig();
-  const amt = Number(Number(params.amount).toFixed(2));
+  const amt = Math.round(Number(params.amount) * 100) / 100;
+  const remarks = sanitizeRemark(params.remarks);
+  const referenceCode = sanitizeReference(params.referenceCode);
   const body = {
     clientCorrelation: params.clientCorrelation,
+    clientCorrelator: params.clientCorrelation,
     notifyUrl: params.notifyUrl,
-    referenceCode: params.referenceCode,
+    referenceCode,
     tranType: 'MER',
     endUserId: params.endUserId,
-    remarks: params.remarks,
+    remarks,
     transactionOperationStatus: 'Charged',
     paymentAmount: {
       charginginformation: {
         amount: amt,
         currency: cfg.currency,
-        description: params.remarks || 'InGo Online Payment',
+        description: remarks || 'InGo Online Payment',
       },
       chargeMetaData: {
         channel: 'WEB',
         purchaseCategoryCode: 'Online Payment',
-        onBeHalfOf: 'InGo',
+        onBeHalfOf: cfg.merchantName || 'InGo',
       },
       merchantCode: cfg.merchantCode,
       merchantPin: cfg.merchantPin,
@@ -173,23 +245,33 @@ async function chargeEcocash(params: {
     },
   };
 
-  const res = await fetch(`${cfg.base}/transactions/amount`, {
-    method: 'POST',
-    headers: {
-      Authorization: basicAuthHeader(cfg.username, cfg.password),
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  let jsonBody: Record<string, unknown> | null = null;
   try {
-    jsonBody = text ? (JSON.parse(text) as Record<string, unknown>) : null;
-  } catch {
-    jsonBody = { raw: text };
+    const res = await fetch(`${cfg.base}/transactions/amount`, {
+      method: 'POST',
+      headers: {
+        Authorization: basicAuthHeader(cfg.username, cfg.password),
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'User-Agent': 'InGo-EcoCash/1.0',
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let jsonBody: Record<string, unknown> | null = null;
+    try {
+      jsonBody = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+    } catch {
+      jsonBody = { raw: text };
+    }
+    return { httpStatus: res.status, ok: res.ok, body: jsonBody, raw: text };
+  } catch (e) {
+    return {
+      httpStatus: 0,
+      ok: false,
+      body: null,
+      raw: e instanceof Error ? e.message : String(e),
+    };
   }
-  return { httpStatus: res.status, ok: res.ok, body: jsonBody, raw: text };
 }
 
 async function queryEcocashTransaction(clientCorrelation: string, endUserId: string) {
@@ -396,21 +478,22 @@ serve(async (req) => {
       return json({ ok: false, error: 'ECOCASH_NOTIFY_URL / SUPABASE_URL missing for notify callback.' }, 500);
     }
 
-    const clientCorrelation = `${Date.now()}${Math.floor(Math.random() * 900 + 100)}`.slice(0, 18);
-    const referenceCode = orderNum.slice(0, 40);
-    const remarks =
+    const clientCorrelation = newClientCorrelation();
+    const referenceCode = sanitizeReference(orderNum);
+    const remarks = sanitizeRemark(
       String(body.remarks || '').trim() ||
-      (orderKind === 'delivery'
-        ? `Delivery ${orderNum} (${customerName})`
-        : orderKind === 'taxi'
-          ? `Taxi ${orderNum} (${customerName})`
-          : orderKind === 'tuk'
-            ? `Tuk-Tuk ${orderNum} (${customerName})`
-            : orderKind === 'customer_wallet'
-              ? `Wallet top-up ${orderNum}`
-              : orderKind === 'driver_deposit'
-                ? `Driver deposit ${orderNum}`
-                : `Shop order ${orderNum} (${customerName})`);
+        (orderKind === 'delivery'
+          ? `Delivery ${orderNum} (${customerName})`
+          : orderKind === 'taxi'
+            ? `Taxi ${orderNum} (${customerName})`
+            : orderKind === 'tuk'
+              ? `Tuk-Tuk ${orderNum} (${customerName})`
+              : orderKind === 'customer_wallet'
+                ? `Wallet top-up ${orderNum}`
+                : orderKind === 'driver_deposit'
+                  ? `Driver deposit ${orderNum}`
+                  : `Shop order ${orderNum} (${customerName})`),
+    );
 
     const charge = await chargeEcocash({
       amount: amt,
@@ -421,10 +504,11 @@ serve(async (req) => {
       remarks,
     });
 
-    if (!charge.ok) {
+    if (!isChargeAccepted(charge)) {
+      console.error('[ecocash-payment] charge failed', charge.httpStatus, String(charge.raw || '').slice(0, 500));
       return json({
         ok: false,
-        error: 'EcoCash charge request failed.',
+        error: summarizeEcocashFailure(charge),
         details: charge.body || charge.raw,
         httpStatus: charge.httpStatus,
       });

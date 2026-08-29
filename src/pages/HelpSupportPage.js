@@ -44,12 +44,15 @@ export default function HelpSupportPage() {
           <h2>Contact us</h2>
           <p>
             <strong>Email:</strong>{' '}
-            <a href="mailto:support@ingo.app" className="legal-inline-link">
-              support@ingo.app
+            <a href="mailto:admin@ingo.co.zw" className="legal-inline-link">
+              admin@ingo.co.zw
             </a>
           </p>
           <p style={{ marginTop: '0.5rem' }}>
-            <strong>Phone:</strong> +44 (0)20 0000 0000 (Mon–Sat, 8:00–20:00)
+            <strong>Phone number:</strong>{' '}
+            <a href="tel:0789701394" className="legal-inline-link">
+              0789701394
+            </a>
           </p>
         </section>
 

@@ -15,6 +15,8 @@ const {
   applyEcocashPaymentUpdate,
   extractStatusFromPayload,
   extractServerRef,
+  summarizeEcocashFailure,
+  isChargeAccepted,
   mapEcocashStatus,
 } = require('./ecocash');
 
@@ -433,10 +435,10 @@ app.post('/ecocash/charge', async (req, res) => {
       remarks,
     });
 
-    if (!charge.ok) {
+    if (!isChargeAccepted(charge)) {
       return res.status(200).json({
         ok: false,
-        error: 'EcoCash charge request failed.',
+        error: summarizeEcocashFailure(charge),
         details: charge.body || charge.raw,
         httpStatus: charge.httpStatus,
       });

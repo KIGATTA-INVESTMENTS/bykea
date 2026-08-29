@@ -81,7 +81,7 @@ function offerCycleIndex(iso) {
 function shortAmount(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return '';
-  return `£${v.toFixed(2)}`;
+  return `$${v.toFixed(2)}`;
 }
 
 export function DriverOffersProvider({ children }) {
