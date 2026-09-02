@@ -91,6 +91,38 @@ async function getCapacitorPushPlugin() {
 }
 
 /**
+ * Withdraw a delivered system notification on native. No-op on web (the service
+ * worker handles that path) and when the plugin is absent. Never throws.
+ *
+ * With a tag, removes that one offer. Without one, removes every `ingo-offer-*`
+ * notification — the "clear everything" case when the app cannot tell which.
+ * @param {string} [tag]
+ */
+async function removeDeliveredOfferNotification(tag) {
+  const Push = await getCapacitorPushPlugin();
+  if (!Push || typeof Push.getDeliveredNotifications !== 'function') return;
+  try {
+    const { notifications = [] } = (await Push.getDeliveredNotifications()) || {};
+    const want = String(tag || '').trim();
+    const matching = notifications.filter((n) => {
+      const t = String(n?.tag || '');
+      return want ? t === want : t.startsWith('ingo-offer-');
+    });
+    console.info(
+      `[driverPush] withdraw offer notification ${JSON.stringify({
+        tag: want || '(all ingo-offer-*)',
+        delivered: notifications.length,
+        matching: matching.length,
+      })}`,
+    );
+    if (!matching.length) return;
+    await Push.removeDeliveredNotifications({ notifications: matching });
+  } catch (e) {
+    console.warn(`[driverPush] withdraw failed: ${e?.message || e}`);
+  }
+}
+
+/**
  * @returns {Promise<ServiceWorkerRegistration | null>}
  */
 async function ensureMessagingSw() {
@@ -172,6 +204,13 @@ function handleIncomingOfferPayload(payload) {
     const tag = data.tag || payload?.tag || '';
     const offerKey = data.offerKey || data.offer_key || '';
     handleDriverOfferStopSignal(offerKey, tag);
+    // Withdraw the system notification too. The web service worker does this via
+    // closeNotificationsByTag; on native nothing did, so a driver whose offer was
+    // taken by someone else kept a stale "New InGo delivery" in the shade.
+    // Measured 2026-09-02: the stop payload reached the backgrounded app and this
+    // handler ran, but the notification stayed posted. One order, one
+    // notification — and it must go when the order does.
+    void removeDeliveredOfferNotification(tag);
     try {
       window.dispatchEvent(
         new CustomEvent('ingo-driver-offer-stop', {

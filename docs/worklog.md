@@ -173,25 +173,64 @@ are steps in `docs/push-local-testing.md`, against throwaway projects we own.
 `scripts/send-test-offer.js` sends the byte-identical FCM v1 message from a
 laptop, so delivery is testable with nothing deployed.
 
-## NOT verified — be honest about this list
+## Sender half verified — 2026-09-02, later
 
-- **Push delivery of any kind.** No `google-services.json`, app not registered in
-  Firebase. Nothing about actual arrival has been demonstrated.
-- **A token reaching `driver_push_tokens`.** Requires a driver sign-in, which is a
-  write to the live database.
-- **Backgrounded and killed delivery**, the two cases that matter most.
-- **The tap path end-to-end.** The parking and routing code is exercised by no test
-  and no device run.
-- **The edge function edits** (TTL, collapse key, comments). Written, not deployed.
-- **`visibility: 1` is not applied.** The channel reports
-  `mLockscreenVisibility=-1000` (NO_OVERRIDE), so Capacitor appears to ignore the
-  option. Harmless now; matters for piece 6.
-- **The fallback poll on its own.** It is structurally independent of push
-  (`DriverOffersProvider`, 2500 ms, guarded only on `driverId` and Supabase) and it
-  re-runs on `visibilitychange`/`focus`. Not exercised on device with a real driver.
-  **Honest limitation:** the poll only runs while the app is open. For a
-  backgrounded app there is no fallback at all — that is what push is for, and
-  what rule 2's missing foreground service would otherwise cover.
+`scripts/send-test-offer.js` run against a deliberately bogus device token:
+the service-account JWT was accepted by Google's token endpoint, the request
+reached FCM, and FCM answered `400 INVALID_ARGUMENT: The registration token is
+not a valid FCM registration token`. That is the correct response and it proves
+authentication, project id, and the request shape end to end. **The sender works.
+The remaining unknown is entirely on the device side**, which needs
+`google-services.json` for the same project.
+
+Note: the key used was for the client's production Firebase project, not a
+throwaway. That is a contained choice for this test (a push targets one token),
+but the key was shared in plain text and should be rotated after testing.
+
+## VERIFIED end to end on a device — 2026-09-02, Android 15 (API 35)
+
+Firebase project `ingo-92d5f`, package `com.kigatta.ingo`, a real FCM token from
+the device, real messages accepted by FCM, sent with `scripts/send-test-offer.js`.
+
+| Case | Result | Evidence |
+|---|---|---|
+| Token registration | **works** | Reached the DB upsert; rejected only by the FK on the fake driver id, which is correct |
+| App **foreground**, ring | **works** | `[driverPush] payload received {"type":"offer_ring",…}` |
+| App **backgrounded**, ring | **works, OS-rendered** | `NotificationRecord … channel=ingo_driver_offers tag=ingo-offer-local-test-0001 importance=5`; **0** lines of app code, exactly as ADR 0001 predicts |
+| Heads-up banner | **seen** | Screenshot at t+2 s: "New InGo delivery • now 🔔 / Harare CBD to Avondale…" |
+| **Tap** | **works** | App to foreground; `[driverPush] offer tapped {"link":"/driver/home",…}` |
+| App **killed** (`am kill`, the swipe-away equivalent) | **works** | FCM spawned the process and posted; 0 app code |
+| App **force-stopped** | **nothing, by design** | Android's *stopped state* drops FCM broadcasts. `force-stop` is not what a driver does; `am kill` is the honest proxy |
+| **Stop** signal | **works, after a fix** | See below. Now `posted: 1 → 0`, log `withdraw … delivered:1, matching:1` |
+
+**Not exercised:** the router hop in `DriverOffersProvider` (`[DriverOffers]
+routing to tapped offer`). `DriverApprovalGate` checks the driver in the database
+and bounces the fake id before the provider mounts, so it needs a real approved
+driver — Part 2 of `docs/push-local-testing.md`. The tap *handler* and the
+parked-tap mechanism are verified; only that last hop into the router is not.
+
+**Not audible:** channel sound, on an emulator. The channel resolves to
+`content://settings/system/notification_sound` and the banner showed the bell.
+
+**Still true:** `visibility: 1` is ignored by Capacitor (`mLockscreenVisibility=-1000`),
+harmless until piece 6; the fallback poll only runs while the app is open; the
+edge-function edits (TTL, collapse key) are written, not deployed.
+
+**Inference worth confirming with the client's developer:** the Android app in
+`ingo-92d5f` appears to have been registered today (fresh app id, download named
+`(4)`), which would mean the store build was never wired to this Firebase project.
+
+## Withdraw defect, found by the stop test
+
+The stop branch of `handleIncomingOfferPayload` called
+`handleDriverOfferStopSignal` (in-app ring) and dispatched an event, but on native
+nothing cancelled the *system* notification. The web service worker does that with
+`closeNotificationsByTag`; native had no equivalent, so a driver whose offer was
+taken by someone else kept a stale "New InGo delivery" in the shade. Measured:
+the data-only stop woke the backgrounded app and the handler ran, notification
+stayed. Fixed with `removeDeliveredOfferNotification(tag)` —
+`getDeliveredNotifications` → filter by tag → `removeDeliveredNotifications`,
+logged before the guard so "no plugin" and "nothing matched" leave different traces.
 
 **For whoever is next:** the `android/` folder and `capacitor.config.json` are a
 spike scaffold created 2026-08-30, not the source of the published apps. The
