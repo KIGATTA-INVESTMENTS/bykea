@@ -125,7 +125,7 @@ create table if not exists public.driver_registrations (
   doc_vehicle_registration_url text,
   doc_profile_with_vehicle_url text,
 
-  -- Deposit shown in UI (�$10); payment captured later in app / admin
+  -- Deposit shown in UI ($10); payment captured later in app / admin
   deposit_required_gbp numeric(12, 2) not null default 10.00,
   deposit_paid boolean not null default false,
 
@@ -469,7 +469,7 @@ alter table public.driver_registrations
   add column if not exists driver_deposit_balance_gbp numeric(12, 2) not null default 0;
 
 comment on column public.driver_registrations.driver_deposit_balance_gbp is
-  'Must stay >= �$10 to go online / accept jobs; Paynow wallet top-ups increase; commission % on completed job gross decreases';
+  'Must stay >= $10 to go online / accept jobs; Paynow wallet top-ups increase; commission % on completed job gross decreases';
 
 -- One-time: drivers already marked deposit_paid get a starting balance so they are not locked out.
 update public.driver_registrations

@@ -43,7 +43,25 @@ const files = fs
   .filter((f) => f.endsWith('.sql'))
   .sort();
 
-const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
+/**
+ * Read a migration as text without silently corrupting it.
+ *
+ * Two files (driver_registrations.sql, driver_registrations_driver_deposit_balance.sql)
+ * contain a lone 0xC2 byte before "$10" — the orphaned lead byte of "£" (C2 A3)
+ * left behind when "£10" was hand-edited to "$10". Node's 'utf8' decode turns that
+ * into U+FFFD, which would then be pasted into the target database. Decode
+ * strictly; on failure, drop stray lead bytes and decode again, and say so.
+ */
+const read = (f) => {
+  const buf = fs.readFileSync(path.join(SRC, f));
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch {
+    const cleaned = Buffer.from(buf.filter((b, i) => !(b === 0xc2 && (i + 1 >= buf.length || buf[i + 1] < 0x80))));
+    console.warn(`  note: ${f} is not valid UTF-8 (orphaned 0xC2 before "$"); stray bytes dropped`);
+    return new TextDecoder('utf-8', { fatal: false }).decode(cleaned);
+  }
+};
 
 /** table name -> file that creates it */
 const creator = new Map();

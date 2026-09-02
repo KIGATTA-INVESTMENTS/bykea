@@ -232,6 +232,27 @@ stayed. Fixed with `removeDeliveredOfferNotification(tag)` —
 `getDeliveredNotifications` → filter by tag → `removeDeliveredNotifications`,
 logged before the guard so "no plugin" and "nothing matched" leave different traces.
 
+## Schema bundle for throwaway projects — and a currency fingerprint
+
+`scripts/build-migration-bundle.js` concatenates the 69 schema files (plus the
+seed as a marked optional block) into `supabase/bundle/all-in-order.sql` in
+dependency order: topological sort over "creates table X" → "references / alters /
+policies / indexes X", alphabetical tie-break, cycles reported. 0 cycles. Every
+source file is present verbatim and every `create table / policy / function /
+index` and `alter table` count matches the sources exactly. **Order is derived,
+not executed** — no Postgres here — so a miss surfaces in the SQL editor as
+`relation "x" does not exist`, and the manifest at the top says which file to move.
+
+Two files are not valid UTF-8: `driver_registrations.sql` and
+`driver_registrations_driver_deposit_balance.sql` each carry a lone `0xC2` byte
+directly before `$10`. That is the orphaned lead byte of `£` (`C2 A3`) left
+behind when `£10` was hand-edited to `$10`. It sits in a comment and a
+`comment on column` string, so the schema is unaffected — but it is a byte-level
+fingerprint of the cosmetic GBP→USD relabel already recorded as a finding
+(the column is still `driver_deposit_balance_gbp`). Node's `'utf8'` read would
+have turned it into U+FFFD and pasted that into the target database; the
+generator now decodes strictly, drops the orphaned byte, and says so.
+
 **For whoever is next:** the `android/` folder and `capacitor.config.json` are a
 spike scaffold created 2026-08-30, not the source of the published apps. The
 shipped Android and iOS apps were built elsewhere and their source is not in this
