@@ -78,16 +78,6 @@
 --   referral_codes.sql: pg_constraint
 --   storage_driver_documents.sql: storage
 --   storage_shop_media.sql: storage
---
--- !! Tables referenced but created by no file here. If a "relation does not exist"
--- names one of these, the schema has a gap the generator could not see:
---   admin_customer_wallet.sql: function
---   customer_wallet.sql: function
---   customer_wallet_checkout.sql: function
---   driver_single_assignment.sql: function
---   shop_customer_list_fast.sql: function
---   shop_products_marketplace.sql: function
---   shop_weekly_popularity.sql: function
 
 
 -- ============================================================================

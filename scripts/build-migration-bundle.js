@@ -98,6 +98,8 @@ const SQL_KEYWORDS = new Set([
   'conflict', 'old', 'new', 'the', 'a', 'an', 'this', 'that', 'each',
   'request', 'customer', 'driver', 'shop', 'package', 'order', 'booking',
   'ui', 'localstorage', 'app', 'client', 'server', 'browser',
+  // object kinds that follow `grant … on` but are not tables
+  'function', 'sequence', 'schema', 'type', 'all',
 ]);
 // Schemas and catalogs that live outside this bundle and always exist.
 const EXTERNAL_SCHEMAS = new Set(['storage', 'auth', 'extensions', 'pg_constraint', 'pg_class', 'pg_namespace', 'information_schema']);
