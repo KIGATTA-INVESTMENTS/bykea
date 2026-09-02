@@ -115,6 +115,38 @@ export function DriverOffersProvider({ children }) {
     onlineRef.current = online;
   }, [online]);
 
+  // Blueprint piece 7 — act on a notification tap.
+  //
+  // Two arrivals to handle. A cold start, where the OS launched the app into the
+  // push listener before this component existed and driverPushBootstrap parked the
+  // tap; and a warm tap while the app is already running, which arrives as an event.
+  // Both land here, and both are routed once.
+  useEffect(() => {
+    let done = false;
+    const goToOffer = (detail) => {
+      if (done || !detail) return;
+      done = true;
+      const link = String(detail.link || '/driver/home');
+      console.info('[DriverOffers] routing to tapped offer', link);
+      // The tap deliberately carries only a link and an offer key. The offer itself
+      // is re-fetched by the poll below, so an offer somebody else already took
+      // opens to "already accepted" rather than to stale detail from the payload.
+      try {
+        navigateRef.current(link.startsWith('/') ? link : `/${link}`);
+      } catch {
+        /* router not ready; the poll still surfaces the offer */
+      }
+    };
+
+    void import('../../lib/driverPushBootstrap')
+      .then((m) => goToOffer(m.consumePendingOfferTap()))
+      .catch(() => {});
+
+    const onTap = (e) => goToOffer(e?.detail);
+    window.addEventListener('ingo-driver-offer-tap', onTap);
+    return () => window.removeEventListener('ingo-driver-offer-tap', onTap);
+  }, []);
+
   const setOnline = useCallback((next) => {
     setOnlineState((prev) => {
       const value = typeof next === 'function' ? next(prev) : Boolean(next);

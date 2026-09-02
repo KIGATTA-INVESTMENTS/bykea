@@ -172,7 +172,20 @@ async function sendFcmV1(
         },
         android: {
           priority: 'HIGH',
+          // An offer is only worth delivering while it is still open. Without a TTL,
+          // FCM holds the message for up to 4 weeks and a phone that regains signal
+          // an hour later rings for a job somebody else took long ago.
+          // 120s matches the webpush TTL below and the offer ring cycle in
+          // src/lib/driverIncomingBookings.js (OFFER_RING_CYCLE_MS).
+          ttl: '120s',
+          // One order, one notification. A re-send for the same order replaces the
+          // queued one instead of stacking a second banner on the driver's phone.
+          collapse_key: payload.tag,
           notification: {
+            // MUST match DRIVER_OFFER_CHANNEL_ID in src/lib/driverPush.js, which is
+            // where this channel is actually created. Nothing validates that these
+            // two strings agree; a mismatch is delivered silently on the default
+            // channel at ordinary importance.
             channel_id: 'ingo_driver_offers',
             sound: 'default',
             default_vibrate_timings: true,

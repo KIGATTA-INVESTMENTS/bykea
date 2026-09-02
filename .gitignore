@@ -33,3 +33,11 @@ yarn-error.log*
 # Firebase
 .firebase
 *-debug.log
+
+# Push testing, local only.
+# .secrets/ holds an FCM service-account private key. Never commit it.
+.secrets/
+# google-services.json here is a THROWAWAY test-project file, so it stays out of
+# the repo. The real one for the store builds is supplied by KIGATTA and belongs
+# wherever the shipped apps are actually built. See docs/push-local-testing.md.
+android/app/google-services.json

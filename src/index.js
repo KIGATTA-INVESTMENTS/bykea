@@ -2,6 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './lib/medianGeolocation';
 import './lib/firebase';
+// Must stay ABOVE the React mount below. A notification tap cold-starts the app
+// directly into the push listener, before any component exists to register one.
+import './lib/driverPushBootstrap';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';

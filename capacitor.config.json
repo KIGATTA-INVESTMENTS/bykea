@@ -1,0 +1,8 @@
+{
+  "appId": "com.kigatta.ingo",
+  "appName": "InGo",
+  "webDir": "build",
+  "server": {
+    "androidScheme": "https"
+  }
+}
