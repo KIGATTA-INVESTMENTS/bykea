@@ -133,16 +133,24 @@ not pass `DriverApprovalGate`.
    CLI 2.116.0 — but the **first run downloads the binary and can take several
    minutes with no output**. Do not assume it hung. If you would rather have it
    installed: `scoop install supabase` (Windows) or `npm install --save-dev supabase`.
+   One command does deploy + secrets, non-interactively (no browser login):
    ```bash
-   npx supabase login
-   npx supabase functions deploy driver-offer-push --project-ref <your-ref>
-   npx supabase secrets set --project-ref <your-ref> \
-     FIREBASE_PROJECT_ID=<your firebase project id> \
-     FIREBASE_SERVICE_ACCOUNT_JSON="$(cat .secrets/fcm-service-account.json)"
+   # Dashboard → avatar → Account → Access Tokens → generate. Account-wide; rotate after.
+   SUPABASE_ACCESS_TOKEN=sbp_... ./scripts/deploy-push-sender.sh <your-ref>
    ```
-   These are the names `driver-offer-push/index.ts` actually reads
-   (`Deno.env.get`). `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected
-   by Supabase automatically. `FCM_SERVER_KEY` is a legacy fallback; leave it unset.
+   It reads `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_JSON` from
+   `.secrets/fcm-service-account.json` — the exact names the function reads.
+   `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are injected by Supabase.
+
+   **It deploys with `--no-verify-jwt`, and that is not optional on a project using
+   new-format API keys.** The app invokes this function with the public key and no
+   user session. The legacy `anon` key is a JWT and passed the gateway's default
+   verification by accident; `sb_publishable_…` keys are not JWTs, so with
+   verification on every call is rejected with 401 before the function runs.
+   `supabase/config.toml` records the same setting. If the client's production
+   project ever moves to new-format keys, **every** function the app calls from the
+   browser needs this — see the security notes for why that is the wrong long-term
+   answer (the functions authenticate nothing themselves).
 5. Sign in as the test driver on the device, go online, then place an order from
    the customer side against the same project. The driver's phone should ring.
 

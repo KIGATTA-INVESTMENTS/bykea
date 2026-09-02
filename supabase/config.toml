@@ -1,0 +1,12 @@
+# Supabase CLI project config. Only what deployment needs; nothing here affects
+# the hosted database.
+
+# The app calls this function from the browser with the project's public API key
+# and NO user session (the app has no supabase.auth). With Supabase's new-format
+# keys (sb_publishable_…) that key is not a JWT, so the gateway's default JWT
+# verification rejects every call with 401 before the function runs. The legacy
+# anon key happened to be a JWT, which is the only reason this ever worked.
+# The function authenticates nothing itself either way; turning verification off
+# changes behaviour only for projects on new-format keys, and makes it explicit.
+[functions.driver-offer-push]
+verify_jwt = false
