@@ -322,6 +322,33 @@ not JWTs**, so every call would be 401'd before the function runs. Added
 to new-format keys, every browser-invoked function needs the same — and that is
 the wrong long-term answer, because the functions authenticate nothing themselves.
 
+**Sender deployed to the throwaway project and proven — 2026-09-03.**
+`scripts/deploy-push-sender.sh gcwrnluyaqarmrovbryj` with a Supabase access
+token. Two things a first deploy to a fresh project exposed:
+
+1. **`BOOT_ERROR` / 503 "Function failed to start"** with the original imports
+   (`deno.land/std@0.224.0` http + encoding, `esm.sh/@supabase/supabase-js`).
+   Switched to the runtime's native specifiers — `Deno.serve`,
+   `npm:@supabase/supabase-js@2.49.8`, `jsr:@std/encoding@1/base64url` — and it
+   boots. The log API for the new project returned "Backend error" throughout,
+   so this was diagnosed by elimination, then confirmed by the next error being
+   a *different*, specific one.
+2. **`FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON`**: the downloaded key
+   file is pretty-printed over many lines; `secrets set NAME=VALUE` keeps one
+   line, so the stored secret was `{`. The helper now compacts the JSON to one
+   line first (the `\n` escapes inside `private_key` survive; the function
+   un-escapes them).
+
+Smoke test against the real test order `29b95e10…`:
+`{"ok":true,"sent":0,"reason":"no_online_drivers"}` — HTTP 200. The sender
+authenticates with Firebase, reads the order, looks for online drivers, finds
+none (correct: nobody has signed in), and **says so**. Blueprint rule 3, on the
+real server path. The `verify_jwt=false` deploy is confirmed too: the call got
+past the gateway with the `sb_publishable_` key.
+
+**Chain status:** customer → order → sender: proven. Sender → driver phone: waits
+on the driver sign-in below, which is the emulator.
+
 **Driver half not run yet.** The emulator had no network when I tried (every
 fetch failed, including google.com) and was then declared in use by another
 session running a second device on `emulator-5556`; their stray taps explain the
