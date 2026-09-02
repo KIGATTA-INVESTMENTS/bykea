@@ -80,6 +80,13 @@ const reUses = [
   new RegExp(`delete\\s+from\\s+${TABLE}`, 'gi'),
   new RegExp(`\\bfrom\\s+${TABLE}\\b`, 'gi'),
   new RegExp(`\\bjoin\\s+${TABLE}\\b`, 'gi'),
+  // Found by the first real run: `comment on column public.x.col is ...` needs
+  // the table and nothing above matched it.
+  new RegExp(`comment\\s+on\\s+(?:table|column)\\s+${TABLE}`, 'gi'),
+  new RegExp(`\\b(?:grant|revoke)\\s+[^;]*?\\bon\\s+(?:table\\s+)?${TABLE}`, 'gi'),
+  new RegExp(`create\\s+(?:or\\s+replace\\s+)?(?:trigger|rule)\\s+\\S+[\\s\\S]*?\\bon\\s+${TABLE}`, 'gi'),
+  new RegExp(`create\\s+(?:or\\s+replace\\s+)?view\\s+\\S+[\\s\\S]*?\\bfrom\\s+${TABLE}`, 'gi'),
+  new RegExp(`truncate\\s+(?:table\\s+)?${TABLE}`, 'gi'),
 ];
 
 // Words the loose regexes catch that are never table names here: SQL keywords,
@@ -112,6 +119,21 @@ for (const f of files) {
     }
   }
   deps.set(f, d);
+}
+
+// Backstop: the regexes above name the statement types we know about. Any bare
+// mention of a table that some file creates is treated as a dependency too, so
+// a statement type nobody thought of (the first real run found `comment on
+// column`) cannot slip a file above its table. Over-linking only adds edges;
+// the sort tolerates that and reports the one thing it cannot: a cycle.
+const knownTables = [...creator.keys()];
+for (const f of files) {
+  if (f === SEED) continue;
+  const sql = read(f).replace(/--.*$/gm, '');
+  for (const t of knownTables) {
+    if (creator.get(t) === f) continue;
+    if (new RegExp(`\\b${t}\\b`, 'i').test(sql)) deps.get(f).add(t);
+  }
 }
 
 // Build edges: file -> files it must come after.

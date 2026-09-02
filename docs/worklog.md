@@ -243,6 +243,17 @@ index` and `alter table` count matches the sources exactly. **Order is derived,
 not executed** — no Postgres here — so a miss surfaces in the SQL editor as
 `relation "x" does not exist`, and the manifest at the top says which file to move.
 
+**First run against a real database (a throwaway Supabase project, 2026-09-02)
+failed at `relation "public.delivery_requests" does not exist`.** Cause:
+`package_category_free_text.sql` does `comment on column public.delivery_requests…`
+and none of the dependency patterns covered `comment on`. Fixed twice over: the
+specific pattern (plus `grant`, `trigger`, `view`, `truncate`), and a backstop
+that treats *any* bare mention of a created table as a dependency, so the next
+unforeseen statement type cannot slip a file above its table. Over-linking only
+adds edges; the sort reports the one thing it cannot absorb, a cycle — still 0.
+Postgres ran the failed paste as one implicit transaction, so nothing was
+committed; the corrected bundle re-runs cleanly on the same empty project.
+
 Two files are not valid UTF-8: `driver_registrations.sql` and
 `driver_registrations_driver_deposit_balance.sql` each carry a lone `0xC2` byte
 directly before `$10`. That is the orphaned lead byte of `£` (`C2 A3`) left

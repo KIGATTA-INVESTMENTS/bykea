@@ -11,55 +11,55 @@
 --    6. driver_registrations_driver_deposit_balance.sql
 --    7. driver_wallet_topups.sql
 --    8. driver_withdrawal_requests.sql
---    9. package_category_free_text.sql
---   10. platform_commission_settings.sql
---   11. register_login.sql
---   12. app_users_delete_anon.sql
---   13. app_users_email_verification.sql
---   14. app_users_profile_photo.sql
---   15. app_users_self_delete_customer.sql
---   16. customer_wallet.sql
---   17. admin_customer_wallet.sql
---   18. delivery_requests.sql
---   19. customer_delivery_orders.sql
---   20. customer_delivery_confirmation_code.sql
---   21. customer_delivery_orders_paynow.sql
---   22. delivery_package_photo_data_url.sql
---   23. delivery_package_photos.sql
---   24. driver_vehicle_types_motorbike_tuktuk_car.sql
---   25. service_pricing.sql
---   26. service_pricing_delivery_by_vehicle.sql
---   27. service_pricing_fix_constraint.sql
---   28. service_pricing_per_minute.sql
---   29. shop_owners.sql
---   30. driver_shop_email_verification.sql
---   31. password_reset_support.sql
---   32. referral_codes.sql
---   33. shop_owner_notifications.sql
---   34. shop_owner_withdrawal_requests.sql
---   35. shop_owners_bank_details.sql
---   36. shop_owners_delete_anon.sql
---   37. shop_products.sql
---   38. shop_customer_list_fast.sql
---   39. shop_customer_orders.sql
---   40. customer_wallet_checkout.sql
---   41. shop_customer_delivery_confirmation_code.sql
---   42. shop_customer_orders_driver_assignment.sql
---   43. shop_customer_orders_paynow.sql
---   44. shop_delivery_settings.sql
---   45. shop_delivery_rate_repair.sql
---   46. shop_delivery_settings_per_km.sql
---   47. shop_ecocash_payment.sql
---   48. shop_products_marketplace.sql
---   49. shop_products_tags.sql
---   50. shop_weekly_popularity.sql
---   51. storage_driver_documents.sql
---   52. storage_shop_media.sql
---   53. support_chat.sql
---   54. taxi_bookings.sql
---   55. taxi_bookings_vehicle_minibus.sql
---   56. trip_reviews.sql
---   57. tuk_tuk_bookings.sql
+--    9. platform_commission_settings.sql
+--   10. register_login.sql
+--   11. app_users_delete_anon.sql
+--   12. app_users_email_verification.sql
+--   13. app_users_profile_photo.sql
+--   14. app_users_self_delete_customer.sql
+--   15. customer_wallet.sql
+--   16. delivery_requests.sql
+--   17. customer_delivery_orders.sql
+--   18. customer_delivery_confirmation_code.sql
+--   19. customer_delivery_orders_paynow.sql
+--   20. delivery_package_photo_data_url.sql
+--   21. delivery_package_photos.sql
+--   22. driver_vehicle_types_motorbike_tuktuk_car.sql
+--   23. package_category_free_text.sql
+--   24. service_pricing.sql
+--   25. service_pricing_delivery_by_vehicle.sql
+--   26. service_pricing_fix_constraint.sql
+--   27. service_pricing_per_minute.sql
+--   28. shop_owners.sql
+--   29. driver_shop_email_verification.sql
+--   30. password_reset_support.sql
+--   31. referral_codes.sql
+--   32. shop_owner_notifications.sql
+--   33. shop_owner_withdrawal_requests.sql
+--   34. shop_owners_bank_details.sql
+--   35. shop_owners_delete_anon.sql
+--   36. shop_products.sql
+--   37. shop_customer_list_fast.sql
+--   38. shop_customer_orders.sql
+--   39. customer_wallet_checkout.sql
+--   40. shop_customer_delivery_confirmation_code.sql
+--   41. shop_customer_orders_driver_assignment.sql
+--   42. shop_customer_orders_paynow.sql
+--   43. shop_delivery_settings.sql
+--   44. shop_delivery_rate_repair.sql
+--   45. shop_delivery_settings_per_km.sql
+--   46. shop_ecocash_payment.sql
+--   47. shop_products_marketplace.sql
+--   48. shop_products_tags.sql
+--   49. shop_weekly_popularity.sql
+--   50. storage_driver_documents.sql
+--   51. storage_shop_media.sql
+--   52. support_chat.sql
+--   53. taxi_bookings.sql
+--   54. taxi_bookings_vehicle_minibus.sql
+--   55. trip_reviews.sql
+--   56. tuk_tuk_bookings.sql
+--   57. admin_customer_wallet.sql
 --   58. booking_bids.sql
 --   59. booking_cancel_reason.sql
 --   60. booking_viewed_driver_ids.sql
@@ -78,6 +78,16 @@
 --   referral_codes.sql: pg_constraint
 --   storage_driver_documents.sql: storage
 --   storage_shop_media.sql: storage
+--
+-- !! Tables referenced but created by no file here. If a "relation does not exist"
+-- names one of these, the schema has a gap the generator could not see:
+--   admin_customer_wallet.sql: function
+--   customer_wallet.sql: function
+--   customer_wallet_checkout.sql: function
+--   driver_single_assignment.sql: function
+--   shop_customer_list_fast.sql: function
+--   shop_products_marketplace.sql: function
+--   shop_weekly_popularity.sql: function
 
 
 -- ============================================================================
@@ -572,19 +582,6 @@ on public.driver_withdrawal_requests for select to anon using (true);
 drop policy if exists "driver_withdrawal_requests_update_anon" on public.driver_withdrawal_requests;
 create policy "driver_withdrawal_requests_update_anon"
 on public.driver_withdrawal_requests for update to anon using (true) with check (true);
-
-
--- ============================================================================
--- package_category_free_text.sql
--- ============================================================================
--- Package type: app stores free text in `package_category` (column type is already `text`).
--- No CHECK constraint to change. Run this on existing Supabase DBs to refresh column comments only.
-
-comment on column public.delivery_requests.package_category is
-  'Customer-entered package type / contents (free text; no fixed enum).';
-
-comment on column public.customer_delivery_orders.package_category is
-  'Snapshot of customer free-text package type at checkout (same meaning as delivery_requests.package_category).';
 
 
 -- ============================================================================
@@ -1141,146 +1138,6 @@ notify pgrst, 'reload schema';
 
 
 -- ============================================================================
--- admin_customer_wallet.sql
--- ============================================================================
--- Admin wallet management + rider payouts for wallet-paid jobs.
--- Run AFTER customer_wallet.sql (and customer_wallet_checkout.sql recommended).
--- Safe to re-run.
-
--- —— Admin / office credit (bank transfer or cash received) ——
--- Inserts a ledger credit so it appears on the customer Wallet page.
-create or replace function public.credit_customer_wallet_admin(
-  p_user_id uuid,
-  p_amount numeric,
-  p_label text default 'Admin credit',
-  p_source text default 'admin',
-  p_note text default null
-)
-returns jsonb
-language plpgsql
-security definer
-as $$
-declare
-  cur numeric(12, 2);
-  next_bal numeric(12, 2);
-  amt numeric(12, 2);
-  lbl text;
-  src text;
-  tx_id uuid;
-begin
-  amt := round(coalesce(p_amount, 0)::numeric, 2);
-  if p_user_id is null then
-    return jsonb_build_object('ok', false, 'reason', 'missing_user');
-  end if;
-  if amt is null or amt <= 0 then
-    return jsonb_build_object('ok', false, 'reason', 'invalid_amount');
-  end if;
-
-  src := lower(trim(coalesce(p_source, 'admin')));
-  if src not in ('bank_transfer', 'cash', 'admin', 'office') then
-    src := 'admin';
-  end if;
-
-  lbl := coalesce(nullif(trim(p_label), ''), 
-    case src
-      when 'bank_transfer' then 'Bank transfer top-up'
-      when 'cash' then 'Cash top-up (office)'
-      else 'Admin wallet credit'
-    end
-  );
-  if p_note is not null and trim(p_note) <> '' then
-    lbl := lbl || ' — ' || trim(p_note);
-  end if;
-
-  insert into public.customer_wallets (user_id, balance_gbp, updated_at)
-  values (p_user_id, 0, now())
-  on conflict (user_id) do nothing;
-
-  select balance_gbp into cur from public.customer_wallets where user_id = p_user_id for update;
-  cur := coalesce(cur, 0);
-  next_bal := round((cur + amt)::numeric, 2);
-
-  update public.customer_wallets
-  set balance_gbp = next_bal, updated_at = now()
-  where user_id = p_user_id;
-
-  insert into public.customer_wallet_transactions (
-    user_id, entry_type, amount_gbp, balance_after, label, ref_type, ref_id
-  ) values (
-    p_user_id, 'credit', amt, next_bal, lbl, 'admin_' || src, null
-  )
-  returning id into tx_id;
-
-  return jsonb_build_object(
-    'ok', true,
-    'balance_after', next_bal,
-    'transaction_id', tx_id,
-    'label', lbl
-  );
-end;
-$$;
-
-grant execute on function public.credit_customer_wallet_admin(uuid, numeric, text, text, text)
-  to anon, authenticated, service_role;
-
--- —— Rider earnings from wallet-paid jobs (admin marks paid) ——
-create table if not exists public.driver_wallet_job_payouts (
-  id uuid primary key default gen_random_uuid(),
-  driver_id uuid not null references public.driver_registrations (id) on delete cascade,
-  booking_table text not null check (
-    booking_table in (
-      'customer_delivery_orders',
-      'shop_customer_orders',
-      'taxi_bookings',
-      'tuk_tuk_bookings'
-    )
-  ),
-  booking_id uuid not null,
-  gross_amount_gbp numeric(12, 2) not null check (gross_amount_gbp >= 0),
-  commission_pct numeric(6, 2) not null default 0,
-  net_amount_gbp numeric(12, 2) not null check (net_amount_gbp >= 0),
-  currency text not null default 'USD',
-  status text not null default 'pending',
-  paid_at timestamptz,
-  notes text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (booking_table, booking_id)
-);
-
-alter table public.driver_wallet_job_payouts drop constraint if exists driver_wallet_job_payouts_status_chk;
-alter table public.driver_wallet_job_payouts
-  add constraint driver_wallet_job_payouts_status_chk check (
-    status in ('pending', 'paid')
-  );
-
-create index if not exists driver_wallet_job_payouts_driver_status_idx
-  on public.driver_wallet_job_payouts (driver_id, status, created_at desc);
-
-create index if not exists driver_wallet_job_payouts_status_idx
-  on public.driver_wallet_job_payouts (status, created_at desc);
-
-comment on table public.driver_wallet_job_payouts is
-  'Admin tracking of rider net earnings from customer wallet-paid jobs; mark paid after bank/cash payout.';
-
-alter table public.driver_wallet_job_payouts enable row level security;
-
-drop policy if exists "driver_wallet_job_payouts_select_anon" on public.driver_wallet_job_payouts;
-create policy "driver_wallet_job_payouts_select_anon"
-on public.driver_wallet_job_payouts for select to anon using (true);
-
-drop policy if exists "driver_wallet_job_payouts_insert_anon" on public.driver_wallet_job_payouts;
-create policy "driver_wallet_job_payouts_insert_anon"
-on public.driver_wallet_job_payouts for insert to anon with check (true);
-
-drop policy if exists "driver_wallet_job_payouts_update_anon" on public.driver_wallet_job_payouts;
-create policy "driver_wallet_job_payouts_update_anon"
-on public.driver_wallet_job_payouts for update to anon using (true) with check (true);
-
-notify pgrst, 'reload schema';
-
-
--- ============================================================================
 -- delivery_requests.sql
 -- ============================================================================
 -- Run in Supabase SQL Editor (after `register_login.sql` / `app_users` exists)
@@ -1592,6 +1449,19 @@ alter table public.driver_registrations
   );
 
 comment on column public.driver_registrations.vehicle_type is 'Motorbike | Tuk-Tuk | Car';
+
+
+-- ============================================================================
+-- package_category_free_text.sql
+-- ============================================================================
+-- Package type: app stores free text in `package_category` (column type is already `text`).
+-- No CHECK constraint to change. Run this on existing Supabase DBs to refresh column comments only.
+
+comment on column public.delivery_requests.package_category is
+  'Customer-entered package type / contents (free text; no fixed enum).';
+
+comment on column public.customer_delivery_orders.package_category is
+  'Snapshot of customer free-text package type at checkout (same meaning as delivery_requests.package_category).';
 
 
 -- ============================================================================
@@ -3479,6 +3349,146 @@ on public.tuk_tuk_bookings for select to anon using (true);
 drop policy if exists "tuk_tuk_bookings_delete_anon" on public.tuk_tuk_bookings;
 create policy "tuk_tuk_bookings_delete_anon"
 on public.tuk_tuk_bookings for delete to anon using (true);
+
+
+-- ============================================================================
+-- admin_customer_wallet.sql
+-- ============================================================================
+-- Admin wallet management + rider payouts for wallet-paid jobs.
+-- Run AFTER customer_wallet.sql (and customer_wallet_checkout.sql recommended).
+-- Safe to re-run.
+
+-- —— Admin / office credit (bank transfer or cash received) ——
+-- Inserts a ledger credit so it appears on the customer Wallet page.
+create or replace function public.credit_customer_wallet_admin(
+  p_user_id uuid,
+  p_amount numeric,
+  p_label text default 'Admin credit',
+  p_source text default 'admin',
+  p_note text default null
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  cur numeric(12, 2);
+  next_bal numeric(12, 2);
+  amt numeric(12, 2);
+  lbl text;
+  src text;
+  tx_id uuid;
+begin
+  amt := round(coalesce(p_amount, 0)::numeric, 2);
+  if p_user_id is null then
+    return jsonb_build_object('ok', false, 'reason', 'missing_user');
+  end if;
+  if amt is null or amt <= 0 then
+    return jsonb_build_object('ok', false, 'reason', 'invalid_amount');
+  end if;
+
+  src := lower(trim(coalesce(p_source, 'admin')));
+  if src not in ('bank_transfer', 'cash', 'admin', 'office') then
+    src := 'admin';
+  end if;
+
+  lbl := coalesce(nullif(trim(p_label), ''), 
+    case src
+      when 'bank_transfer' then 'Bank transfer top-up'
+      when 'cash' then 'Cash top-up (office)'
+      else 'Admin wallet credit'
+    end
+  );
+  if p_note is not null and trim(p_note) <> '' then
+    lbl := lbl || ' — ' || trim(p_note);
+  end if;
+
+  insert into public.customer_wallets (user_id, balance_gbp, updated_at)
+  values (p_user_id, 0, now())
+  on conflict (user_id) do nothing;
+
+  select balance_gbp into cur from public.customer_wallets where user_id = p_user_id for update;
+  cur := coalesce(cur, 0);
+  next_bal := round((cur + amt)::numeric, 2);
+
+  update public.customer_wallets
+  set balance_gbp = next_bal, updated_at = now()
+  where user_id = p_user_id;
+
+  insert into public.customer_wallet_transactions (
+    user_id, entry_type, amount_gbp, balance_after, label, ref_type, ref_id
+  ) values (
+    p_user_id, 'credit', amt, next_bal, lbl, 'admin_' || src, null
+  )
+  returning id into tx_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'balance_after', next_bal,
+    'transaction_id', tx_id,
+    'label', lbl
+  );
+end;
+$$;
+
+grant execute on function public.credit_customer_wallet_admin(uuid, numeric, text, text, text)
+  to anon, authenticated, service_role;
+
+-- —— Rider earnings from wallet-paid jobs (admin marks paid) ——
+create table if not exists public.driver_wallet_job_payouts (
+  id uuid primary key default gen_random_uuid(),
+  driver_id uuid not null references public.driver_registrations (id) on delete cascade,
+  booking_table text not null check (
+    booking_table in (
+      'customer_delivery_orders',
+      'shop_customer_orders',
+      'taxi_bookings',
+      'tuk_tuk_bookings'
+    )
+  ),
+  booking_id uuid not null,
+  gross_amount_gbp numeric(12, 2) not null check (gross_amount_gbp >= 0),
+  commission_pct numeric(6, 2) not null default 0,
+  net_amount_gbp numeric(12, 2) not null check (net_amount_gbp >= 0),
+  currency text not null default 'USD',
+  status text not null default 'pending',
+  paid_at timestamptz,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (booking_table, booking_id)
+);
+
+alter table public.driver_wallet_job_payouts drop constraint if exists driver_wallet_job_payouts_status_chk;
+alter table public.driver_wallet_job_payouts
+  add constraint driver_wallet_job_payouts_status_chk check (
+    status in ('pending', 'paid')
+  );
+
+create index if not exists driver_wallet_job_payouts_driver_status_idx
+  on public.driver_wallet_job_payouts (driver_id, status, created_at desc);
+
+create index if not exists driver_wallet_job_payouts_status_idx
+  on public.driver_wallet_job_payouts (status, created_at desc);
+
+comment on table public.driver_wallet_job_payouts is
+  'Admin tracking of rider net earnings from customer wallet-paid jobs; mark paid after bank/cash payout.';
+
+alter table public.driver_wallet_job_payouts enable row level security;
+
+drop policy if exists "driver_wallet_job_payouts_select_anon" on public.driver_wallet_job_payouts;
+create policy "driver_wallet_job_payouts_select_anon"
+on public.driver_wallet_job_payouts for select to anon using (true);
+
+drop policy if exists "driver_wallet_job_payouts_insert_anon" on public.driver_wallet_job_payouts;
+create policy "driver_wallet_job_payouts_insert_anon"
+on public.driver_wallet_job_payouts for insert to anon with check (true);
+
+drop policy if exists "driver_wallet_job_payouts_update_anon" on public.driver_wallet_job_payouts;
+create policy "driver_wallet_job_payouts_update_anon"
+on public.driver_wallet_job_payouts for update to anon using (true) with check (true);
+
+notify pgrst, 'reload schema';
 
 
 -- ============================================================================
