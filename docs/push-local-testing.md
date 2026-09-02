@@ -129,8 +129,15 @@ not pass `DriverApprovalGate`.
    REACT_APP_SUPABASE_ANON_KEY=<your anon key>
    ```
 4. Deploy `driver-offer-push` **to your project**, with secrets from **your**
-   Firebase service account:
+   Firebase service account. You need the Supabase CLI first — it refuses
+   on-the-fly `npx` installs, so pick one:
    ```bash
+   scoop install supabase          # Windows, binary — simplest
+   # or, inside this repo:
+   npm install --save-dev supabase # then every command below is `npx supabase …`
+   ```
+   ```bash
+   npx supabase login
    npx supabase functions deploy driver-offer-push --project-ref <your-ref>
    npx supabase secrets set --project-ref <your-ref> \
      FIREBASE_PROJECT_ID=<your firebase project id> \
