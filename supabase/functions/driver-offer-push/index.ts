@@ -14,9 +14,8 @@
  *   action "stop" — tell devices to stop ringing / dismiss the offer notification
  */
 
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
-import { encode as base64url } from 'https://deno.land/std@0.224.0/encoding/base64url.ts';
+import { createClient } from 'npm:@supabase/supabase-js@2.49.8';
+import { encodeBase64Url as base64url } from 'jsr:@std/encoding@1/base64url';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -354,7 +353,7 @@ async function sendFcmLegacyStop(
   return { ok: false, invalid, error: err };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405);
 

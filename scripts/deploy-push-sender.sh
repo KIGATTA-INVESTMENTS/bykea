@@ -28,17 +28,27 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SA="$HERE/.secrets/fcm-service-account.json"
 [ -f "$SA" ] || { echo "missing $SA — see scripts/send-test-offer.js SETUP"; exit 1; }
 
-FIREBASE_PROJECT_ID="$(node -e "console.log(require('$SA').project_id)")"
+# Read via stdin: under Git Bash on Windows, $SA is a POSIX-style path (/d/…) that
+# Node's require()/fs cannot resolve, so never hand Node a path here.
+FIREBASE_PROJECT_ID="$(node -e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).project_id)" < "$SA")"
+[ -n "$FIREBASE_PROJECT_ID" ] || { echo "could not read project_id from $SA"; exit 1; }
 
 echo "→ deploying driver-offer-push to $REF (JWT verification OFF)"
 npx supabase functions deploy driver-offer-push \
   --project-ref "$REF" \
   --no-verify-jwt
 
+# The downloaded key file is pretty-printed over many lines. `secrets set NAME=VALUE`
+# parses one line, so passing the file verbatim stores just "{" and the function
+# then fails with "FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON" (seen 2026-09-03).
+# Compact it to a single line first. The private_key's "\n" escapes survive as-is;
+# the function un-escapes them.
+FIREBASE_SA_ONELINE="$(node -e "process.stdout.write(JSON.stringify(JSON.parse(require('fs').readFileSync(0,'utf8'))))" < "$SA")"
+
 echo "→ setting sender secrets on $REF"
 npx supabase secrets set --project-ref "$REF" \
   FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
-  FIREBASE_SERVICE_ACCOUNT_JSON="$(cat "$SA")"
+  FIREBASE_SERVICE_ACCOUNT_JSON="$FIREBASE_SA_ONELINE"
 
 echo "→ done. Smoke test (expects a JSON body, not a 401):"
 echo "   curl -s -X POST https://$REF.supabase.co/functions/v1/driver-offer-push \\"
