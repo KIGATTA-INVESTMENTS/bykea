@@ -50,5 +50,24 @@ try {
         apply plugin: 'com.google.gms.google-services'
     }
 } catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+    // Capacitor's default here is logger.info, which is invisible at normal Gradle
+    // verbosity. That is not a warning, it is a trap: without this file,
+    // PushNotificationsPlugin.register() throws
+    //   IllegalStateException: Default FirebaseApp is not initialized
+    // on the CapacitorPlugins thread, which JS cannot catch, and the process dies.
+    // Observed on device 2026-09-02: a driver signing in crashed the app.
+    //
+    // Debug builds may proceed without the file so push can be worked on locally.
+    // A RELEASE build without it would ship an app that crashes on driver sign-in,
+    // so it fails here, loudly, where a developer sees it.
+    def wantsRelease = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+    if (wantsRelease) {
+        throw new GradleException(
+            "android/app/google-services.json is missing. A release build without it " +
+            "crashes on driver sign-in (FirebaseApp not initialized in " +
+            "PushNotificationsPlugin.register). Add the file from the Firebase project " +
+            "that owns this app id, or build debug for local work."
+        )
+    }
+    logger.warn("google-services.json not found: push notifications will NOT work, and driver sign-in will crash. Debug build only.")
 }

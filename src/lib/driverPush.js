@@ -335,7 +335,7 @@ async function registerNativePushToken(driverId) {
       const timer = window.setTimeout(() => {
         if (!settled) {
           settled = true;
-          void Promise.all(handles.map((h) => h.remove?.().catch(() => {})));
+          void Promise.all(handles.map((h) => Promise.resolve(h?.remove?.()).catch(() => {})));
           reject(new Error('Native push registration timed out'));
         }
       }, 15000);
@@ -344,17 +344,29 @@ async function registerNativePushToken(driverId) {
         if (settled) return;
         settled = true;
         window.clearTimeout(timer);
-        void Promise.all(handles.map((h) => h.remove?.().catch(() => {})));
+        void Promise.all(handles.map((h) => Promise.resolve(h?.remove?.()).catch(() => {})));
         fn();
       };
 
-      void Push.addListener('registration', (t) => {
-        finish(() => resolve(String(t?.value || '').trim()));
-      }).then((h) => handles.push(h));
+      // Promise.resolve() on purpose. `getCapacitorPushPlugin()` prefers the
+      // bridge-injected `window.Capacitor.Plugins.PushNotifications`, and on
+      // Capacitor 8 that object's addListener returns a plain handle, not a
+      // Promise — only the ESM-imported plugin returns a Promise. Calling
+      // `.then()` on the injected one throws
+      // "t.addListener(...).then is not a function", the whole registration is
+      // caught as a failure, and no token is ever obtained. Observed on device
+      // 2026-09-02. This works with either shape.
+      void Promise.resolve(
+        Push.addListener('registration', (t) => {
+          finish(() => resolve(String(t?.value || '').trim()));
+        }),
+      ).then((h) => h && handles.push(h));
 
-      void Push.addListener('registrationError', (err) => {
-        finish(() => reject(new Error(err?.error || 'Native push registration failed')));
-      }).then((h) => handles.push(h));
+      void Promise.resolve(
+        Push.addListener('registrationError', (err) => {
+          finish(() => reject(new Error(err?.error || 'Native push registration failed')));
+        }),
+      ).then((h) => h && handles.push(h));
 
       void Push.register().catch((e) => finish(() => reject(e)));
     });

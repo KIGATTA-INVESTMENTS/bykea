@@ -15,7 +15,7 @@ Read it before touching anything. Add your entry **before** you write code.
 
 ### 2026-09-02 — Android background push for driver offers (pieces 1-5, 7)
 
-**Status:** complete for pieces 1-5 and 7, blocked on three client actions
+**Status:** complete for pieces 1-5 and 7. Local test rig ready; delivery test awaits a throwaway Firebase project (ours, ~15 min)
 **Owns:**
 - `docs/worklog.md` (new)
 - `docs/adr/0001-driver-offer-push-delivery.md` (new)
@@ -132,6 +132,46 @@ I also caught myself writing `if (getDriverSession()?.id) ensureDriverPushRegist
 — guarding the call so the "no session" log could never fire. That is the exact
 rule being implemented, broken while implementing it. The call is now unconditional
 and the function decides and logs.
+
+## Second pass, same day — three more found by running it
+
+**1. Native token registration threw before reaching FCM.**
+`t.addListener(...).then is not a function`. `getCapacitorPushPlugin()` prefers
+the bridge-injected `window.Capacitor.Plugins.PushNotifications`, and on
+Capacitor 8 that object's `addListener` returns a plain handle, not a Promise —
+only the ESM import returns a Promise. The `.then()` threw, the registration was
+caught as a failure, and no token was ever obtained. **This would have blocked
+push even with `google-services.json` present.** Fixed with `Promise.resolve()`
+around both `addListener` calls and both `remove()` calls. Only visible because
+the new logging printed the error; before, it was swallowed.
+
+**2. Fixing (1) unmasked a process crash behind it.** With the JS bug gone,
+execution reached `Push.register()`, which without `google-services.json`
+throws natively — `IllegalStateException: Default FirebaseApp is not
+initialized` at `PushNotificationsPlugin.register:103` — on the CapacitorPlugins
+thread, inside the reflective call. **JS cannot catch it; the process dies.**
+Observed: driver sign-in killed the app. There is no runtime guard. So
+`android/app/build.gradle` now throws a `GradleException` on any *release* task
+when the file is missing, and `warn`s (not `info`) on debug. **Verified both
+ways:** `assembleRelease` fails with the message, exit 1; `assembleDebug`
+succeeds, exit 0, APK produced.
+
+**3. The tap-routing path cannot be tested with a fake session.**
+`DriverLayout` wraps `DriverOffersProvider` inside `DriverApprovalGate`, which
+looks the driver up in the database and bounces unknown ids to `/driver/login`.
+So the provider — and my routing effect — never mounts for a seeded session.
+Token registration *does* run, because the bootstrap fires before the gate. The
+tap test therefore needs a real approved driver, i.e. the local Supabase rig in
+`docs/push-local-testing.md` (Part 2).
+
+## The sign-off list, revised
+
+Confirmed verbally on 2026-09-02: we have the access and are deliberately not
+going live: build locally, test locally, then hand to KIGATTA's developer to
+deploy. So the three items above are no longer "blocked on the client" — they
+are steps in `docs/push-local-testing.md`, against throwaway projects we own.
+`scripts/send-test-offer.js` sends the byte-identical FCM v1 message from a
+laptop, so delivery is testable with nothing deployed.
 
 ## NOT verified — be honest about this list
 
