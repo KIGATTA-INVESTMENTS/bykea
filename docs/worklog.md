@@ -291,6 +291,45 @@ fingerprint of the cosmetic GBP→USD relabel already recorded as a finding
 have turned it into U+FFFD and pasted that into the target database; the
 generator now decodes strictly, drops the orphaned byte, and says so.
 
+## Part 2 on a throwaway Supabase project — 2026-09-03
+
+Project `gcwrnluyaqarmrovbryj` (ours, not the client's), schema from the bundle,
+new-format API keys. `.env.local` points the local build at it; verified the ref is
+baked into both the web bundle and the APK.
+
+**Customer half proven end to end, in a headless desktop browser (Edge, CDP),
+with no emulator:** register → `/home` → delivery request (addresses accepted
+despite the "Location is off" banner from the missing Maps key) → package details
+→ price estimate ($3.72 / $4.25) → **Pay with Cash → Place Order** → `/live-tracking`
+"Finding a driver for you…". Row in `customer_delivery_orders`:
+`29b95e10-98d9-4dd9-9b03-73abd00fb5a8`, `status=placed`, `payment_method=cod`,
+`total_amount=4.25`, `assigned_driver_id=null`. Registration is a plain insert —
+no edge function needed. Cash was chosen deliberately: Paynow points at the
+client's **production** Railway API even in local builds, so it must not be used
+for tests.
+
+**The push sender on that project returns 404** — not deployed yet, expected.
+Placing the order still called it (fire-and-forget, caught), which is exactly the
+hop the deploy will close.
+
+**A deploy blocker found before deploying:** the app invokes `driver-offer-push`
+with the public API key and no user session. The legacy `anon` key is a JWT and
+passed the gateway's default `verify_jwt`; **new-format `sb_publishable_` keys are
+not JWTs**, so every call would be 401'd before the function runs. Added
+`supabase/config.toml` (`verify_jwt = false` for this function) and
+`scripts/deploy-push-sender.sh` (deploy `--no-verify-jwt` + secrets, using a
+`SUPABASE_ACCESS_TOKEN` so no browser login). If the client ever moves production
+to new-format keys, every browser-invoked function needs the same — and that is
+the wrong long-term answer, because the functions authenticate nothing themselves.
+
+**Driver half not run yet.** The emulator had no network when I tried (every
+fetch failed, including google.com) and was then declared in use by another
+session running a second device on `emulator-5556`; their stray taps explain the
+offline state and the home-screen surprise earlier. **All device commands must be
+pinned `adb -s emulator-5554` from now on.** Resume: enable wifi/data → fill the
+driver login from inside the page (not `adb input text` + Back, which left the app)
+→ token row → offer → tap → the router hop.
+
 **For whoever is next:** the `android/` folder and `capacitor.config.json` are a
 spike scaffold created 2026-08-30, not the source of the published apps. The
 shipped Android and iOS apps were built elsewhere and their source is not in this
