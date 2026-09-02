@@ -46,8 +46,8 @@
 --   41. shop_customer_orders_driver_assignment.sql
 --   42. shop_customer_orders_paynow.sql
 --   43. shop_delivery_settings.sql
---   44. shop_delivery_rate_repair.sql
---   45. shop_delivery_settings_per_km.sql
+--   44. shop_delivery_settings_per_km.sql
+--   45. shop_delivery_rate_repair.sql
 --   46. shop_ecocash_payment.sql
 --   47. shop_products_marketplace.sql
 --   48. shop_products_tags.sql
@@ -63,14 +63,14 @@
 --   58. booking_bids.sql
 --   59. booking_cancel_reason.sql
 --   60. booking_viewed_driver_ids.sql
---   61. driver_booking_assigned_at.sql
---   62. driver_booking_assignment.sql
+--   61. driver_booking_assignment.sql
+--   62. driver_booking_assigned_at.sql
 --   63. driver_booking_completed_at.sql
 --   64. driver_live_tracking.sql
 --   65. driver_single_assignment.sql
---   66. stripe_payment_support.sql
---   67. taxi_tuk_bookings_paynow.sql
---   68. taxi_tuk_payment_method.sql
+--   66. taxi_tuk_bookings_paynow.sql
+--   67. taxi_tuk_payment_method.sql
+--   68. stripe_payment_support.sql
 --   69. taxi_tuk_wallet_payment.sql
 --
 -- Uses Supabase built-in schemas that every project already has (nothing to do):
@@ -2572,33 +2572,6 @@ comment on column public.shop_customer_orders.delivery_fee is 'Delivery charge s
 
 
 -- ============================================================================
--- shop_delivery_rate_repair.sql
--- ============================================================================
--- Fix absurd shop delivery per-km rates (often caused by copying a flat fee into price_per_km).
--- Run in Supabase SQL Editor. Safe to re-run.
--- Example bug: $97/km × ~1 km = $97 delivery on a short shop order.
-
-update public.shop_delivery_settings
-set
-  delivery_fee_per_km = 1.00,
-  price_per_km = 1.00,
-  updated_at = now()
-where id = 1
-  and (
-    coalesce(delivery_fee_per_km, 0) > 15
-    or coalesce(price_per_km, 0) > 15
-  );
-
--- Ensure both columns match after any partial/legacy values.
-update public.shop_delivery_settings
-set
-  delivery_fee_per_km = coalesce(nullif(delivery_fee_per_km, 0), price_per_km, 1.00),
-  price_per_km = coalesce(nullif(price_per_km, 0), delivery_fee_per_km, 1.00),
-  updated_at = now()
-where id = 1;
-
-
--- ============================================================================
 -- shop_delivery_settings_per_km.sql
 -- ============================================================================
 -- Per-km shop delivery pricing (run after shop_delivery_settings.sql).
@@ -2647,6 +2620,33 @@ set
   price_per_km = coalesce(public.shop_delivery_settings.price_per_km, excluded.price_per_km, excluded.delivery_fee_per_km, 1.00),
   min_delivery_fee = coalesce(public.shop_delivery_settings.min_delivery_fee, 0),
   updated_at = now();
+
+
+-- ============================================================================
+-- shop_delivery_rate_repair.sql
+-- ============================================================================
+-- Fix absurd shop delivery per-km rates (often caused by copying a flat fee into price_per_km).
+-- Run in Supabase SQL Editor. Safe to re-run.
+-- Example bug: $97/km × ~1 km = $97 delivery on a short shop order.
+
+update public.shop_delivery_settings
+set
+  delivery_fee_per_km = 1.00,
+  price_per_km = 1.00,
+  updated_at = now()
+where id = 1
+  and (
+    coalesce(delivery_fee_per_km, 0) > 15
+    or coalesce(price_per_km, 0) > 15
+  );
+
+-- Ensure both columns match after any partial/legacy values.
+update public.shop_delivery_settings
+set
+  delivery_fee_per_km = coalesce(nullif(delivery_fee_per_km, 0), price_per_km, 1.00),
+  price_per_km = coalesce(nullif(price_per_km, 0), delivery_fee_per_km, 1.00),
+  updated_at = now()
+where id = 1;
 
 
 -- ============================================================================
@@ -3647,39 +3647,6 @@ comment on column public.shop_customer_orders.viewed_driver_ids is 'Drivers who 
 
 
 -- ============================================================================
--- driver_booking_assigned_at.sql
--- ============================================================================
--- When the driver accepts, `assigned_at` is set by the app (see driverAcceptOffer).
--- Driver home "recent jobs" uses this instead of `created_at` so old ride requests do not stay on top.
-
-alter table public.customer_delivery_orders
-  add column if not exists assigned_at timestamptz;
-
-alter table public.taxi_bookings
-  add column if not exists assigned_at timestamptz;
-
-alter table public.tuk_tuk_bookings
-  add column if not exists assigned_at timestamptz;
-
-comment on column public.customer_delivery_orders.assigned_at is 'When assigned_driver_id was set (driver accepted)';
-comment on column public.taxi_bookings.assigned_at is 'When assigned_driver_id was set (driver confirmed)';
-comment on column public.tuk_tuk_bookings.assigned_at is 'When assigned_driver_id was set (driver confirmed)';
-
--- Approximate accept time for rows already assigned before this column existed.
-update public.customer_delivery_orders
-set assigned_at = coalesce(assigned_at, created_at)
-where assigned_driver_id is not null and assigned_at is null;
-
-update public.taxi_bookings
-set assigned_at = coalesce(assigned_at, created_at)
-where assigned_driver_id is not null and assigned_at is null;
-
-update public.tuk_tuk_bookings
-set assigned_at = coalesce(assigned_at, created_at)
-where assigned_driver_id is not null and assigned_at is null;
-
-
--- ============================================================================
 -- driver_booking_assignment.sql
 -- ============================================================================
 -- Driver assignment on customer bookings (parcel / taxi / tuk-tuk).
@@ -3759,6 +3726,39 @@ using (true)
 with check (true);
 
 comment on column public.tuk_tuk_bookings.assigned_driver_id is 'driver_registrations.id when a driver confirmed this ride';
+
+
+-- ============================================================================
+-- driver_booking_assigned_at.sql
+-- ============================================================================
+-- When the driver accepts, `assigned_at` is set by the app (see driverAcceptOffer).
+-- Driver home "recent jobs" uses this instead of `created_at` so old ride requests do not stay on top.
+
+alter table public.customer_delivery_orders
+  add column if not exists assigned_at timestamptz;
+
+alter table public.taxi_bookings
+  add column if not exists assigned_at timestamptz;
+
+alter table public.tuk_tuk_bookings
+  add column if not exists assigned_at timestamptz;
+
+comment on column public.customer_delivery_orders.assigned_at is 'When assigned_driver_id was set (driver accepted)';
+comment on column public.taxi_bookings.assigned_at is 'When assigned_driver_id was set (driver confirmed)';
+comment on column public.tuk_tuk_bookings.assigned_at is 'When assigned_driver_id was set (driver confirmed)';
+
+-- Approximate accept time for rows already assigned before this column existed.
+update public.customer_delivery_orders
+set assigned_at = coalesce(assigned_at, created_at)
+where assigned_driver_id is not null and assigned_at is null;
+
+update public.taxi_bookings
+set assigned_at = coalesce(assigned_at, created_at)
+where assigned_driver_id is not null and assigned_at is null;
+
+update public.tuk_tuk_bookings
+set assigned_at = coalesce(assigned_at, created_at)
+where assigned_driver_id is not null and assigned_at is null;
 
 
 -- ============================================================================
@@ -4117,70 +4117,6 @@ comment on function public.claim_open_booking(text, uuid, uuid) is
 
 
 -- ============================================================================
--- stripe_payment_support.sql
--- ============================================================================
--- Stripe card payments: extend payment_method checks and store PaymentIntent id.
--- Run in Supabase SQL Editor after customer_delivery_orders.sql, taxi_tuk_payment_method.sql,
--- shop_customer_orders_paynow.sql, taxi_tuk_bookings_paynow.sql, driver_wallet_topups.sql.
-
--- customer_delivery_orders: allow `stripe` (Paynow stays as legacy `card` in DB).
-alter table public.customer_delivery_orders drop constraint if exists customer_delivery_orders_payment_chk;
-alter table public.customer_delivery_orders
-  add constraint customer_delivery_orders_payment_chk check (
-    payment_method in ('ecocash', 'card', 'cod', 'stripe', 'wallet')
-  );
-
-comment on column public.customer_delivery_orders.payment_method is
-  'cod = cash; card = Paynow; stripe = Stripe card; wallet = in-app wallet; ecocash = legacy';
-
-alter table public.customer_delivery_orders
-  add column if not exists stripe_payment_intent_id text;
-
-create index if not exists customer_delivery_orders_stripe_pi_idx
-  on public.customer_delivery_orders (stripe_payment_intent_id)
-  where stripe_payment_intent_id is not null;
-
--- taxi / tuk
-alter table public.taxi_bookings drop constraint if exists taxi_bookings_payment_method_chk;
-alter table public.taxi_bookings
-  add constraint taxi_bookings_payment_method_chk check (
-    payment_method in ('ecocash', 'card', 'cod', 'stripe')
-  );
-
-alter table public.tuk_tuk_bookings drop constraint if exists tuk_tuk_bookings_payment_method_chk;
-alter table public.tuk_tuk_bookings
-  add constraint tuk_tuk_bookings_payment_method_chk check (
-    payment_method in ('ecocash', 'card', 'cod', 'stripe')
-  );
-
-comment on column public.taxi_bookings.payment_method is 'cod = cash; card = Paynow; stripe = Stripe; ecocash = legacy';
-comment on column public.tuk_tuk_bookings.payment_method is 'cod = cash; card = Paynow; stripe = Stripe; ecocash = legacy';
-
-alter table public.taxi_bookings
-  add column if not exists stripe_payment_intent_id text;
-alter table public.tuk_tuk_bookings
-  add column if not exists stripe_payment_intent_id text;
-
--- shop orders
-alter table public.shop_customer_orders
-  add column if not exists stripe_payment_intent_id text;
-
-create index if not exists shop_customer_orders_stripe_pi_idx
-  on public.shop_customer_orders (stripe_payment_intent_id)
-  where stripe_payment_intent_id is not null;
-
--- driver wallet top-ups
-alter table public.driver_wallet_topups
-  add column if not exists stripe_payment_intent_id text;
-
-create index if not exists driver_wallet_topups_stripe_pi_idx
-  on public.driver_wallet_topups (stripe_payment_intent_id)
-  where stripe_payment_intent_id is not null;
-
-notify pgrst, 'reload schema';
-
-
--- ============================================================================
 -- taxi_tuk_bookings_paynow.sql
 -- ============================================================================
 -- Paynow / online payment tracking for taxi + Tuk-Tuk (mirror customer_delivery_orders_paynow.sql).
@@ -4285,6 +4221,70 @@ comment on column public.tuk_tuk_bookings.payment_method is
   'card = Paynow; stripe = Stripe; cod = cash; wallet = Ingo Kilometres; ecocash = legacy bank transfer';
 
 -- Refresh PostgREST schema cache if clients report "Could not find ... in the schema cache"
+notify pgrst, 'reload schema';
+
+
+-- ============================================================================
+-- stripe_payment_support.sql
+-- ============================================================================
+-- Stripe card payments: extend payment_method checks and store PaymentIntent id.
+-- Run in Supabase SQL Editor after customer_delivery_orders.sql, taxi_tuk_payment_method.sql,
+-- shop_customer_orders_paynow.sql, taxi_tuk_bookings_paynow.sql, driver_wallet_topups.sql.
+
+-- customer_delivery_orders: allow `stripe` (Paynow stays as legacy `card` in DB).
+alter table public.customer_delivery_orders drop constraint if exists customer_delivery_orders_payment_chk;
+alter table public.customer_delivery_orders
+  add constraint customer_delivery_orders_payment_chk check (
+    payment_method in ('ecocash', 'card', 'cod', 'stripe', 'wallet')
+  );
+
+comment on column public.customer_delivery_orders.payment_method is
+  'cod = cash; card = Paynow; stripe = Stripe card; wallet = in-app wallet; ecocash = legacy';
+
+alter table public.customer_delivery_orders
+  add column if not exists stripe_payment_intent_id text;
+
+create index if not exists customer_delivery_orders_stripe_pi_idx
+  on public.customer_delivery_orders (stripe_payment_intent_id)
+  where stripe_payment_intent_id is not null;
+
+-- taxi / tuk
+alter table public.taxi_bookings drop constraint if exists taxi_bookings_payment_method_chk;
+alter table public.taxi_bookings
+  add constraint taxi_bookings_payment_method_chk check (
+    payment_method in ('ecocash', 'card', 'cod', 'stripe')
+  );
+
+alter table public.tuk_tuk_bookings drop constraint if exists tuk_tuk_bookings_payment_method_chk;
+alter table public.tuk_tuk_bookings
+  add constraint tuk_tuk_bookings_payment_method_chk check (
+    payment_method in ('ecocash', 'card', 'cod', 'stripe')
+  );
+
+comment on column public.taxi_bookings.payment_method is 'cod = cash; card = Paynow; stripe = Stripe; ecocash = legacy';
+comment on column public.tuk_tuk_bookings.payment_method is 'cod = cash; card = Paynow; stripe = Stripe; ecocash = legacy';
+
+alter table public.taxi_bookings
+  add column if not exists stripe_payment_intent_id text;
+alter table public.tuk_tuk_bookings
+  add column if not exists stripe_payment_intent_id text;
+
+-- shop orders
+alter table public.shop_customer_orders
+  add column if not exists stripe_payment_intent_id text;
+
+create index if not exists shop_customer_orders_stripe_pi_idx
+  on public.shop_customer_orders (stripe_payment_intent_id)
+  where stripe_payment_intent_id is not null;
+
+-- driver wallet top-ups
+alter table public.driver_wallet_topups
+  add column if not exists stripe_payment_intent_id text;
+
+create index if not exists driver_wallet_topups_stripe_pi_idx
+  on public.driver_wallet_topups (stripe_payment_intent_id)
+  where stripe_payment_intent_id is not null;
+
 notify pgrst, 'reload schema';
 
 

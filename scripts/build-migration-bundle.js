@@ -138,8 +138,92 @@ for (const f of files) {
   }
 }
 
+// Column-level dependencies, scoped to a table. Found by the second real run:
+// driver_booking_assigned_at.sql backfills `where assigned_driver_id is not null`
+// on customer_delivery_orders, but assigned_driver_id is ADDED by
+// driver_booking_assignment.sql, which sorted one place later. Tables alone
+// cannot see that. So: a file that does `alter table T add column C` must precede
+// any other file that mentions BOTH T and C. Scoping by T keeps common column
+// names (status, created_at) from linking unrelated files.
+/**
+ * "table.column" -> Set<file> that PROVIDE it: every file that `add column`s it
+ * (this repo re-adds columns defensively with `if not exists` in several files),
+ * plus the table's creator when it declares the column inline. Providers never
+ * depend on each other through this rule — that was the source of 63 cycles on
+ * the first attempt. Only a file that merely USES the column depends on providers.
+ */
+const columnProviders = new Map();
+const reAddCol = new RegExp(
+  `alter\\s+table\\s+(?:only\\s+)?(?:if\\s+exists\\s+)?${TABLE}\\s+add\\s+column\\s+(?:if\\s+not\\s+exists\\s+)?([a-z_][a-z0-9_]*)`,
+  'gi',
+);
+const cleanSql = new Map();
+for (const f of files) {
+  if (f === SEED) continue;
+  cleanSql.set(f, read(f).replace(/--.*$/gm, ''));
+}
+for (const [f, sql] of cleanSql) {
+  let m;
+  while ((m = reAddCol.exec(sql))) {
+    const key = `${m[1].toLowerCase()}.${m[2].toLowerCase()}`;
+    if (!columnProviders.has(key)) columnProviders.set(key, new Set());
+    columnProviders.get(key).add(f);
+  }
+}
+// The creator declares columns inline; if it mentions the column at all, it provides it.
+for (const [key, providers] of columnProviders) {
+  const [t, c] = key.split('.');
+  const cf = creator.get(t);
+  if (cf && new RegExp(`\\b${c}\\b`, 'i').test(cleanSql.get(cf) || '')) providers.add(cf);
+}
+/**
+ * A column mention inside a plpgsql body ($$ … $$) is resolved when the function
+ * is CALLED, not when it is created, so it is not a dependency at apply time.
+ * Counting it produced a mutual edge between driver_booking_assignment.sql
+ * (whose accept function sets assigned_at) and driver_booking_assigned_at.sql
+ * (which backfills using assigned_driver_id) — a cycle that the real, working
+ * apply order proves is not one. Only top-level statements count as column uses.
+ */
+const topLevelOnly = (sql) => sql.replace(/\$\$[\s\S]*?\$\$/g, ' ');
+/**
+ * A file USES table.column only if the column appears in the SAME top-level
+ * statement that names the table (or qualified as table.column). File-wide
+ * co-mention was wrong: customer_delivery_orders.sql declares its own
+ * vehicle_type and also names driver_registrations, so it looked like a user of
+ * driver_registrations.vehicle_type — which a later file adds — and that one
+ * false edge put the table's creator inside a 20-file cycle.
+ */
+const usesColumn = (sql, t, c) => {
+  const qualified = new RegExp(`\\b${t}\\.${c}\\b`, 'i');
+  if (qualified.test(sql)) return true;
+  // The statement must TARGET t. A `create table other (… references t …)`
+  // names t but declares its own columns, so a column word inside it belongs to
+  // `other`, never to t. That exact case (customer_delivery_orders declaring
+  // requested_vehicle_type while referencing delivery_requests) is what kept the
+  // table's creator inside a 20-file cycle through three wrong fixes.
+  const targetsT = new RegExp(
+    `^\\s*(?:update|insert\\s+into|delete\\s+from|truncate(?:\\s+table)?|alter\\s+table(?:\\s+only)?(?:\\s+if\\s+exists)?|comment\\s+on\\s+column|create\\s+(?:unique\\s+)?index\\s+(?:if\\s+not\\s+exists\\s+)?\\S+\\s+on)\\s+(?:public\\.)?${t}\\b`,
+    'i',
+  );
+  const namesC = new RegExp(`\\b${c}\\b`, 'i');
+  return sql.split(';').some((stmt) => targetsT.test(stmt) && namesC.test(stmt));
+};
+/** file -> Set<file> it must follow because it uses a column another file provides */
+const columnDeps = new Map(files.filter((f) => f !== SEED).map((f) => [f, new Set()]));
+for (const [f, rawSql] of cleanSql) {
+  const sql = topLevelOnly(rawSql);
+  for (const [key, providers] of columnProviders) {
+    if (providers.has(f)) continue; // providers do not depend on each other here
+    const [t, c] = key.split('.');
+    if (usesColumn(sql, t, c)) {
+      for (const p of providers) if (p !== f) columnDeps.get(f).add(p);
+    }
+  }
+}
+
 // Build edges: file -> files it must come after.
 const after = new Map(files.filter((f) => f !== SEED).map((f) => [f, new Set()]));
+for (const [f, set] of columnDeps) for (const a of set) after.get(f).add(a);
 const unresolved = new Map();
 for (const [f, tables] of deps) {
   for (const t of tables) {

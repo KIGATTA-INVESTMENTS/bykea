@@ -254,6 +254,33 @@ adds edges; the sort reports the one thing it cannot absorb, a cycle — still 0
 Postgres ran the failed paste as one implicit transaction, so nothing was
 committed; the corrected bundle re-runs cleanly on the same empty project.
 
+**Second real run failed at `column "assigned_driver_id" does not exist`.**
+A column, not a table: `driver_booking_assigned_at.sql` backfills
+`where assigned_driver_id is not null` on `customer_delivery_orders`, and that
+column is *added* by `driver_booking_assignment.sql`, which sorted one place later.
+Table-level tracking cannot see it. Adding column-level tracking took four
+attempts, and the failures are the useful part:
+
+1. "file mentions table T and column C" → **63 files in cycles.** This repo re-adds
+   columns defensively (`add column if not exists`) that the table's creator already
+   declared inline, so creator and adder pointed at each other. Fix: files that
+   *provide* a column (adders, plus the creator if it declares it) never depend on
+   each other; only *users* depend on providers.
+2. Still 20 in a cycle. Hypothesis: mentions inside `$$…$$` plpgsql bodies are
+   resolved at call time, not apply time. True, and worth excluding — but it
+   changed nothing, because it was not the cause.
+3. Scoped the test to "same statement names T and C". Still 20. Not the cause.
+4. Printed the actual loop instead of theorising: exactly one false edge,
+   `customer_delivery_orders.sql → driver_vehicle_types_motorbike_tuktuk_car.sql`.
+   The creator's `create table` declares its own `requested_vehicle_type` **and**
+   contains `references delivery_requests` — one statement naming both — so it
+   looked like a user of `delivery_requests.requested_vehicle_type`. **The
+   statement must *target* T** (`update T`, `alter table T`, `comment on column
+   T.x`, index `on T`…); a mere FK mention is not a use. 0 cycles.
+
+Lesson recorded for next time: two wrong hypotheses in a row is the signal to
+print the graph, not to form a third.
+
 Two files are not valid UTF-8: `driver_registrations.sql` and
 `driver_registrations_driver_deposit_balance.sql` each carry a lone `0xC2` byte
 directly before `$10`. That is the orphaned lead byte of `£` (`C2 A3`) left
