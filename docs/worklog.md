@@ -15,7 +15,7 @@ Read it before touching anything. Add your entry **before** you write code.
 
 ### 2026-09-02 — Android background push for driver offers (pieces 1-5, 7)
 
-**Status:** complete for pieces 1-5 and 7. Local test rig ready; delivery test awaits a throwaway Firebase project (ours, ~15 min)
+**Status:** **complete.** Pieces 1-5 and 7 built; Part 2 proven end to end on a throwaway Supabase project on 2026-09-03 (sign-in → token row → deployed sender `sent:1` → backgrounded notification → tap → router hop; then a fresh customer order rang the backgrounded phone). Not built: piece 6, foreground service, iOS.
 **Owns:**
 - `docs/worklog.md` (new)
 - `docs/adr/0001-driver-offer-push-delivery.md` (new)
