@@ -41,3 +41,6 @@ yarn-error.log*
 # the repo. The real one for the store builds is supplied by KIGATTA and belongs
 # wherever the shipped apps are actually built. See docs/push-local-testing.md.
 android/app/google-services.json
+
+# Supabase CLI working files (project-ref cache from `functions deploy`)
+supabase/.temp/
