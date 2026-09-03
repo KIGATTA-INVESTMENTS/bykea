@@ -142,10 +142,19 @@ export function DriverOffersProvider({ children }) {
   // tap; and a warm tap while the app is already running, which arrives as an event.
   // Both land here, and both are routed once.
   useEffect(() => {
-    let done = false;
+    // One tap can arrive twice: parked by driverPushBootstrap on a cold start
+    // and again as the window event. Drop the duplicate, and nothing else. The
+    // previous "handle once per mount" guard silently ignored every button press
+    // after the first for as long as the app process lived (found 2026-09-03 in
+    // a live demo: the second Accept of the day did nothing).
+    const last = { key: '', at: 0 };
     const goToOffer = (detail) => {
-      if (done || !detail) return;
-      done = true;
+      if (!detail) return;
+      const key = `${detail.tag || detail.offerKey || detail.link || ''}|${detail.action || ''}`;
+      const now = Date.now();
+      if (key === last.key && now - last.at < 3000) return;
+      last.key = key;
+      last.at = now;
       const action = String(detail.action || '');
       if (action === 'accept' || action === 'decline') {
         // A button on the notification itself (OfferMessagingService, Android).
@@ -178,7 +187,14 @@ export function DriverOffersProvider({ children }) {
       .then((m) => goToOffer(m.consumePendingOfferTap()))
       .catch(() => {});
 
-    const onTap = (e) => goToOffer(e?.detail);
+    const onTap = (e) => {
+      goToOffer(e?.detail);
+      // The bootstrap parked a copy before dispatching this event. Clear it so a
+      // later mount does not replay an old button press.
+      void import('../../lib/driverPushBootstrap')
+        .then((m) => m.consumePendingOfferTap())
+        .catch(() => {});
+    };
     window.addEventListener('ingo-driver-offer-tap', onTap);
     return () => window.removeEventListener('ingo-driver-offer-tap', onTap);
   }, []);

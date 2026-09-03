@@ -603,3 +603,83 @@ there for a manual retry. On a real handset "Failed to fetch" means offline.
 error. Worth considering (cheap), left out to keep one accept path.
 **Real-device run still owed** before this is called done; the emulator cannot
 give a clean cold-start network.
+
+**Live demo for the client (13:15Z) found the next bug: one tap per app
+lifetime.** Warm app, order rang, Accept pressed: `[driverPush] offer tapped`
+logged, then nothing. The piece-7 tap effect in `DriverOffersProvider` guarded
+with `let done = false … done = true` ("routed once"), meaning the *first* tap
+after mount was handled and every later one, for as long as the process lived,
+was dropped. Every earlier proof had run on a fresh process, which hid it.
+**Fixed:** the guard now drops only the same tap delivered twice within 3 s
+(the parked copy plus the window event), and the event path clears the parked
+copy so a later mount cannot replay an old button press. Lesson for the
+standard: a "handle once" guard must be keyed on the *event*, never on the
+mount; and every proof run should include a second press in the same process.
+
+**Startup ANR, reproduced twice (13:39Z and 16:18 local / 13:18Z).** Launch the
+app, press HOME within ~10 s: `am_anr … Input dispatching timed out … Waited
+5000ms for FocusEvent`, then `am_kill … bg anr` ~20 s later. The WebView main
+thread is blocked > 5 s while the CRA bundle loads. Emulator, but the bundle is
+the same one on the store. Not this task's scope; it is now a concrete,
+reproducible item for the performance pass (bundle size, lazy routes, and a
+lighter first paint). Harness rule until then: give the app 40 s after launch
+before backgrounding it.
+
+## The "InGo isn't responding" ANRs are the emulator, not the app — 2026-09-03, 20:00 local
+
+**Status:** complete (diagnosis only; nothing in `src/` changed for this).
+**Shares:** docs/worklog.md — this section only.
+
+**What this is.** Rio sent a screenshot of the Android "InGo isn't responding"
+dialog over a driver screen ("Continue Delivery" visible). Two fresh ANRs were on
+emulator-5554 (18:33 and 18:37 local, both `Input dispatching timed out` on a
+touch event). All four of today's ANR trace files (`/data/anr/anr_2026-09-03-*`,
+pulled with `adb root`) were read. **This corrects the paragraph above: the
+startup ANRs were not the bundle blocking the main thread.**
+
+**Evidence, every trace the same shape:**
+- The app's `main` thread was never in app, plugin, or WebView-JS code. 15:39:
+  a `ThreadLocal.get` inside `FragmentManager.dispatchStop` (an ordinary
+  instruction, i.e. the thread was starved mid-step). 16:18 and 18:33: idle in
+  `MessageQueue.nativePollOnce`. 18:38: a binder call to `system_server` that
+  took 1.5 s.
+- Thread accounting is all kernel, no user. 18:33 main thread: `utm=1671
+  stm=76405` (17 s user, 764 s kernel) and 397 s waiting on the run queue.
+- Android's own CPU table for each ANR: **77–79 % kernel, 1–4 % user across the
+  whole guest.** Load average 14.6 then 21.2 on 4 vCPUs. Top consumers were
+  `android.hardware.sensors-service.multihal` (60–82 %), `system_server`
+  (69–102 %, kernel), then the app and the WebView renderer, all kernel time.
+- The sensors HAL had `stime=2965312` ticks = **8.2 hours of kernel CPU**
+  against 17 s of user time. Guest uptime 1 day 14 h; on the host the
+  `qemu-system-x86_64` process had consumed 38.2 CPU-hours in 38.5 wall-hours,
+  i.e. one core pegged continuously, idle or not. Guest RAM 3.7 of 4.0 GB used,
+  swap in use.
+
+**Conclusion.** The guest kernel of this long-running emulator is thrashing
+(sensors HAL spinning; everything else starved), so the app's UI thread cannot
+answer input within 5 s. That also explains the "WebView network stalls" and
+"14 s accept" noted earlier today: same starvation, seen through `fetch`. None
+of it is evidence about the shipped bundle. **The performance-pass item written
+above is withdrawn** until reproduced on a freshly started emulator or a real
+handset.
+
+**Not done / for whoever is next:** the emulator was NOT restarted — the log
+says another session shares it. Cold-restart it (or a fresh AVD) before any
+further timing claims, then re-run: launch → HOME within 10 s. If it ANRs on a
+fresh emulator with low load, *then* it is the app. Harness rule: before
+attributing any ANR or slow fetch to the app, read the `CPU usage` table under
+`ANR in com.kigatta.ingo` in logcat; if user time is near zero and kernel time
+dominates, stop and restart the emulator.
+
+**Fixed 20:10–20:16 local (Rio asked for it).** `adb emu kill`, then
+`emulator -avd Test_Android -no-snapshot-load` (cold boot; userdata kept, driver
+still signed in). After settling: guest 371–389 % idle of 400, sensors HAL
+13 s kernel time total, load falling to 1.6. Repros re-run on the fresh
+emulator, none ANR'd (`am_anr`/`am_kill` for the app: none):
+1. launch → HOME at 8 s (the "startup ANR");
+2. driver Home: 6 taps + 4 swipes, map responded ("Open in Maps" chip);
+3. Orders tab → tap burst → landed on the active-delivery route screen (the one
+   behind Rio's ANR screenshot) → responsive, route drawn.
+**Verified:** the above, by screenshot and logcat events. **Not verified:** the
+real-device run (still owed); Accept / Decline retest on this fresh emulator
+was not repeated tonight.
