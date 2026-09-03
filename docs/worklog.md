@@ -418,6 +418,55 @@ after ~5 minutes** unless something keeps publishing — the foreground service 
 blueprint rule 2. For these tests the timestamp was refreshed by hand. This is
 the strongest argument yet for building that service.
 
+## Accept / Decline — where they are, and what blocked them — 2026-09-03
+
+**The buttons exist, in-app, after the tap.** `DriverHomePage` renders an offer
+card (`dh-offerCard`) for each open offer under 30 minutes old: pickup, drop-off,
+package, payment, the customer's offer, a **"Respond in 120s"** bar, and three
+buttons — **"Offer $4.25"** (accept at the customer's price), **"Bid higher"**,
+**"Reject"**. Verified on screen for order `#ING-AE9F7EAC36`. There are **no
+buttons on the system notification itself** — that is blueprint piece 6, scoped
+out of this pass.
+
+Three findings on the way to that screenshot:
+
+1. **The sender rings by order *status*; the app shows by order *age*.** The
+   earlier test order (placed 23:48) was still `placed/open` at 12:00 the next
+   day, so the sender rang it, but `OPEN_OFFER_MAX_AGE_MS` (30 min) hides it in
+   the app — tap → home → "0 Open Offers". A driver can be rung for something
+   they cannot accept. The sender should apply the same age cutoff (or the sweep
+   that cancelled the first order should run server-side, not only in a client).
+2. **Pressing Accept hung on "…" forever — the Supabase auth lock.** Logcat, 8×:
+   `@supabase/gotrue-js: Lock "lock:sb-<ref>-auth-token" was not released within
+   5000ms … Forcefully acquiring the lock`. `createClient(url, key)` with default
+   options runs GoTrue's session machinery, which wraps requests in a
+   `navigator.locks` lock; inside the Capacitor WebView it contends and stalls
+   every call ~5 s. The accept path makes several calls in a row. **This app has
+   zero `supabase.auth` usages**, so the fix is to turn the unused auth client
+   off: `auth: { persistSession:false, autoRefreshToken:false, detectSessionInUrl:false }`.
+3. **`claim_open_booking` looked missing (`PGRST202`) and was not.** PostgREST
+   resolves RPCs by parameter *names*; a `{}` probe matches nothing and says "not
+   found". With `p_table/p_booking_id/p_driver_id` it answered
+   `{"ok":false,"error":"Driver not found."}` — present and behaving. Probe RPCs
+   with their real argument names or the answer is meaningless.
+
+**The accept landed (piece 7).** Order `ae9f7eac…`: `status=assigned`,
+`bid_status=matched`, `assigned_driver_id=12d82ffc…`, `assigned_at 12:04:15Z`,
+`agreed_fare_amount=4.50`, `delivery_confirmation_code=864460`. Customer's
+`/live-tracking`: "DRIVER TO PICKUP · Driver is heading to the pickup location ·
+YOUR DELIVERY PIN 864460". Driver's Orders tab: "ING-AE9F7EAC · ASSIGNED · Payout
+$4.50 · Continue Delivery". The stop signal withdrew the notification (0 posted
+for that order). **Caveat:** the assignment came from the press on the *pre-fix*
+build — the stalled request completed once the lock forcibly recovered. The fixed
+build (auth client off) logs **0** lock warnings where the old one logged 8, but
+its own accept was not exercised: the driver now holds an active job and
+`driver_single_assignment` correctly declines to offer a second. Exercising it
+needs the job completed or cancelled first.
+
+Also: an Android **"Process system isn't responding"** dialog appeared on the
+emulator mid-test — `system_server`, not the app, from my `dumpsys`/uiautomator
+polling every few seconds on top of lock/unlock cycles. Harness load, throttled.
+
 **Driver half not run yet.** ~~The emulator had no network when I tried~~ (superseded
 above; kept for the record) The emulator had no network when I tried (every
 fetch failed, including google.com) and was then declared in use by another

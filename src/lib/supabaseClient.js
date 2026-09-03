@@ -16,5 +16,17 @@ if (!isSupabaseConfigured) {
   console.warn('Supabase env vars are missing. Check REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.');
 }
 
-export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseAnonKey) : null;
+// This app does not use Supabase Auth at all (`supabase.auth` has zero call sites;
+// sessions are hand-rolled in customerSession.js / driverSession.js). With the
+// default options, supabase-js still runs GoTrue's session machinery, which takes a
+// `navigator.locks` lock named "lock:sb-<ref>-auth-token" around every request.
+// Inside the Capacitor WebView that lock contends and stalls each call by ~5s
+// ("Lock … was not released within 5000ms … Forcefully acquiring the lock"), so a
+// driver pressing Accept — several requests in a row — sat on "…" indefinitely.
+// Observed on device 2026-09-03. Turning the unused auth client off removes the lock.
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    })
+  : null;
 
