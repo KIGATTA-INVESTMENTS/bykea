@@ -45,4 +45,15 @@
       dropped silently no matter how valid the token is.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      Driver location. useLiveLocation.js calls navigator.geolocation.watchPosition;
+      without these declared, Android refuses the WebView's request silently: the
+      "Retry location" button appears to do nothing and driver_live_* never updates,
+      so the push sender never sees the driver as nearby. Observed 2026-09-03.
+      Background location while the app is not on screen is a separate concern
+      (a foreground service) and is deliberately not declared here.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 </manifest>

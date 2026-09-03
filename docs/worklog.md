@@ -349,7 +349,45 @@ past the gateway with the `sb_publishable_` key.
 **Chain status:** customer → order → sender: proven. Sender → driver phone: waits
 on the driver sign-in below, which is the emulator.
 
-**Driver half not run yet.** The emulator had no network when I tried (every
+## Part 2 complete — the whole chain, every link real — 2026-09-03
+
+Emulator back (network restored by the other session), every adb call pinned
+`-s emulator-5554`.
+
+1. **Driver sign-in from inside the page** (`testdriver@bykea.test`) → `/driver/home`
+   → `[driverPushBootstrap] push token stored {"platform":"android"}` → **a real
+   row in `driver_push_tokens`** on the throwaway project, driver `12d82ffc…`.
+   The table that had been empty for the life of this product.
+2. **Sender → this driver, via the deployed function**, on the real test order:
+   `{"ok":true,"sent":1,"drivers":1,"tokens":1,"kind":"parcel"}`.
+   - foreground: `[driverPush] payload received {"type":"offer_ring",…}`
+   - backgrounded: notification "New delivery request / Harare CBD · → Avondale ·
+     $4.25" posted; **0 app-code lines** (OS-rendered, as ADR 0001 says)
+   - **tap:** `[driverPush] offer tapped` → **`[DriverOffers] routing to tapped
+     offer /driver/home`** — the router hop, the last unexercised piece, now proven.
+     The provider mounted because `DriverApprovalGate` found a real approved driver.
+3. **Fresh order from the customer side, in the headless browser** (`#ING-B1F73DB303`,
+   Harare CBD → Borrowdale, cash) → the app invoked the sender → the **backgrounded
+   driver phone** showed "New delivery request / Harare CBD · → Borrowdale · $4.25",
+   0 app-code lines. Nothing in the chain touched the client's production.
+
+**What "online" means to the sender, and what blocked it first:** `is_online = true`
+AND `driver_live_updated_at` within 5 minutes AND (if the order has pickup
+coordinates) within 20 km. The app set `is_online` on sign-in, but published **no
+location** even with an emulator GPS fix, because this build's manifest declared
+no location permission — the "Retry location" button did nothing (observed
+independently on the device at the same time). The order rows carry only `pickup_location` text, no lat/lng,
+so the radius filter is skipped by design. For the test I set
+`driver_live_lat/lng/updated_at` on the throwaway row directly; the manifest now
+declares `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION` so the app publishes
+it itself — **verified:** after the rebuild, `getCurrentPosition success` where it
+had logged `error`, and after moving the emulator's GPS fix the row updated to
+`-17.8299727, 31.0529739` (the new fix, with GPS noise — not the hand-written
+values) within seconds. The app now satisfies the sender's "online" predicate
+unaided.
+
+**Driver half not run yet.** ~~The emulator had no network when I tried~~ (superseded
+above; kept for the record) The emulator had no network when I tried (every
 fetch failed, including google.com) and was then declared in use by another
 session running a second device on `emulator-5556`; their stray taps explain the
 offline state and the home-screen surprise earlier. **All device commands must be
