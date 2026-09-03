@@ -386,6 +386,38 @@ had logged `error`, and after moving the emulator's GPS fix the row updated to
 values) within seconds. The app now satisfies the sender's "online" predicate
 unaided.
 
+## Screen off, lock screen, killed — with the real sender, 2026-09-03
+
+All via the deployed `driver-offer-push` on the throwaway project, driver
+location refreshed before each ring (see limitation below).
+
+| Case | Result |
+|---|---|
+| **Screen off** (`KEYCODE_SLEEP`, `mWakefulness=Asleep`) | `sent:1`, posted, **0 app code**. The screen **stayed asleep** — Android does not light the display for an ordinary notification; that is piece 6 |
+| **PIN-locked lock screen** (`locksettings set-pin`) | Notification shown **on the keyguard** with full text ("New delivery request · Harare CBD → Borrowdale · $4.25" — fine: no customer identity in the payload). **Tap → PIN prompt → PIN → app to front → `[driverPush] offer tapped` → `[DriverOffers] routing to tapped offer`.** Screenshot at +3 s shows the app's white startup gap (H7), i.e. the app, mid-paint |
+| **Killed** (process dead, `stopped=false`) | `sent:1`, posted, **FCM spawned a fresh process** (new pid), 0 app code |
+
+Three things learned on the way:
+
+- **The first test order was auto-cancelled** by the app's stale-offer sweep (30 min),
+  and the sender then answered `{"skipped":"status","sent":0}` — correct: an
+  offer is TTL'd to its order's window. Rang the newer order instead.
+- **`am kill` refuses a process that was foregrounded seconds earlier** (pid
+  unchanged) — that run was another backgrounded delivery, not a killed one.
+  Waiting 15 s or `run-as <pkg> kill -9` gets a truly dead process without the
+  stopped state that `force-stop` sets (which would drop FCM entirely).
+- **Chrome opened once after the lock-screen tap-through.** The system log shows
+  the app launch `from uid 10213` (the app) and a `VIEW https://www.google.com/…`
+  `from uid 10145` = `com.android.chrome`: my typed PIN digits reached the
+  launcher's search bar and ENTER submitted a search. Harness artefact, not the app.
+
+**Product limitation made concrete:** the sender counts a driver as online only
+with a location updated in the last 5 minutes, and a backgrounded WebView stops
+`watchPosition`. So **a driver who backgrounds the app drops out of dispatch
+after ~5 minutes** unless something keeps publishing — the foreground service in
+blueprint rule 2. For these tests the timestamp was refreshed by hand. This is
+the strongest argument yet for building that service.
+
 **Driver half not run yet.** ~~The emulator had no network when I tried~~ (superseded
 above; kept for the record) The emulator had no network when I tried (every
 fetch failed, including google.com) and was then declared in use by another
