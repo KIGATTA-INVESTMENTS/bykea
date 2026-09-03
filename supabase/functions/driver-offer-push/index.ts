@@ -157,10 +157,11 @@ async function sendFcmV1(
     body: JSON.stringify({
       message: {
         token,
-        notification: {
-          title: payload.title,
-          body: payload.body,
-        },
+        // No top-level `notification` block, on purpose. With one, Android renders the
+        // banner itself and the app runs no code, so Accept / Decline buttons cannot
+        // exist. Android is data-only: OfferMessagingService (android/) draws the
+        // notification with the two actions. Web still gets a display notification
+        // from `webpush.notification`, iOS from `apns.payload.aps.alert`, below.
         data: {
           title: payload.title,
           body: payload.body,
@@ -180,17 +181,8 @@ async function sendFcmV1(
           // One order, one notification. A re-send for the same order replaces the
           // queued one instead of stacking a second banner on the driver's phone.
           collapse_key: payload.tag,
-          notification: {
-            // MUST match DRIVER_OFFER_CHANNEL_ID in src/lib/driverPush.js, which is
-            // where this channel is actually created. Nothing validates that these
-            // two strings agree; a mismatch is delivered silently on the default
-            // channel at ordinary importance.
-            channel_id: 'ingo_driver_offers',
-            sound: 'default',
-            default_vibrate_timings: true,
-            notification_priority: 'PRIORITY_MAX',
-            tag: payload.tag,
-          },
+          // No `android.notification` either (see above). The channel id lives in
+          // OfferMessagingService.CHANNEL_ID and src/lib/driverPush.js; docs/adr/0001.
         },
         webpush: {
           headers: { Urgency: 'high', TTL: '120' },

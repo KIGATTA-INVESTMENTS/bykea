@@ -88,10 +88,9 @@ const tag = `ingo-offer-${orderId}`;
 /** Mirrors sendRing() in the edge function. */
 const ringMessage = {
   token,
-  notification: {
-    title: 'New InGo delivery',
-    body: 'Harare CBD to Avondale, 4.2 km. Tap to accept or decline.',
-  },
+  // Data-only on purpose (ADR 0002): OfferMessagingService draws the notification
+  // with Accept / Decline. A `notification` block here would make Android render
+  // it instead and the buttons would vanish.
   data: {
     title: 'New InGo delivery',
     body: 'Harare CBD to Avondale, 4.2 km. Tap to accept or decline.',
@@ -104,13 +103,6 @@ const ringMessage = {
     priority: 'HIGH',
     ttl: '120s',
     collapse_key: tag,
-    notification: {
-      channel_id: 'ingo_driver_offers',
-      sound: 'default',
-      default_vibrate_timings: true,
-      notification_priority: 'PRIORITY_MAX',
-      tag,
-    },
   },
 };
 

@@ -24,6 +24,20 @@
 
         </activity>
 
+        <!--
+          Draws the driver-offer notification with Accept / Decline buttons from a
+          data-only FCM message. Priority 1 beats the Capacitor plugin's service
+          (default 0); Firebase delivers each message to one MESSAGING_EVENT service,
+          and ours calls through to the plugin's so JS still gets its events.
+        -->
+        <service
+            android:name=".OfferMessagingService"
+            android:exported="false">
+            <intent-filter android:priority="1">
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

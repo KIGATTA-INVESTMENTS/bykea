@@ -200,6 +200,51 @@ function`). That bug hid the crash. Fixing the JS bug exposed the native one.
 Both are fixed in this branch; the order they were found in is the reason the
 Gradle guard exists.
 
+## Part 3 — Accept / Decline on the notification itself (Android)
+
+Since 2026-09-03 the Android leg of the offer message is **data-only** and the
+app draws the notification natively (`OfferMessagingService.java`, ADR 0002).
+Two action buttons, Accept and Decline, run the same code the in-app card runs.
+
+What to check, in this order:
+
+1. `adb logcat -s IngoOfferPush` shows
+   `message type=offer_ring … hasNotificationBlock=false` then `posted tag=…`.
+   If `hasNotificationBlock=true`, an old sender is deployed: the buttons will
+   not exist because Android rendered the banner itself.
+2. The notification shows **Accept** and **Decline**. Android shows action
+   buttons only on the *expanded* row. A fresh arrival is expanded; once the
+   shade has been touched the row collapses and the buttons sit behind the
+   chevron. That is Android, not a defect.
+3. Press Accept with the app backgrounded, killed, or on the lock screen. The
+   app opens (this is deliberate; the accept needs the app's Supabase client)
+   and the log shows, in order:
+   `[driverPush] offer tapped {… "action":"accept"}` →
+   `[DriverOffers] notification button accept -> <table>:<id>` →
+   `[DriverOffers] accept result {"ok":true,…}`.
+   Then the order row is `assigned`, the notification is withdrawn, and the app
+   is on `/driver/active-delivery` (shop / instant-claim) or shows "Offer sent.
+   Waiting for the customer to choose you." (parcel / taxi / tuk bids).
+4. Press Decline on another offer: `[DriverOffers] decline result {"ok":true}`,
+   the driver's id appears in the order's `rejected_driver_ids`, the
+   notification is withdrawn, and the app shows "Declined."
+5. Press a button on an offer another driver already took: the app shows
+   "Order already accepted" (or "no longer available" after a 20 s wait if the
+   poll no longer returns it) and withdraws the notification. The payload is
+   never trusted for the offer itself.
+
+`scripts/send-test-offer.js` sends the same data-only shape, so Part 1 can be
+run without a Supabase project and still shows the buttons.
+
+Two things this pass fixed on the way, both worth knowing:
+
+- `DriverApprovalGate` used to sign the driver out whenever the approval check
+  *failed* (network error), not only when it said "not approved". A cold start
+  from a notification on a weak connection hit exactly that. The check is now
+  tri-state and the gate only clears on an explicit "no".
+- The Supabase client ran an unused auth session machinery whose lock stalled
+  every WebView request by ~5 s. It is switched off (`supabaseClient.js`).
+
 ## Known limits of this pass
 
 - The **in-app ring is foreground-only**. Backgrounded drivers get the standard
@@ -209,3 +254,7 @@ Gradle guard exists.
   killed app. The 2.5 s poll in `DriverOffersProvider` covers a driver who has
   the app open; nothing covers one who does not.
 - **iOS** is untouched.
+
+Update 2026-09-03: Accept / Decline buttons now exist on the Android
+notification (Part 3). The ringing lock-screen takeover and a looping sound are
+still not built; they need a foreground service first.

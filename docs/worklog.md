@@ -485,3 +485,121 @@ project actually produces the store builds.
 The channel has never shipped to a real user, so its id did not need bumping when
 the sound was fixed. If it had shipped, it would have: a channel is immutable and
 an edit to a live one changes nothing on any handset that has already run the app.
+
+## 2026-09-03 — Accept / Decline buttons on the notification (piece 6-lite)
+
+**Claimed:** `android/app/src/main/java/com/kigatta/ingo/OfferMessagingService.java`
+(new), `android/app/src/main/AndroidManifest.xml`, `android/variables.gradle`,
+`android/app/build.gradle`, `supabase/functions/driver-offer-push/index.ts`,
+`src/lib/driverPush.js`, `src/components/driver/DriverOffersProvider.js`,
+`docs/adr/0002-notification-action-buttons.md`.
+
+**Scope, agreed with the client 2026-09-03:** two buttons on the offer
+notification, Accept and Decline, that do the real accept/reject from a
+backgrounded, killed or locked phone. **Not** the ringing lock-screen takeover
+and **not** a looping sound; those remain piece 6 proper, gated on the foreground
+service.
+
+**Why native code is unavoidable.** Measured 2026-09-03: with a `notification`
+block in the FCM message, Android renders the banner itself and the app runs
+zero code, so nothing can add buttons to it. The Android leg of the message
+therefore goes **data-only** and `OfferMessagingService` (a subclass of
+Capacitor's `MessagingService`, so token refresh and the JS
+`pushNotificationReceived` event keep working) draws the notification with two
+actions. A killed app still gets it: a high-priority data message starts the
+service without the WebView.
+
+**How the buttons reach the app's existing code.** Capacitor's push plugin treats
+any launch intent carrying `google.message_id` as a notification tap and hands
+every other extra to JS as `notification.data`. Each action PendingIntent
+launches `MainActivity` with the message's data plus `ingoAction=accept|decline`,
+so the tap sink from piece 7 receives it unchanged and `DriverOffersProvider`
+runs `driverAcceptOffer` / `driverRejectOffer`, the same functions the in-app
+card uses. Nothing is re-implemented natively.
+
+**Accept from the notification — proven 2026-09-03 12:37Z.** Order
+`299e736d…`: data-only message received by `OfferMessagingService`
+(`hasNotificationBlock=false`), notification posted with Accept / Decline; tap on
+Accept → `ActivityTaskManager: START … act=com.kigatta.ingo.OFFER_1_…` → JS
+`[driverPush] offer tapped {… "action":"accept"}` → provider matched the offer →
+`accept result {"ok":true,"pending":false,"fare":4.5}` → order
+`assigned / matched`, bid `accepted`, notification withdrawn (delivered=0), app on
+`/driver/active-delivery`, customer page "Driver is heading to the pickup". The
+accept takes ~14 s on the emulator (three sequential requests); a check at 10 s
+still showed `placed`.
+
+**Android shows the action buttons only on the *expanded* row.** A fresh
+notification arrives expanded (heads-up), so the buttons are there when it
+matters. Once the shade has been touched the row collapses and the buttons hide
+behind the chevron. That is Android, not a defect, but a driver who swipes the
+shade down later will need to expand the row. Test harness note: dump the shade
+and locate `text="Accept"` before tapping; a tap at remembered coordinates on a
+collapsed row hits nothing.
+
+**Decline test, first run: interrupted by two pre-existing faults, both real.**
+1. Android killed the app for a **background ANR** (`am_kill … bg anr: Input
+   dispatching timed out … Waited 5014ms for FocusEvent`) seconds after a full
+   route reload. The WebView main thread was blocked > 5 s loading the bundle —
+   on an emulator, but the same bundle ships to low-end handsets. Not this
+   task; recorded for the performance work.
+2. The Decline button then cold-started a new process, which came up **signed
+   out**. `DriverApprovalGate` calls `isCurrentDriverApprovedForWork`, which
+   returned `false` because `fetchDriverRegistrationStatus` returns `null` on
+   *any* error, and the gate cleared the session. So every transient network
+   failure on a route change signed the driver out — and a cold start on a weak
+   connection is exactly that. **Fixed:** the check is now tri-state
+   (`true | false | null`) and the gate only clears on an explicit `false`.
+   The driver's test session was in `localStorage` ("remember me"); it was the
+   gate, not storage, that removed it.
+
+**Decline from the notification — proven 2026-09-03 12:45–12:50Z.** Order
+`6f01de63…`. First press (12:45:39Z): intent `OFFER_2_…` → JS
+`"action":"decline"` → provider matched the offer → `driverRejectOffer` called.
+The write took minutes to land, for a reason outside the app (next paragraph),
+but it landed: `rejected_driver_ids` = [`12d82ffc…`]. Second press on a re-ring
+(12:50:06Z, after an app restart): the poll no longer offers a rejected order to
+this driver, so the provider correctly reported "no longer available" after its
+20 s wait and withdrew the notification (delivered=0). Both branches of the
+decline path are therefore exercised.
+
+**Emulator WebView network stalls (environment, not app).** Twice this session
+every `fetch` inside the WebView hung for tens of seconds to minutes — Supabase
+*and* `gstatic.com/generate_204` — while the emulator's shell could ping and the
+host reached Supabase in 0.9 s. A process restart cleared it; the first fetch
+after restart still took 4 s. This is what stretched the accept to 14 s and the
+first decline to minutes. Treat any "slow accept" on this emulator with
+suspicion before blaming the app; check `fetch` to a neutral host first.
+
+**Killed + PIN-locked, Accept on the lock screen — 2026-09-03 12:55–12:58Z.**
+App killed (`run-as kill -9`, `pidof` empty), screen off, PIN set
+(`locksettings set-pin`). Fresh order `ecd3c8f5…` → Firebase started the
+process for the service alone (`pidof` → 7227, no WebView) → notification
+posted. Lock screen showed the row collapsed; the chevron expanded it and
+**Accept / Decline were on the lock screen**. Accept → PIN prompt → PIN → app
+cold-started in that same process, **still signed in** (the gate fix held:
+no "no driver session") → parked tap delivered → provider parked the action.
+Then the false negative: the first poll after a cold start returned the offer
+at ~25 s, and the 20 s clock had already said "no longer available" and
+withdrawn the notification. The order was still open. **Fixed:** a parked
+action now gives up only after two polls have *completed* since the tap
+without returning the offer (hard cap 90 s), and every completed poll
+re-evaluates the parked action. Retest pending on the rebuilt APK.
+Two harness lessons: the emulator's lock screen goes dark ~10 s after wake, so
+wake → expand → dump → tap must be one quick sequence; and `input keyevent
+KEYCODE_SLEEP` on a device with no lock set wakes straight to the launcher, so
+"locked" needs a PIN actually set or it is not a locked test.
+
+**Retest on the poll-gated build (13:02Z, killed + PIN-locked, Accept on the
+lock screen).** Everything up to the network call is now proven cold: service
+posted with `pidof` empty → lock-screen buttons → PIN → cold start, signed in →
+parked tap delivered → **poll gate waited for real data and matched the offer**
+(`accept -> customer_delivery_orders:ecd3c8f5…`) → `driverAcceptOffer` called.
+The call then failed: `accept result {"ok":false,"error":"TypeError: Failed to
+fetch"}`. That is the emulator WebView wedge (previous paragraphs), not logic:
+the same function assigned the order on the warm runs. The app handled it
+correctly: error dialog, notification kept (delivered=1), in-app card still
+there for a manual retry. On a real handset "Failed to fetch" means offline.
+**Not built:** an automatic single retry of a notification action on network
+error. Worth considering (cheap), left out to keep one accept path.
+**Real-device run still owed** before this is called done; the emulator cannot
+give a clean cold-start network.

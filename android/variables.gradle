@@ -1,4 +1,7 @@
 ext {
+    // Single source of truth: read by @capacitor/push-notifications and by app/build.gradle
+    // (OfferMessagingService compiles against firebase-messaging directly).
+    firebaseMessagingVersion = '25.0.1'
     minSdkVersion = 24
     compileSdkVersion = 36
     targetSdkVersion = 36

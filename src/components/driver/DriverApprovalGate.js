@@ -21,7 +21,10 @@ export default function DriverApprovalGate({ children }) {
       }
       const ok = await isCurrentDriverApprovedForWork(session.id);
       if (cancelled) return;
-      if (!ok) {
+      // Only an explicit "no" from the database ends the session. `null` means the
+      // check itself failed; the driver stays signed in and the next route change
+      // checks again.
+      if (ok === false) {
         clearDriverSession();
         setStatus('denied');
         return;

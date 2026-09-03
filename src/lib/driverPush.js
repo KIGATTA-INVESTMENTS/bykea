@@ -98,7 +98,7 @@ async function getCapacitorPushPlugin() {
  * notification — the "clear everything" case when the app cannot tell which.
  * @param {string} [tag]
  */
-async function removeDeliveredOfferNotification(tag) {
+export async function removeDeliveredOfferNotification(tag) {
   const Push = await getCapacitorPushPlugin();
   if (!Push || typeof Push.getDeliveredNotifications !== 'function') return;
   try {
@@ -293,6 +293,9 @@ export async function startDriverPushForegroundListener() {
           link,
           offerKey: String(data.offerKey || data.offer_key || '').trim(),
           tag: String(data.tag || '').trim(),
+          // 'accept' | 'decline' when a notification button was pressed (set by
+          // OfferMessagingService on Android); '' for a plain tap on the banner.
+          action: String(data.ingoAction || '').trim().toLowerCase(),
         };
         console.info(`[driverPush] offer tapped ${JSON.stringify(detail)}`);
 

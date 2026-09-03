@@ -19,6 +19,8 @@ import {
   OFFER_RING_CYCLE_MS,
   OPEN_OFFER_MAX_AGE_MS,
   recordDriverViewedOffer,
+  driverAcceptOffer,
+  driverRejectOffer,
 } from '../../lib/driverIncomingBookings';
 import {
   getDriverOnlinePreference,
@@ -39,6 +41,17 @@ const DriverOffersContext = createContext(null);
 
 function offerKey(o) {
   return `${o.table}:${o.id}`;
+}
+
+/** Hard cap on how long a notification button waits for its offer; the real gate is two completed polls. */
+const NOTIFICATION_ACTION_WAIT_MS = 90000;
+
+/** Withdraw the OS notification for an offer once a button on it has been acted on. */
+function withdrawOfferNotification(tag) {
+  if (!tag) return;
+  void import('../../lib/driverPush')
+    .then((m) => m.removeDeliveredOfferNotification(tag))
+    .catch(() => {});
 }
 
 /** @param {string} table @param {Record<string, unknown> | null | undefined} row */
@@ -99,6 +112,9 @@ export function DriverOffersProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [ringingOfferKeys, setRingingOfferKeys] = useState(() => new Set());
   const [takenNotice, setTakenNotice] = useState('');
+  /** Outcome of an Accept / Decline pressed on the notification itself. */
+  const [actionNotice, setActionNotice] = useState('');
+  const [actionTick, setActionTick] = useState(0);
   const [, setSecTick] = useState(0);
 
   const onlineRef = useRef(online);
@@ -110,6 +126,10 @@ export function DriverOffersProvider({ children }) {
   const viewedReportedRef = useRef(new Set());
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
+  /** A notification button press waiting for its offer: { action, offerKey, tag, at }. */
+  const pendingActionRef = useRef(null);
+  /** Completed offer polls, success or failure. Lets a parked action wait for real data, not a clock. */
+  const pollsDoneRef = useRef(0);
 
   useEffect(() => {
     onlineRef.current = online;
@@ -126,6 +146,22 @@ export function DriverOffersProvider({ children }) {
     const goToOffer = (detail) => {
       if (done || !detail) return;
       done = true;
+      const action = String(detail.action || '');
+      if (action === 'accept' || action === 'decline') {
+        // A button on the notification itself (OfferMessagingService, Android).
+        // Parked here; the effect further down acts on it once the offer is in
+        // `offers`. The payload is never trusted for the offer itself: an order
+        // somebody else took resolves to "already accepted", not to a stale claim.
+        pendingActionRef.current = {
+          action,
+          offerKey: String(detail.offerKey || ''),
+          tag: String(detail.tag || ''),
+          at: Date.now(),
+          pollsAtPark: pollsDoneRef.current,
+        };
+        console.info(`[DriverOffers] notification button ${JSON.stringify(pendingActionRef.current)}`);
+        setActionTick((n) => n + 1);
+      }
       const link = String(detail.link || '/driver/home');
       console.info('[DriverOffers] routing to tapped offer', link);
       // The tap deliberately carries only a link and an offer key. The offer itself
@@ -436,6 +472,11 @@ export function DriverOffersProvider({ children }) {
         setLoadErr('');
       } catch (e) {
         setLoadErr(e?.message || String(e));
+      } finally {
+        pollsDoneRef.current += 1;
+        // A parked notification action re-evaluates after every poll, even one
+        // that returned the same (possibly empty) list.
+        if (pendingActionRef.current) setActionTick((n) => n + 1);
       }
     };
   }, [driverId, driverVehicleType, driverRegisteredAt, location.pathname, alertNewOffers, syncRingsToOpenOffers]);
@@ -531,6 +572,75 @@ export function DriverOffersProvider({ children }) {
     await tickRef.current();
   }, []);
 
+  // Accept / Decline pressed on the notification. Runs the same functions the
+  // in-app card runs (driverAcceptOffer / driverRejectOffer), so there is one
+  // accept path, not two. Waits up to NOTIFICATION_ACTION_WAIT_MS for the poll to
+  // surface the offer, then reports it gone. Every outcome is logged and shown.
+  useEffect(() => {
+    const p = pendingActionRef.current;
+    if (!p || !driverId || !supabase) return undefined;
+    const offer = offers.find((o) => {
+      const k = offerKey(o);
+      return k === p.offerKey || String(o.id) === p.offerKey || (p.tag !== '' && p.tag.endsWith(String(o.id)));
+    });
+    if (!offer) {
+      // Give up only once the poll has completed twice since the tap without
+      // returning the offer, or at the hard cap. A cold start's first poll can
+      // take longer than any fixed wait: on 2026-09-03 the offer arrived at
+      // ~25 s and a 20 s clock reported it gone while it was still open.
+      const pollsSince = pollsDoneRef.current - (p.pollsAtPark || 0);
+      const left = NOTIFICATION_ACTION_WAIT_MS - (Date.now() - p.at);
+      if (pollsSince < 2 && left > 0) {
+        const t = setTimeout(() => setActionTick((n) => n + 1), left + 50);
+        return () => clearTimeout(t);
+      }
+      pendingActionRef.current = null;
+      console.info(`[DriverOffers] notification button: offer not found ${JSON.stringify(p)}`);
+      withdrawOfferNotification(p.tag);
+      setActionNotice('That request is no longer available. Another driver may have taken it.');
+      return undefined;
+    }
+    pendingActionRef.current = null;
+    void (async () => {
+      console.info(`[DriverOffers] notification button ${p.action} -> ${offerKey(offer)}`);
+      if (p.action === 'decline') {
+        const res = await driverRejectOffer(supabase, offer, driverId);
+        console.info(`[DriverOffers] decline result ${JSON.stringify(res)}`);
+        if (!res.ok) {
+          setActionNotice(res.error || 'Could not save your decline.');
+          return;
+        }
+        removeOfferLocally(offer.table, offer.id);
+        withdrawOfferNotification(p.tag);
+        setActionNotice('Declined. You will not be asked about this request again.');
+        return;
+      }
+      const res = await driverAcceptOffer(supabase, offer, driverId, driverVehicleType);
+      console.info(`[DriverOffers] accept result ${JSON.stringify(res)}`);
+      if (!res.ok) {
+        if (/already accepted/i.test(String(res.error || ''))) {
+          removeOfferLocally(offer.table, offer.id);
+          withdrawOfferNotification(p.tag);
+          setTakenNotice(res.error || ORDER_ALREADY_ACCEPTED_MSG);
+          return;
+        }
+        setActionNotice(res.error || 'Could not accept this request.');
+        return;
+      }
+      withdrawOfferNotification(p.tag);
+      if (res.pending) {
+        // Parcel / taxi / tuk: the offer waits for the customer to choose this driver.
+        setActionNotice('Offer sent. Waiting for the customer to choose you.');
+        void tickRef.current();
+        return;
+      }
+      removeOfferLocally(offer.table, offer.id);
+      setRecent(await fetchRecentForDriver(supabase, driverId));
+      navigateRef.current('/driver/active-delivery', { state: { order: offerToActiveDeliveryOrder(offer) } });
+    })();
+    return undefined;
+  }, [offers, actionTick, driverId, driverVehicleType, removeOfferLocally]);
+
   const value = useMemo(
     () => ({
       online,
@@ -620,6 +730,16 @@ export function DriverOffersProvider({ children }) {
         danger={false}
         onConfirm={() => setTakenNotice('')}
         onCancel={() => setTakenNotice('')}
+      />
+      <ConfirmDialog
+        open={Boolean(actionNotice)}
+        title="Delivery request"
+        message={actionNotice}
+        confirmLabel="OK"
+        hideCancel
+        danger={false}
+        onConfirm={() => setActionNotice('')}
+        onCancel={() => setActionNotice('')}
       />
     </DriverOffersContext.Provider>
   );
