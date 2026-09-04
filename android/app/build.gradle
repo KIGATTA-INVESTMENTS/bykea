@@ -1,0 +1,75 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.kigatta.ingo"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.kigatta.ingo"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    // OfferMessagingService subclasses the push plugin's FirebaseMessagingService.
+    implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    // Capacitor's default here is logger.info, which is invisible at normal Gradle
+    // verbosity. That is not a warning, it is a trap: without this file,
+    // PushNotificationsPlugin.register() throws
+    //   IllegalStateException: Default FirebaseApp is not initialized
+    // on the CapacitorPlugins thread, which JS cannot catch, and the process dies.
+    // Observed on device 2026-09-02: a driver signing in crashed the app.
+    //
+    // Debug builds may proceed without the file so push can be worked on locally.
+    // A RELEASE build without it would ship an app that crashes on driver sign-in,
+    // so it fails here, loudly, where a developer sees it.
+    def wantsRelease = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+    if (wantsRelease) {
+        throw new GradleException(
+            "android/app/google-services.json is missing. A release build without it " +
+            "crashes on driver sign-in (FirebaseApp not initialized in " +
+            "PushNotificationsPlugin.register). Add the file from the Firebase project " +
+            "that owns this app id, or build debug for local work."
+        )
+    }
+    logger.warn("google-services.json not found: push notifications will NOT work, and driver sign-in will crash. Debug build only.")
+}

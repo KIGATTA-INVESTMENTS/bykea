@@ -40,8 +40,25 @@ export async function assertDriverCanWork(client, driverId) {
 }
 
 /** Client-side check using default Supabase client. */
+/**
+ * Tri-state on purpose. `true`: approved. `false`: the database answered and the
+ * driver is not approved (or does not exist). `null`: the check could not be made
+ * (network, timeout, Supabase down). Callers must not treat `null` as `false`:
+ * doing so signed drivers out on every transient error, and a cold start from a
+ * notification tap on a weak connection is exactly such an error (seen 2026-09-03).
+ * @returns {Promise<boolean | null>}
+ */
 export async function isCurrentDriverApprovedForWork(driverId) {
   if (!isSupabaseConfigured || !supabase || !driverId) return false;
-  const row = await fetchDriverRegistrationStatus(supabase, driverId);
-  return Boolean(row && isDriverStatusApproved(row.status));
+  const { data, error } = await supabase
+    .from('driver_registrations')
+    .select('id, status')
+    .eq('id', driverId)
+    .maybeSingle();
+  if (error) {
+    console.warn(`[driverApproval] could not check approval, keeping session: ${error.message}`);
+    return null;
+  }
+  if (!data) return false;
+  return isDriverStatusApproved(data.status);
 }

@@ -50,6 +50,8 @@
     ]
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
     "firebase-tools": "^15.16.0"
   }
 }

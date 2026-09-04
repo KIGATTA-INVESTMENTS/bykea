@@ -14,9 +14,8 @@
  *   action "stop" — tell devices to stop ringing / dismiss the offer notification
  */
 
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
-import { encode as base64url } from 'https://deno.land/std@0.224.0/encoding/base64url.ts';
+import { createClient } from 'npm:@supabase/supabase-js@2.49.8';
+import { encodeBase64Url as base64url } from 'jsr:@std/encoding@1/base64url';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,6 +46,32 @@ type ServiceAccount = {
   client_email?: string;
   private_key?: string;
 };
+
+/**
+ * Geocode a pickup address with Google, or explain why not. Never throws.
+ * `reason` is one of: no_address | no_key | http_<status> | zero_results | error.
+ */
+async function geocodePickup(address: string): Promise<{ point: { lat: number; lng: number } | null; reason: string }> {
+  const q = String(address || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+  if (!q || q === '—') return { point: null, reason: 'no_address' };
+  const key = Deno.env.get('GOOGLE_MAPS_API_KEY')?.trim();
+  if (!key) return { point: null, reason: 'no_key' };
+  try {
+    const params = new URLSearchParams({ address: q, key });
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`);
+    if (!res.ok) return { point: null, reason: `http_${res.status}` };
+    const data = await res.json();
+    const loc = data?.results?.[0]?.geometry?.location;
+    const lat = Number(loc?.lat);
+    const lng = Number(loc?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || (Math.abs(lat) < 1e-8 && Math.abs(lng) < 1e-8)) {
+      return { point: null, reason: data?.status === 'ZERO_RESULTS' ? 'zero_results' : `status_${data?.status || 'unknown'}` };
+    }
+    return { point: { lat, lng }, reason: 'ok' };
+  } catch (e) {
+    return { point: null, reason: `error_${(e as Error)?.message || 'unknown'}` };
+  }
+}
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number | null {
   if (![lat1, lng1, lat2, lng2].every((n) => Number.isFinite(n))) return null;
@@ -158,10 +183,11 @@ async function sendFcmV1(
     body: JSON.stringify({
       message: {
         token,
-        notification: {
-          title: payload.title,
-          body: payload.body,
-        },
+        // No top-level `notification` block, on purpose. With one, Android renders the
+        // banner itself and the app runs no code, so Accept / Decline buttons cannot
+        // exist. Android is data-only: OfferMessagingService (android/) draws the
+        // notification with the two actions. Web still gets a display notification
+        // from `webpush.notification`, iOS from `apns.payload.aps.alert`, below.
         data: {
           title: payload.title,
           body: payload.body,
@@ -172,13 +198,17 @@ async function sendFcmV1(
         },
         android: {
           priority: 'HIGH',
-          notification: {
-            channel_id: 'ingo_driver_offers',
-            sound: 'default',
-            default_vibrate_timings: true,
-            notification_priority: 'PRIORITY_MAX',
-            tag: payload.tag,
-          },
+          // An offer is only worth delivering while it is still open. Without a TTL,
+          // FCM holds the message for up to 4 weeks and a phone that regains signal
+          // an hour later rings for a job somebody else took long ago.
+          // 120s matches the webpush TTL below and the offer ring cycle in
+          // src/lib/driverIncomingBookings.js (OFFER_RING_CYCLE_MS).
+          ttl: '120s',
+          // One order, one notification. A re-send for the same order replaces the
+          // queued one instead of stacking a second banner on the driver's phone.
+          collapse_key: payload.tag,
+          // No `android.notification` either (see above). The channel id lives in
+          // OfferMessagingService.CHANNEL_ID and src/lib/driverPush.js; docs/adr/0001.
         },
         webpush: {
           headers: { Urgency: 'high', TTL: '120' },
@@ -341,7 +371,7 @@ async function sendFcmLegacyStop(
   return { ok: false, invalid, error: err };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405);
 
@@ -530,10 +560,24 @@ serve(async (req) => {
 
   let driverIds = (drivers || []).map((d) => String(d.id));
 
-  // If we somehow have pickup coords later, filter; for now keep all fresh online drivers.
-  // Optional soft filter: if lat/lng present on booking row (future columns), apply radius.
-  const pickupLat = Number(r.pickup_lat ?? r.from_lat);
-  const pickupLng = Number(r.pickup_lng ?? r.from_lng);
+  // Proximity without a schema change (2026-09-03): bookings carry the pickup as
+  // text, so it is geocoded here at ring time when GOOGLE_MAPS_API_KEY is set, and
+  // the radius filter below applies. No key, or a failed lookup, keeps today's
+  // behaviour (every fresh online driver) and says so in the response.
+  let pickupLat = Number(r.pickup_lat ?? r.from_lat);
+  let pickupLng = Number(r.pickup_lng ?? r.from_lng);
+  let proximity: Record<string, unknown> = { source: 'row' };
+  if (!(Number.isFinite(pickupLat) && Number.isFinite(pickupLng))) {
+    const g = await geocodePickup(from);
+    if (g.point) {
+      pickupLat = g.point.lat;
+      pickupLng = g.point.lng;
+      proximity = { source: 'geocoded', radiusKm: NEARBY_RADIUS_KM };
+    } else {
+      proximity = { source: 'none', reason: g.reason, radiusKm: null };
+      console.warn(`[driver-offer-push] no pickup coordinates (${g.reason}); ringing all fresh drivers`);
+    }
+  }
   if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng) && drivers?.length) {
     driverIds = drivers
       .filter((d) => {
@@ -549,7 +593,12 @@ serve(async (req) => {
   }
 
   if (!driverIds.length) {
-    return json({ ok: true, sent: 0, reason: 'no_online_drivers' });
+    return json({
+      ok: true,
+      sent: 0,
+      reason: (drivers || []).length ? 'no_nearby_drivers' : 'no_online_drivers',
+      proximity,
+    });
   }
 
   // Respect Profile → Notifications: skip drivers who turned off offers or closed-app push.
@@ -613,5 +662,5 @@ serve(async (req) => {
     await supabase.from('driver_push_tokens').delete().in('fcm_token', invalidTokens);
   }
 
-  return json({ ok: true, action: 'ring', sent, drivers: driverIds.length, tokens: tokens.length, kind, table, orderId });
+  return json({ ok: true, action: 'ring', sent, drivers: driverIds.length, tokens: tokens.length, kind, table, orderId, proximity });
 });

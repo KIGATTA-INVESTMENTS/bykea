@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!--
+          Draws the driver-offer notification with Accept / Decline buttons from a
+          data-only FCM message. Priority 1 beats the Capacitor plugin's service
+          (default 0); Firebase delivers each message to one MESSAGING_EVENT service,
+          and ours calls through to the plugin's so JS still gets its events.
+        -->
+        <service
+            android:name=".OfferMessagingService"
+            android:exported="false">
+            <intent-filter android:priority="1">
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Android 13 (API 33) and above. Without this declaration the runtime request in
+      driverPush.js (Push.requestPermissions) is auto-denied, and every offer push is
+      dropped silently no matter how valid the token is.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      ADR 0003. Lets the offer notification's full-screen intent work: a heads-up
+      that stays put while the phone is in use, and MainActivity over the keyguard
+      when the phone is dark or locked. Without this line Android does not refuse
+      the intent, it silently posts the ordinary 5 s banner. Android 14+ treats it
+      as a special app access; sideloaded/debug installs have it, a Play build of a
+      non-calling app may not (OfferMessagingService logs which on every ring).
+    -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- ADR 0003. OfferMessagingService lights a dark screen for 15 s when an offer arrives. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
+      Driver location. useLiveLocation.js calls navigator.geolocation.watchPosition;
+      without these declared, Android refuses the WebView's request silently: the
+      "Retry location" button appears to do nothing and driver_live_* never updates,
+      so the push sender never sees the driver as nearby. Observed 2026-09-03.
+      Background location while the app is not on screen is a separate concern
+      (a foreground service) and is deliberately not declared here.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+</manifest>

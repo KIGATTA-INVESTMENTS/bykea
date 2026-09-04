@@ -81,6 +81,22 @@ export function saveDriverSession(profile, options = {}) {
   } catch {
     // ignore
   }
+
+  // Claim a push token for this device as soon as a driver is signed in.
+  // Before this call existed, nothing in the app ever reached
+  // registerDriverPushToken, so driver_push_tokens stayed empty and every
+  // dispatched offer was pushed to nobody. See docs/adr/0001.
+  // Dynamic import for the same reason as clearDriverSession below: driverPush
+  // imports getDriverSession from this module.
+  if (profile?.id) {
+    try {
+      void import('./driverPushBootstrap')
+        .then((m) => m.ensureDriverPushRegistered(profile.id))
+        .catch(() => {});
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export function getDriverSession() {
